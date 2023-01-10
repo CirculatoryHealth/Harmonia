@@ -12,7 +12,7 @@ rs1002    C   G   0.03606 0.0034  0.0115  0.7659  129799
 rs1003    A   C   0.5128  0.045   0.038   0.2319  129830
 ```
 
-[COJO]: https://cnsgenomics.com/software/smr/#SMR&HEIDIanalysis
+[COJO]: https://yanglab.westlake.edu.cn/software/smr/#Overview
 
 You'll need a reference to map the data to, we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
 
