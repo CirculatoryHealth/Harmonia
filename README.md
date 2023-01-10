@@ -1,9 +1,8 @@
 # gwas2cojo
 
-`gwas2cojo.py` is a public python script that aligns a public GWAS dataset to a genetic reference,
-to enable large scale cross dataset comparisons with public available GWAS datasets.
-Among others, it tries to deal with different dataformats and different genome builds.
+`gwas2cojo.py` is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. Among others, it tries to deal with different dataformats and different genome builds.
 Most importantly, it aligns the variant notation such that swapped, translated, wrong or ambiguous ambivalent allels are corrected or removed.
+
 It generates a [COJO] file:
 
 ```
@@ -15,11 +14,28 @@ rs1003    A   C   0.5128  0.045   0.038   0.2319  129830
 
 [COJO]: https://cnsgenomics.com/software/smr/#SMR&HEIDIanalysis
 
+You'll need a reference to map the data to, we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
 
 Usage:
 
 ```
-$ python3 ./gwas2cojo.py
+python3 gwas2cojo.py \
+        --gen:build     hg19 \
+        --gen           1kGp3.ref.1maf.nonbia.sumstats.gz \
+        --gwas          "${gwasfilename}" \
+        --report        "out/${name}.report" \
+        --gen:ident     ID \
+        --gen:chr       CHROM \
+        --gen:other     REF \
+        --gen:effect    ALT \
+        --gen:eaf       AF \
+        --out           "out/${name}.cojo"
+```
+
+Full list of options:
+
+```
+$ python3 ./gwas2cojo.py -h
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                                     QTLTools CONVERT GWAS FOR SMR
 
@@ -48,7 +64,7 @@ usage: gwas2cojo.py [-h] [-o cojo] [-r txt] [-rr] [-g file.stats.gz] --gwas file
 gwas2cojo.py: error: the following arguments are required: --gwas
 ```
 
-See [this link] for a small explanation.
+See also [this link] for more background and an additional explanation.
 
 [this link]: https://blog.llandsmeer.com/tech/2019/12/28/gwas2cojo.html
 
@@ -56,7 +72,7 @@ See [this link] for a small explanation.
 
 ```
 The MIT License (MIT)
-Copyright (c) 1979-2021 Lennart P.L. Landsmeer & Sander W. van der Laan
+Copyright (c) 1979-2023 Lennart P.L. Landsmeer & Sander W. van der Laan
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the \'Software\'), to deal in the Software without restriction,       ')
