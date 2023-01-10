@@ -61,7 +61,6 @@ usage: gwas2cojo.py [-h] [-o cojo] [-r txt] [-rr] [-g file.stats.gz] --gwas file
                     [--gen:ident COLUMN] [--gen:chr COLUMN] [--gen:bp COLUMN] [--gen:effect COLUMN]
                     [--gen:other COLUMN] [--gen:eaf COLUMN] [--gen:oaf COLUMN] [--gen:maf COLUMN]
                     [--gen:minor COLUMN] [--gen:build COLUMN]
-gwas2cojo.py: error: the following arguments are required: --gwas
 ```
 
 See also [this link] for more background and an additional explanation.
