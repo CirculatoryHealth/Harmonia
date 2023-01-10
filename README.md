@@ -14,9 +14,9 @@ rs1003    A   C   0.5128  0.045   0.038   0.2319  129830
 
 [COJO]: https://yanglab.westlake.edu.cn/software/smr/#Overview
 
-You'll need a reference to map the data to, we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
+# Usage
 
-Usage:
+The usage is intuitive and many options are provided.
 
 ```
 python3 gwas2cojo.py \
@@ -32,7 +32,7 @@ python3 gwas2cojo.py \
         --out           "out/${name}.cojo"
 ```
 
-Full list of options:
+A full list of options is given below.
 
 ```
 $ python3 ./gwas2cojo.py -h
@@ -68,11 +68,15 @@ See also [this link] for more background and an additional explanation.
 
 [this link]: https://blog.llandsmeer.com/tech/2019/12/28/gwas2cojo.html
 
+# Requirements
+
+The script expects Python 3.6+. In addition, you'll need a reference to map the data to, we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
+
 # License
 
 ```
 The MIT License (MIT)
-Copyright (c) 1979-2023 Lennart P.L. Landsmeer & Sander W. van der Laan
+Copyright (c) 1979-2023 Lennart P.L. Landsmeer (lennart[at]landsmeer[dot]email) & Sander W. van der Laan (s.w.vanderlaan[at]gmail[dot]com.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 associated documentation files (the \'Software\'), to deal in the Software without restriction,       ')
