@@ -35,6 +35,20 @@
 #   ## freqs close and mid
 #   G C | C G | 0.5 0.6 | throw away
 #   G C | G C | 0.5 0.6 | throw away
+#
+# REFERENCE
+# A reference based on for example 1000G is expected with the following columns:
+#
+# CHROM POS ID REF ALT CHROM:POS:REF:ALT AF EAS_AF AMR_AF AFR_AF EUR_AF SAS_AF
+# 1 10177 rs367896724 A AC chr1:10177:A:A 0.425319 0.3363 0.3602 0.4909 0.4056 0.4949
+# 1 10235 rs540431307 T TA chr1:10235:T:T 0.00119808 0 0.0014 0 0 0.0051
+# 1 10352 rs555500075 T TA chr1:10352:T:T 0.4375 0.4306 0.4107 0.4788 0.4264 0.4192
+# 1 10505 rs548419688 A T chr1:10505:A:A 0.000199681 0 0 0.0008 0 0
+# 1 10506 rs568405545 C G chr1:10506:C:C 0.000199681 0 0 0.0008 0 0
+# 1 10511 rs534229142 G A chr1:10511:G:G 0.000199681 0 0.0014 0 0 0
+# 1 10539 rs537182016 C A chr1:10539:C:C 0.000599042 0 0.0014 0 0.001 0.001
+# 1 10542 rs572818783 C T chr1:10542:C:C 0.000199681 0.001 0 0 0 0
+# 1 10579 rs538322974 C A chr1:10579:C:C 0.000199681 0 0 0.0008 0 0
 
 from __future__ import print_function
 
@@ -94,7 +108,7 @@ def build_parser():
     parser.add_argument('-rr', '--report-ok', dest='report_ok', action='store_true',
             help='Report all decisions made. Warning: very verbose')
     parser.add_argument('-g', '--gen', dest='gen', metavar='file.stats.gz',
-            type=os.path.abspath, help='Genetic reference data. Could be an in-house GWAS or a reference dataset (e.g. 1000G phase1, phase3, etc.) in PLINK binary format (i.e. bed/bim/fam).')
+            type=os.path.abspath, help='Genetic reference data. Could be an in-house GWAS or a reference dataset (e.g. 1000G phase1, phase3, etc.) with the following columns: CHROM, POS, ID, REF, ALT, CHROM:POS:REF:ALT, AF, EAS_AF, AMR_AF, AFR_AF, EUR_AF, SAS_AF.')
     parser.add_argument('--gwas', dest='gwas', metavar='file.txt.gz.',
             type=os.path.abspath, help='GWAS summary statistics location.', required=True)
     parser.add_argument('--header-only', dest='header_only', action='store_true',
@@ -716,18 +730,19 @@ def main(args):
 
 def prolog():
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-    print('                                    QTLTools CONVERT GWAS FOR SMR')
+    print('                                        CONVERT GWAS FOR SMR')
     print('')
     print('')
     print('* Written by         : Lennart Landsmeer | lennart[at]landsmeer[dot]email')
     print('* Suggested for by   : Sander W. van der Laan | s.w.vanderlaan[at]gmail[dot]com')
-    print('* Last update        : 2020-04-01')
+    print('* Last update        : 2022-01-18')
     print('* Name               : gwas2cojo')
-    print('* Version            : v1.4.0')
+    print('* Version            : v1.4.1')
     print('')
-    print('* Description        : To assess pleiotropic effects using Summarized-data Mendelian Randomization (SMR) ')
-    print('                       of molecular QTLs on (selected) traits, summary statistics from genome-wide ')
-    print('                       association studies (GWAS) are converted to the GWAS-COJO format.')
+    print('* Description        : Converts a given set of summary statistics from genome-wide association studies  ')
+    print('                       (GWAS) to the GWAS-COJO format used by Summarized-data Mendelian Randomization ')
+    print('                       (SMR). This format is also usable for many other post-GWAS analyses. ')
+    print('                       A reference, e.g. 1000G phase 3, is used to map GWAS SumStats to.')
     print('')
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
 #    print('Start: {}'.format(datetime.datetime.now()))
