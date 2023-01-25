@@ -1,0 +1,2 @@
+chr bp_hg19 a1 a2 freq(a1) beta se p n_samples
+1 1 A T 0.1 1 0.1 1e-10 1000

@@ -114,6 +114,8 @@ def build_parser():
     parser.add_argument('--header-only', dest='header_only', action='store_true',
             help='Exit after reading GWAS header. ' +
                  'Useful for testing whether a file is readable by this program.')
+    parser.add_argument('--output-pos', dest='output_pos', action='store_true',
+            help='Write chr and bp columns to output file (breaks COJO format assumptions)')
     filter_parser = parser.add_argument_group('filter snps')
     filter_parser.add_argument('--fmid', dest='fmid', metavar='MID',
             help='Ambivalent variants are ambiguous when effect frequency ' +
@@ -499,8 +501,12 @@ def read_gwas(args, filename, report=None):
 
 def update_read_stats(args, gwas, stats_filename, output=None, report=None):
     reporter = ReporterLine('genetic:')
+    output_pos = args.output_pos
     if output:
-        print('SNP A1 A2 freq b se p n', file=output)
+        if output_pos:
+            print('chr bp SNP A1 A2 freq b se p n', file=output)
+        else:
+            print('SNP A1 A2 freq b se p n', file=output)
     report_ok = args.report_ok
     counts = collections.defaultdict(int)
     freq_comp = np.zeros((40000, 2)) if np else None
@@ -633,8 +639,12 @@ def update_read_stats(args, gwas, stats_filename, output=None, report=None):
                         continue
                     rsids_seen.add(rsid)
                     if output:
-                        print(rsid, parts[heff], parts[hoth], freq, beta,
-                              gwas_row.se, gwas_row.p, gwas_row.n, file=output)
+                        if output_pos:
+                            print(ch.lstrip('0'), parts[hbp], rsid, parts[heff], parts[hoth], freq, beta,
+                                  gwas_row.se, gwas_row.p, gwas_row.n, file=output)
+                        else:
+                            print(rsid, parts[heff], parts[hoth], freq, beta,
+                                  gwas_row.se, gwas_row.p, gwas_row.n, file=output)
                 if lineno % 100000 == 0:
                     message = '#{0}+{1}'.format(converted,discarded)
                     if np and converted > freq_comp.shape[0]:
