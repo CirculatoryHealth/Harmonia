@@ -126,7 +126,7 @@ def build_parser():
             default='0.05', type=float)
     filter_parser.add_argument('--fclose', dest='fclose', metavar='CLOSE',
             help='Fequencies are considered close when their difference is less than CLOSE. ' +
-                 'Default is 0.1',
+                 'Set to 0 to prevent discarding. Default is 0.1',
             default='0.1', type=float)
     filter_parser.add_argument('--ignore-indels', action='store_true',
             help='Should insertions and deletions be ignored? Only SNPs are retained.')
