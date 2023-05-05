@@ -52,6 +52,7 @@
 
 from __future__ import print_function
 
+# python 2/3 compatibility
 import os
 import sys
 import argparse
@@ -61,12 +62,13 @@ import gzip
 import math
 import time
 
+# try to import numpy
 try:
     import numpy as np
 except ImportError:
     np = None
 
-
+# try to import pyliftover
 try:
     from pyliftover import LiftOver
 except ImportError:
@@ -98,13 +100,13 @@ GWAS_H_NCASE_OPTIONS =           ['N_case', 'N_cases', 'cases', 'TotalSampleSize
 GWAS_HG18_HINTS =                ['hg18', 'b36']
 GWAS_HG19_HINTS =                ['hg19', 'GCF1405.25']
 
-
+# ArgumentParser error message
 def build_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--out', dest='outfile', metavar='cojo',
             type=os.path.abspath, help='Output .cojo file.')
     parser.add_argument('-r', '--report', dest='report', metavar='txt',
-            type=os.path.abspath, help='Report discarded variantss here.')
+            type=os.path.abspath, help='Report discarded variants here.')
     parser.add_argument('-rr', '--report-ok', dest='report_ok', action='store_true',
             help='Report all decisions made. Warning: very verbose')
     parser.add_argument('-g', '--gen', dest='gen', metavar='file.stats.gz',
@@ -170,7 +172,7 @@ GWASRow = collections.namedtuple('GWASRow', 'ref oth f b se p lineno ch bp n')
 INV = { 'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C' }
 ACT_NOP, ACT_SKIP, ACT_FLIP, ACT_REM, ACT_REPORT_FREQ, ACT_INDEL_SKIP = 1, 2, 3, 4, 5, 6
 
-
+# Support multiple notations for the same chromosome
 def conv_chr_letter(ch, full=False):
     if full:
         ch = ch.upper()
@@ -694,7 +696,7 @@ def gwas_header_auto(gwas_filename):
         if sum(mask) == 1:
             return mask.index(True)
 
-
+# Main
 def main(args):
     paths = [args.gwas]
     output = report = None
@@ -737,7 +739,7 @@ def main(args):
     if args.report:
         report.close()
 
-
+# Prolog.
 def prolog():
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
     print('                                        CONVERT GWAS FOR SMR')
@@ -745,9 +747,9 @@ def prolog():
     print('')
     print('* Written by         : Lennart Landsmeer | lennart[at]landsmeer[dot]email')
     print('* Suggested for by   : Sander W. van der Laan | s.w.vanderlaan[at]gmail[dot]com')
-    print('* Last update        : 2022-01-18')
+    print('* Last update        : 2023-05-05')
     print('* Name               : gwas2cojo')
-    print('* Version            : v1.4.1')
+    print('* Version            : v1.4.2')
     print('')
     print('* Description        : Converts a given set of summary statistics from genome-wide association studies  ')
     print('                       (GWAS) to the GWAS-COJO format used by Summarized-data Mendelian Randomization ')
@@ -755,8 +757,9 @@ def prolog():
     print('                       A reference, e.g. 1000G phase 3, is used to map GWAS SumStats to.')
     print('')
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-#    print('Start: {}'.format(datetime.datetime.now()))
+    print('Start: {}'.format(datetime.datetime.now()))
 
+# Epilog.
 def epilog():
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
     print('+ The MIT License (MIT)                                                                                 +')
@@ -779,8 +782,9 @@ def epilog():
     print('+                                                                                                       +')
     print('+ Reference: http://opensource.org.                                                                     +')
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-#    print('End: {}'.format(datetime.datetime.now()))
+    print('End: {}'.format(datetime.datetime.now()))
 
+# Start the program
 if __name__ == '__main__':
     startime=time.time()
     prolog()
