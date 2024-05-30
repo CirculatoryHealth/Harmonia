@@ -73,8 +73,8 @@ try:
     from pyliftover import LiftOver
 except ImportError:
     def LiftOver(*a):
-        print('error: genome build conversion relies on pyliftover')
-        print('run pip install pyliftover')
+        print('Error: genome build conversion relies on `pyliftover`')
+        print('Run: `pip install pyliftover``')
         exit(1)
 
 
@@ -98,7 +98,7 @@ GWAS_H_NTOTAL_OPTIONS =          ['n_samples', 'TotalSampleSize', 'n_eff', 'N_EF
 GWAS_H_NCONTROL_OPTIONS =        ['N_control', 'N_controls', 'controls', 'TotalCases']
 GWAS_H_NCASE_OPTIONS =           ['N_case', 'N_cases', 'cases', 'TotalSampleSize']
 GWAS_HG18_HINTS =                ['hg18', 'b36']
-GWAS_HG19_HINTS =                ['hg19', 'GCF1405.25']
+GWAS_HG19_HINTS =                ['hg19', 'b37', 'GCF1405.25']
 
 # ArgumentParser error message
 def build_parser():
@@ -141,7 +141,7 @@ def build_parser():
     gwas_header.add_argument('--gwas:chr-bp', metavar='COLUMN', help='Position column name when encoded as chr:pos.')
     gwas_header.add_argument('--gwas:chr', metavar='COLUMN', help='Chromosome column name.')
     gwas_header.add_argument('--gwas:bp',metavar='COLUMN', help='Chromosomal position column name.')
-    gwas_header.add_argument('--gwas:build',metavar='BUILDID', help='hg18, hg19, etc.')
+    gwas_header.add_argument('--gwas:build',metavar='BUILDID', help='hg18 or b36, hg19 or b37, etc.')
     gwas_header.add_argument('--gwas:n',metavar='COLUMN(S)',
             help='Column name(s) of the sample counts. Separated by commas. If multiple colums ' +
                  'are specified, their sum is stored.')
@@ -747,9 +747,9 @@ def prolog():
     print('')
     print('* Written by         : Lennart Landsmeer | lennart[at]landsmeer[dot]email')
     print('* Suggested for by   : Sander W. van der Laan | s.w.vanderlaan[at]gmail[dot]com')
-    print('* Last update        : 2023-05-05')
+    print('* Last update        : 2024-04-20')
     print('* Name               : gwas2cojo')
-    print('* Version            : v1.4.2')
+    print('* Version            : v1.4.3')
     print('')
     print('* Description        : Converts a given set of summary statistics from genome-wide association studies  ')
     print('                       (GWAS) to the GWAS-COJO format used by Summarized-data Mendelian Randomization ')
