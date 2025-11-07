@@ -1,0 +1,12 @@
+name: gwas2cojo
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - numpy
+  - pyliftover
+  - gzip
+  - pip
+  - pip:
+      - tqdm
