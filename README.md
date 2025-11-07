@@ -5,7 +5,9 @@
 `gwas2cojo.py` is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. Among others, it tries to deal with different dataformats and different genome builds.
 Most importantly, it aligns the variant notation such that swapped, translated, wrong or ambiguous ambivalent allels are corrected or removed.
 
-It generates a [COJO] file:
+## 🧩 Output format
+
+It generates a [COJO]-compatible file:
 
 ```
 SNP       A1  A2  freq    b       se      p       n
@@ -16,7 +18,7 @@ rs1003    A   C   0.5128  0.045   0.038   0.2319  129830
 
 [COJO]: https://yanglab.westlake.edu.cn/software/smr/#Overview
 
-# Usage
+## 🚀 Usage
 
 The usage is intuitive and many options are provided.
 
@@ -33,6 +35,8 @@ python3 gwas2cojo.py \
         --gen:eaf       AF \
         --out           "out/${name}.cojo"
 ```
+
+## 📜 List of options
 
 A full list of options is given below.
 
@@ -120,26 +124,30 @@ See also [this link] for more background and an additional explanation.
 
 [this link]: https://blog.llandsmeer.com/tech/2019/12/28/gwas2cojo.html
 
-# References
+## 🧠 Reference datasets
 
 You will need a reference to map the data to. You can create your own, or use the one we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
 
-# Requirements
+## ⚙️ Requirements
 
-The script expects Python 3.6+. 
+* Python ≥3.6
+* Tested on Linux and macOS
+* Optional dependencies:
+* `numpy` → for allele frequency concordance (R²)
+* `pyliftover` → for genome build conversion (hg18/hg19/hg38)
 
-# 🧩 Installation
+## 🧩 Installation
 
 We recommend using `mamba` (a faster drop-in replacement for `conda`).
 
-## 1️⃣ Create and activate the environment
+### 1️⃣ Create and activate the environment
 
 ```
 mamba env create -f environment.yml
 mamba activate gwas2cojo
 ```
 
-## 2️⃣ Verify installation
+### 2️⃣ Verify installation
 
 Check that the required Python modules are available:
 
@@ -149,7 +157,7 @@ python -c "import numpy, pyliftover; print('OK')"
 
 If you see OK, the environment is ready.
 
-## 3️⃣ (Optional) Test the script
+### 3️⃣ (Optional) Test the script
 
 You can confirm that `gwas2cojo.py` runs correctly:
 
@@ -169,9 +177,9 @@ python gwas2cojo.py --header-only --gwas example_gwas.txt.gz
 
 This checks header parsing without performing alignment.
 
-# 🔧 Troubleshooting
+## 🔧 Troubleshooting
 
-## When `pyliftover` is missing
+### 🧱 Missing `pyliftover`
 
 If `pyliftover` is missing, install it manually:
 
@@ -179,7 +187,7 @@ If `pyliftover` is missing, install it manually:
 mamba install -c conda-forge pyliftover
 ```
 
-## Using `conda` instead of `mamba`
+### 🐍 Prefer `conda` instead of `mamba`?
 
 If you prefer `conda`:
 
@@ -188,7 +196,7 @@ conda env create -f environment.yml
 conda activate gwas2cojo
 ```
 
-# License
+## 📖 License
 
 ```
 The MIT License (MIT)
