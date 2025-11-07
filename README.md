@@ -1,4 +1,6 @@
-# gwas2cojo
+[gwas2cojo](https://github.com/CirculatoryHealth/gwas2cojo)<img align="right" height="200" src=logo/fulllogo_transparent.png>
+============
+[![Languages](https://skillicons.dev/icons?i=bash,py)](https://skillicons.dev) 
 
 `gwas2cojo.py` is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. Among others, it tries to deal with different dataformats and different genome builds.
 Most importantly, it aligns the variant notation such that swapped, translated, wrong or ambiguous ambivalent allels are corrected or removed.
