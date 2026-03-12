@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# gwaslab_array.sh — SLURM array job for the gwaslab processing pipeline
+# gwaslab.process.array_for_submit.sh — SLURM array job for the gwaslab processing pipeline
 #
-# Submit with:  bash submit_gwaslab.sh gwas_list.txt
-# Or directly:  sbatch --array=1-N gwaslab_array.sh gwas_list.txt
+# Submit with:  bash gwaslab.process.submit.sh gwas_list.txt
+# Or directly:  sbatch --array=1-N gwaslab.process.array_for_submit.sh gwas_list.txt
 #
 # Config file format: tab-separated, one GWAS per line (see gwas_list.txt.example)
 #   COL1  full path to input GWAS file
@@ -28,8 +28,6 @@
 #SBATCH --time=01:00:00              # Time limit (HH:MM:SS)
 #SBATCH --mail-type=END,FAIL          # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=s.w.vanderlaan[at]gmail[dot]com      # Where to send mail
-
-
 
 set -euo pipefail
 

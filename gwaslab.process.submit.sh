@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# submit_gwaslab.sh — count valid entries in a config file and submit the
-#                     gwaslab_array.sh SLURM array job.
+# gwaslab.process.submit.sh — count valid entries in a config file and submit the
+#                     gwaslab.process.array_for_submit.sh SLURM array job.
 #
 # Usage:
-#   bash submit_gwaslab.sh gwas_list.txt
-#   bash submit_gwaslab.sh gwas_list.txt --partition=highmem --time=48:00:00
+#   bash gwaslab.process.submit.sh gwas_list.txt
+#   bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem --time=48:00:00
 #
 # Any extra arguments are forwarded directly to sbatch, allowing you to
 # override directives from the command line (e.g. --mem, --time, --partition).
@@ -15,7 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ARRAY_SCRIPT="${SCRIPT_DIR}/gwaslab_array.sh"
+ARRAY_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
 CONFIG="${1:?Usage: bash submit_gwaslab.sh <config.txt> [extra sbatch args]}"
