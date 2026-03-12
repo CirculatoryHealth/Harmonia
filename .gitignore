@@ -1,0 +1,5 @@
+# The following files will be ignored by git.  See .gitignore for details.
+
+_archived/*
+.claude/*
+data/*

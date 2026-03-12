@@ -196,24 +196,277 @@ conda env create -f environment.yml
 conda activate gwas2cojo
 ```
 
+---
+
+# 🔬 gwaslab.process.py — GWASLab Processing Pipeline
+
+`gwaslab.process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (pickle, parquet, TSV.GZ, COJO). It is the recommended successor to `gwas2cojo.py` for new datasets.
+
+## 🗺️ Pipeline overview
+
+Steps run in order; individual steps can be toggled with the flags described below.
+
+| Step | Description | Toggle |
+|------|-------------|--------|
+| 1 | Load and parse input file; auto-detect column names | always |
+| 2 | Verify / normalise genome build | always |
+| 3 | Correct P-values, SE, and N columns | always |
+| 4 | Standardise to GWASLab `Sumstats` object | always |
+| 5 | Plot raw input histograms | `--figures` |
+| 6 | `basic_check` — flag malformed variants | always |
+| 7 | `remove_dup` — drop duplicate variants | always |
+| 8 | Liftover (hg18→hg38 or hg19→hg38) | `--liftover` |
+| 9 | `check_ref` against hg38 FASTA | always |
+| 10 | `fix_id` — normalise variant IDs | always |
+| 11 | `infer_strand2` — resolve strand from 1KG VCF | always |
+| 12 | `assign_rsid` — annotate with dbSNP rsIDs | `--dbsnp` |
+| 13 | `check_af2` — allele-frequency concordance vs 1KG VCF | always |
+| 14 | Save raw outputs (pickle + parquet + TSV.GZ) | always |
+| 15 | Manhattan, QQ, and DAF plots (pre-QC) | `--figures` |
+| 16 | QC filter (EAF, BETA, SE, INFO, HWE, MAC, DAF) | `--qc` |
+| 17 | Save QC outputs | `--qc` |
+| 18 | Manhattan, QQ, and DAF plots (post-QC) | `--figures` + `--qc` |
+| 19 | Extract genome-wide significant lead SNPs | `--leads` |
+| 20 | Write COJO-format file(s) | `--cojo` |
+
+## 🚀 Usage
+
+### Minimal — full default pipeline (hg19 input)
+
+```bash
+python3 gwaslab.process.py \
+    --gwas    MyStudy \
+    --input   MyStudy.parsed.txt.gz \
+    --directory /data/gwas/MyStudy \
+    --ref     /data/references/gwaslab \
+    --output  /data/results/MyStudy \
+    --population EUR \
+    --build   19 \
+    --liftover --dbsnp --qc --figures --leads \
+    --cojo --cojo-pos --cojo-id rsid
+```
+
+### hg18 input with all options
+
+```bash
+python3 gwaslab.process.py \
+    --gwas    CAD_SCHUNKERT \
+    --input   cardiogram_gwas_results_edited.txt.gz \
+    --directory /data/gwas/CARDIoGRAM \
+    --ref     /data/references/gwaslab \
+    --output  /data/results/CAD_SCHUNKERT \
+    --population EUR \
+    --build   18 \
+    --liftover --dbsnp --qc --figures --leads --fill-eaf \
+    --cojo --cojo-pos --cojo-id rsid \
+    --threads 4
+```
+
+### Resume from a saved pickle (skip re-processing)
+
+If the pipeline completed successfully up to the pickle save step but failed later (e.g. during plotting), you can reload from the pickle and re-run downstream steps without repeating the expensive processing:
+
+```bash
+python3 gwaslab.process.py \
+    --gwas    CAD_SCHUNKERT \
+    --input   cardiogram_gwas_results_edited.txt.gz \   # ignored; pickle is used instead
+    --directory /data/gwas/CARDIoGRAM \                # ignored; pickle is used instead
+    --ref     /data/references/gwaslab \
+    --output  /data/results/CAD_SCHUNKERT \            # must match the original run
+    --population EUR \
+    --build   18 \                                     # must match the original run
+    --liftover \                                       # must match the original run
+    --qc --figures --leads \
+    --only-qc
+```
+
+> **Important:** `--output`, `--population`, `--build`, and `--liftover` must match the original run exactly — they determine the pickle filename that is looked up.
+
+## 📜 Full argument reference
+
+### Required
+
+| Argument | Description |
+|----------|-------------|
+| `--gwas NAME` | Study / phenotype name; used in all output filenames |
+| `--input FILE` | Input summary-statistics file (TSV or TSV.GZ) |
+| `--ref DIR` | Reference-files directory (FASTA, 1KG VCFs, dbSNP VCFs) |
+
+### Path arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--directory DIR` | `.` | Directory containing the input file |
+| `--output DIR` | `<directory>/<gwas>/GWASCatalog` | Output directory |
+
+### Population / build
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--population` | `EUR` | Ancestry code: `EUR` `AFR` `EAS` `AMR` `SAS` `PAN` |
+| `--build` | `19` | Input genome build: `18` / `19` / `38` (and aliases `hg18`, `GRCh37`, etc.) |
+
+### Pipeline step toggles
+
+| Argument | Description |
+|----------|-------------|
+| `--liftover` | Lift coordinates to hg38 (hg18→hg38 or hg19→hg38). Requires `hg18ToHg38.over.chain.gz` in `--ref` for build 18. |
+| `--dbsnp` | Assign rsIDs from a dbSNP VCF |
+| `--qc` | Apply QC filters and save a filtered output |
+| `--only-qc` | Skip loading; reload from an existing pickle and run QC / plots / leads only |
+| `--fill-eaf` | Look up missing EAF values from the 1KG reference VCF |
+| `--figures` | Generate diagnostic plots (Manhattan, QQ, DAF, histograms) |
+| `--leads` | Extract genome-wide significant lead SNPs (p < 5×10⁻⁸) |
+
+### COJO output
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--cojo` | off | Write a COJO-format file (`SNP A1 A2 freq b se p n`) |
+| `--cojo-id` | `chrpos` | SNP column format: `chrpos` (CHR:BP) or `rsid` |
+| `--cojo-pos` | off | Add CHR and BP columns after the SNP column |
+
+### Fixed sample sizes
+
+Useful when N is absent from the input file.
+
+| Argument | Description |
+|----------|-------------|
+| `--n INT` | Total sample size |
+| `--n-cases INT` | Number of cases |
+| `--n-controls INT` | Number of controls |
+| `--force-n` | Overwrite existing N columns with the supplied values |
+
+### QC thresholds
+
+All thresholds apply only when `--qc` is enabled.
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--eaf-min F` | `0.005` | EAF lower bound (upper = 1 − F) |
+| `--beta-max F` | `5.0` | Maximum \|BETA\| |
+| `--se-max F` | `5.0` | Maximum SE |
+| `--info-min F` | `0.4` | Minimum INFO / imputation quality score |
+| `--hwe-min F` | `1e-3` | Minimum HWE p-value |
+| `--mac-min N` | `30` | Minimum minor allele count |
+| `--daf-max F` | `0.12` | Maximum \|DAF\| vs 1KG reference; set to `0` to disable |
+
+### Performance
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--threads N` | `4` | Threads for parallelised gwaslab steps |
+
+## 🗂️ Output files
+
+All output files share a common stem:
+
+```
+{GWAS}.{POPULATION}.input_b{BUILD}.output_hg{OUTPUT_BUILD}.gwaslab[.added_n]
+```
+
+For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
+
+| File | Description |
+|------|-------------|
+| `<stem>.pkl` | GWASLab `Sumstats` pickle — used for `--only-qc` resume |
+| `<stem>.parquet` | Raw harmonised data (parquet) |
+| `<stem>.tsv.gz` | Raw harmonised data (TSV.GZ) |
+| `<stem>.log` | GWASLab internal log |
+| `<stem>.qc.pkl` | QC-filtered pickle |
+| `<stem>.qc.parquet` | QC-filtered data (parquet) |
+| `<stem>.qc.tsv.gz` | QC-filtered data (TSV.GZ) |
+| `<stem>.cojo.gz` | COJO file (raw) |
+| `<stem>.qc.cojo.gz` | COJO file (QC-filtered) |
+| `<stem>.leads.tsv` | Lead SNPs (QC-filtered, p < 5×10⁻⁸) |
+| `PLOTS/<stem>.*.png` | Diagnostic plots (Manhattan, QQ, DAF, histograms) |
+| `<GWAS>.gwaslab_process.log` | Pipeline run log |
+
+---
+
+# 🖥️ HPC: SLURM array-job submission
+
+For large-scale processing of many GWAS studies on a compute cluster, two helper scripts are provided.
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `gwaslab_array.sh` | SLURM batch script; runs one `gwaslab.process.py` call per array task |
+| `submit_gwaslab.sh` | Submission helper; counts config entries and calls `sbatch --array=1-N` |
+| `gwas_list.txt.example` | Annotated example config file |
+
+## Config file format
+
+Tab-separated, one GWAS per line. Lines starting with `#` and blank lines are ignored.
+
+```
+# COL1  Full path to input GWAS file
+# COL2  GWAS name          → --gwas and output subdirectory
+# COL3  Population         → EUR / EAS / SAS / AFR / AMR / META
+# COL4  Build              → 18 / 19 / 38
+# COL5  N total            → integer, or . if not applicable
+# COL6  N cases            → integer, or . if not applicable
+# COL7  N controls         → integer, or . if not applicable
+```
+
+If **all three** of COL5–COL7 are non-`.`, `--force-n` is added automatically.
+
+Example:
+
+```
+/data/gwas/CARDIoGRAM/cardiogram_gwas.txt.gz	CAD_SCHUNKERT	EUR	18	.	.	.
+/data/gwas/MI/nikpay2015.txt.gz	MI_NIKPAY	EUR	19	.	43676	128199
+/data/gwas/T2D/mahajan2018.txt.gz	T2D_MAHAJAN	EUR	38	898130	.	.
+```
+
+## Quick start
+
+**1.** Copy and edit the example config:
+
+```bash
+cp gwas_list.txt.example gwas_list.txt
+# fill in your actual paths and study details
+```
+
+**2.** Edit the `USER CONFIGURATION` block at the top of `gwaslab_array.sh` for your cluster:
+
+```bash
+PYTHON_SCRIPT="/hpc/...path.../gwaslab.process.py"
+REF_DIR="/hpc/...path.../references/gwaslab"
+OUT_BASE="/hpc/...path.../results"
+CONDA_ENV="gwas2cojo"
+```
+
+**3.** Submit:
+
+```bash
+bash submit_gwaslab.sh gwas_list.txt
+```
+
+This counts valid entries in the config and submits one SLURM array task per GWAS study. Extra `sbatch` arguments can be passed to override defaults:
+
+```bash
+bash submit_gwaslab.sh gwas_list.txt --partition=highmem --time=48:00:00
+```
+
+## SLURM defaults
+
+The defaults set in `gwaslab_array.sh` are:
+
+| Resource | Default |
+|----------|---------|
+| Memory | 64 GB |
+| CPUs | 4 |
+| Wall time | 24 h |
+
+Adjust the `#SBATCH` directives in `gwaslab_array.sh` or override on the command line when submitting.
+
+---
+
 ## 📖 License
 
 ```
 The MIT License (MIT)
-Copyright (c) 1979-2025 Lennart P.L. Landsmeer (lennart[at]landsmeer[dot]email) & Sander W. van der Laan (s.w.vanderlaan[at]gmail[dot]com.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-associated documentation files (the \'Software\'), to deal in the Software without restriction,       ')
-including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial
-portions of the Software.
-
-THE SOFTWARE IS PROVIDED \'AS IS\', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT   ')
-NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
-OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+Copyright (c) 1979-2026 Lennart P.L. Landsmeer (lennart[at]landsmeer[dot]email), Emma J.A. Smulders (emmasmulders[at]outlook[dot]com) & Sander W. van der Laan (s.w.vanderlaan[at]gmail[dot]com).
 ```
