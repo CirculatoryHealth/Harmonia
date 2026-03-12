@@ -22,9 +22,9 @@
 #SBATCH --job-name=gwaslab_process       # Job name
 #SBATCH --output=/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo/gwaslab_process%A_%a.out     # Standard output log file
 #SBATCH --error=/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo/gwaslab_process%A_%a.err   # Error log
-# #SBATCH --ntasks=1     # Number of tasks
-#SBATCH --cpus-per-task=4  # Number of CPU cores per task
-#SBATCH --mem=64G                    # Memory per node (specify in GB)
+#SBATCH --ntasks=1              # Number of tasks (always 1 for a single Python process)
+#SBATCH --cpus-per-task=8       # CPU cores — keep in sync with --threads below
+#SBATCH --mem=128G               # Total RAM per job (64G or 128G)
 #SBATCH --time=01:00:00              # Time limit (HH:MM:SS)
 #SBATCH --mail-type=END,FAIL          # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=s.w.vanderlaan[at]gmail[dot]com      # Where to send mail
@@ -103,7 +103,7 @@ CMD=(
     --build       "${BUILD}"
     --liftover
     --figures
-    --threads     4
+    --threads     8
     --dbsnp
     --qc
     --cojo --cojo-pos --cojo-id rsid

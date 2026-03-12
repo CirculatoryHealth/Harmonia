@@ -1,4 +1,4 @@
-# gwas_list.txt — config file for gwaslab_array.sh
+# gwas_list.txt — config file for gwaslab.process.array_for_submit.sh
 #
 # Tab-separated, one GWAS per line.  Use . for optional columns that do not apply.
 #
@@ -11,7 +11,7 @@
 # COL7  N_controls        → integer or .
 #
 # Note: if COL5, COL6, and COL7 are all provided, --force-n is added automatically.
-# Note: rows starting with # are ignored by both submit_gwaslab.sh and gwaslab_array.sh.
+# Note: rows starting with # are ignored by both gwaslab.process.submit.sh and gwaslab.process.array_for_submit.sh.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # INPUT_PATH	GWAS_NAME	POPULATION	BUILD	N	N_CASES	N_CONTROLS
@@ -21,18 +21,54 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # CARDIoGRAM (Schunkert 2011) – hg18; requires --liftover when running
-/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz	CAD_SCHUNKERT	EUR	18	.	.	.
+# SNP CHR BP REFERENCE_ALLELE OTHER_ALLELE RAF P HET_Pvalue LOG_ODDS LOG_ODDS_SE N_case N_control MODEL
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz	CAD_Schunkert	EUR	18	.	.	.
 # CARDIoGRAMplusC4D + UKBB (Nelson 2017) – hg19
-/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz	CAD	EUR	19	.	.	.
+# Markername	snptestid	chr	bp_hg19	effect_allele	noneffect_allele	effect_allele_freq	logOR	se_gc	p-value_gc	n_samples	exome	info_ukbb
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz	CAD_Nelson	EUR	19	.	10801	137914
 # Aragam / Million Hearts SAIGE meta-analysis – hg19
-/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/millionhearts/CHD_meta_SAIGE_complete_filtered_30.1.19.out.gz	CAD_Aragam	EUR	19	.	.	.
+# MarkerName	CHR	BP	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	P-value	DirectionHetISq	HetChiSq	HetDf	HetPVal	Cases	Effective_Cases	N	Meta_analysis
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/millionhearts/CHD_meta_SAIGE_complete_filtered_30.1.19.out.gz	CAD_Aragam	EUR	19	.	.	984168
 # van der Harst 2017 – PENDING: no file located yet
-#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/PLACEHOLDER_vanderHarst2017.txt.gz	CAD_vanderHarst	EUR	19	.	.	.
+# MarkerName	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	P-value	Direction	HetISq	HetChiSq	HetDf	HetPVal	oldID	CHR	BP
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/vanderHarst/CAD_META.gz	CAD_vanderHarst	EUR	19	547261	122733	424528
 # CAD MVP (Tcheandjieu 2022) – PENDING: no file located yet
-#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/PLACEHOLDER_MVP.txt.gz	CAD_MVP	EUR	19	.	.	.
+#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/MVP/PLACEHOLDER_MVP.txt.gz	CAD_MVP	EUR	19	.	.	.
 # MI (Myocardial Infarction) – PENDING: no file located yet
-#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/PLACEHOLDER_MI.txt.gz	MI	EUR	19	.	.	.
+#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM//PLACEHOLDER_MI.txt.gz	MI	EUR	19	.	.	.
 #
+# ═══════════════════════════════════════════════════════════════════════════════
+# STROKE (ISGC GigaStroke, Mishra 2022 – GRCh37 / hg19)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# chromosome	base_pair_location	effect_allele_frequency	beta	standard_error	p_value	odds_ratio	ci_lower	ci_upper	effect_allele	other_allele
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz	AS	EUR	19	1245612	10804	1234808
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz	IS	EUR	19	1308460	73652	1234808
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz	CES	EUR	19	1296908	62100	1234808
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/LAS_EUR_GCST90104538_buildGRCh37.tsv.gz	LAS	EUR	19	1241619	6811	1234808
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/SVD_EUR_GCST90104543_buildGRCh37.tsv.gz	SVD	EUR	19	1241207	6399	1234808
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORONARY ARTERY CALCIUM / ARTERIAL STIFFNESS / CAROTID IMT / PLAQUE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# CHARGE CAC European ancestry (Kavousi 2022) – hg19
+# MarkerName	rsID	Chr	Pos	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	Pvalue	Direction	HetISq	HetChiSq	HetDf	HetPval	N
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz	CHARGE_CAC_EA	EUR	19	.	.	.
+# CHARGE CAC European + African (EA+AA) ancestry  (Kavousi 2022) – hg19
+#/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz	CHARGE_CAC_EA_REP	EUR	19	.	.	.
+# CHARGE cIMT (Franceschini 2018) – hg19
+# MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,refid,BP,CHR,P,input_name
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz	cIMT	EUR	19	.	.	.
+# CHARGE Plaque (Franceschini, 2018) – hg19
+# MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,P_value,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,ID,refid,BP,CHR,P,SNP,maf
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz	Plaque	EUR	19	.	.	.
+#
+
+
+
+
+#### TO DO ####
 # ═══════════════════════════════════════════════════════════════════════════════
 # HEART FAILURE / CARDIOMYOPATHY
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -62,16 +98,6 @@
 # /hpc/dhl_ec/data/_gwas_datasets/_PAD/mrcieu.finn-a-I9_PAD.tsv.gz	PAD	EUR	19	.	.	.
 #
 # ═══════════════════════════════════════════════════════════════════════════════
-# STROKE (ISGC GigaStroke, Mishra 2022 – GRCh37 / hg19)
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz	AS	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz	IS	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz	CES	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/LAS_EUR_GCST90104538_buildGRCh37.tsv.gz	LAS	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/SVD_EUR_GCST90104543_buildGRCh37.tsv.gz	SVD	EUR	19	.	.	.
-#
-# ═══════════════════════════════════════════════════════════════════════════════
 # BLOOD PRESSURE (ICBP + UKB, Evangelou 2018 – hg19)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
@@ -87,19 +113,6 @@
 # /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.LDL.txt.gz	LDL	EUR	19	.	.	.
 # /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.TC.txt.gz	TC	EUR	19	.	.	.
 # /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.TG.txt.gz	TG	EUR	19	.	.	.
-#
-# ═══════════════════════════════════════════════════════════════════════════════
-# CORONARY ARTERY CALCIUM / ARTERIAL STIFFNESS / CAROTID IMT / PLAQUE
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# CHARGE CAC European ancestry (Kavousi 2022) – hg19
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz	CHARGE_CAC_EA	EUR	19	.	.	.
-# CHARGE CAC replication (EA+AA) – available but separate run if needed
-#/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz	CHARGE_CAC_EA_REP	EUR	19	.	.	.
-# CHARGE cIMT (Bis 2011 / Dörr 2018) – hg19
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz	cIMT	EUR	19	.	.	.
-# CHARGE Plaque (1000G meta, 2018) – hg19
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz	Plaque	EUR	19	.	.	.
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # TYPE 2 DIABETES (DIAGRAM / Mahajan 2018 – hg19)

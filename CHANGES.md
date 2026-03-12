@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2025-03-12 🛠️ Updates to GWAS list
+- 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
+    - ISGC GigaStroke datasets for ALLSTROKE, IS, CES, LAS, and SVD subtypes.
+    - CHARGE cIMT (Franceschini 2018) and CHARGE Plaque (Franceschini 2018) datasets.
+- 🛠️**Updated**: The `gwas_list.txt` file to ensure consistency in formatting and correct file paths.
+- 🛠️**Updated**: Changed the SLURM parameters for `gwaslab.process.array_for_submit.sh`. 
+
 ## 2025-03-12 🆕 New functions
 - 🆕**Added**: A notebook to test drive some functions and option using `gwaslab`. 
     - New functionality to save QC-filtered output in `gwaslab.process.ipynb`.
