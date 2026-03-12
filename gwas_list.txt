@@ -22,7 +22,7 @@
 #
 # CARDIoGRAM (Schunkert 2011) – hg18; requires --liftover when running
 # SNP CHR BP REFERENCE_ALLELE OTHER_ALLELE RAF P HET_Pvalue LOG_ODDS LOG_ODDS_SE N_case N_control MODEL
-/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz	CAD_Schunkert	EUR	18	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz	CAD_Schunkert	EUR	18	.	.	.
 # CARDIoGRAMplusC4D + UKBB (Nelson 2017) – hg19
 # Markername	snptestid	chr	bp_hg19	effect_allele	noneffect_allele	effect_allele_freq	logOR	se_gc	p-value_gc	n_samples	exome	info_ukbb
 /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz	CAD_Nelson	EUR	19	.	10801	137914
@@ -31,7 +31,7 @@
 /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/millionhearts/CHD_meta_SAIGE_complete_filtered_30.1.19.out.gz	CAD_Aragam	EUR	19	.	.	984168
 # van der Harst 2017 – PENDING: no file located yet
 # MarkerName	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	P-value	Direction	HetISq	HetChiSq	HetDf	HetPVal	oldID	CHR	BP
-/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/vanderHarst/CAD_META.gz	CAD_vanderHarst	EUR	19	547261	122733	424528
+# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/vanderHarst/CAD_META.gz	CAD_vanderHarst	EUR	19	547261	122733	424528
 # CAD MVP (Tcheandjieu 2022) – PENDING: no file located yet
 #/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/MVP/PLACEHOLDER_MVP.txt.gz	CAD_MVP	EUR	19	.	.	.
 # MI (Myocardial Infarction) – PENDING: no file located yet
@@ -42,11 +42,11 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # chromosome	base_pair_location	effect_allele_frequency	beta	standard_error	p_value	odds_ratio	ci_lower	ci_upper	effect_allele	other_allele
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz	AS	EUR	19	1245612	10804	1234808
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz	IS	EUR	19	1308460	73652	1234808
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz	CES	EUR	19	1296908	62100	1234808
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/LAS_EUR_GCST90104538_buildGRCh37.tsv.gz	LAS	EUR	19	1241619	6811	1234808
-/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/SVD_EUR_GCST90104543_buildGRCh37.tsv.gz	SVD	EUR	19	1241207	6399	1234808
+# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz	AS	EUR	19	1245612	10804	1234808
+# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz	IS	EUR	19	1308460	73652	1234808
+# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz	CES	EUR	19	1296908	62100	1234808
+# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/LAS_EUR_GCST90104538_buildGRCh37.tsv.gz	LAS	EUR	19	1241619	6811	1234808
+# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/SVD_EUR_GCST90104543_buildGRCh37.tsv.gz	SVD	EUR	19	1241207	6399	1234808
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # CORONARY ARTERY CALCIUM / ARTERIAL STIFFNESS / CAROTID IMT / PLAQUE
@@ -64,8 +64,30 @@
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,P_value,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,ID,refid,BP,CHR,P,SNP,maf
 /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz	Plaque	EUR	19	.	.	.
 #
+# ═══════════════════════════════════════════════════════════════════════════════
+# ATRIAL FIBRILLATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# AFGen / Roselli 2018 – AF, b38 positions
+# MarkerName	rsid	chr	position_b38	Allele1	Allele2	Freq1	Effect	StdErr	log(P)	n_events	n_total	mean_impQual
+/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz	AF    PAN	19	.	.	.
+#
 
 
+
+
+### NEW NOT RUN YET — PENDING ABOVE PROCESSING
+# ═══════════════════════════════════════════════════════════════════════════════
+# LIPIDS (GLGC / Graham 2021 – hg19)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# chromosome	base_pair_location	effect_allele	other_allele	beta	standard_error	effect_allele_frequency	p_value	variant_id	n	N_studies	hm_coordinate_conversion	hm_code	rsid
+# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/GCST90239652.h.tsv.gz	HDL	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/GCST90239658.h.tsv.gz	LDL	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/GCST90239676.h.tsv.gz	TC	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/GCST90239664.h.tsv.gz	TG	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz    nonHDL	EUR	19	.	.	.
+#
 
 
 #### TO DO ####
@@ -80,14 +102,7 @@
 # HF_HERMES (Aragam 2022 Nat Genet) – PENDING: check for newer HERMES dataset
 #/hpc/dhl_ec/data/_gwas_datasets/_UKB_heartfailure/PLACEHOLDER_HERMES2022.txt.gz	HF_HERMES	EUR	19	.	.	.
 #
-# ═══════════════════════════════════════════════════════════════════════════════
-# ATRIAL FIBRILLATION
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# AFGen / Roselli 2018 – AF, hg19 (HRC-based; verify if AF_GWAS_AFGenPlus_commonFreq_ALLv21.txt.gz
-# with build 38 was downloaded separately into a Roselli2018/ subdirectory)
-# /hpc/dhl_ec/data/_gwas_datasets/_AFGen/AF_HRC_GWAS_ALLv11.txt.gz	AF	EUR	19	.	.	.
-#
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # AORTIC ANEURYSM / PERIPHERAL VASCULAR DISEASE
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -105,15 +120,7 @@
 # /hpc/dhl_ec/data/_gwas_datasets/_BloodPressure/_UKB_BP/UKB-ICBPmeta750k_DBPsummaryResults.txt.gz	DBP	EUR	19	.	.	.
 # /hpc/dhl_ec/data/_gwas_datasets/_BloodPressure/_UKB_BP/UKB-ICBPmeta750k_PPsummaryResults.txt.gz	PP	EUR	19	.	.	.
 #
-# ═══════════════════════════════════════════════════════════════════════════════
-# LIPIDS (GLGC / Willer 2013 – hg19)
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.HDL.txt.gz	HDL	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.LDL.txt.gz	LDL	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.TC.txt.gz	TC	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_glgc_2013/jointGwasMc.TG.txt.gz	TG	EUR	19	.	.	.
-#
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TYPE 2 DIABETES (DIAGRAM / Mahajan 2018 – hg19)
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -4,6 +4,12 @@ This document tracks changes to the codebase. Each entry should include a brief 
 
 ## 2025-03-12 🛠️ Updates to GWAS list
 - 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
+    - AFGen Roselli 2018 dataset for allele frequencies (AF) with b38 positions.
+    - GLGC Graham 2021 datasets for HDL, LDL, TC, TG, and non-HDL traits in European populations.
+- 🧰**Fixed**: Issue with time of the SLURM job in `gwaslab.process.array_for_submit.sh` to allow for longer processing times, especially for larger GWAS datasets. Updated the time limit from 1 hour to 4 hours to accommodate the increased computational demands of processing multiple large GWAS datasets.
+
+## 2025-03-12 🛠️ Updates to GWAS list
+- 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
     - ISGC GigaStroke datasets for ALLSTROKE, IS, CES, LAS, and SVD subtypes.
     - CHARGE cIMT (Franceschini 2018) and CHARGE Plaque (Franceschini 2018) datasets.
 - 🛠️**Updated**: The `gwas_list.txt` file to ensure consistency in formatting and correct file paths.
