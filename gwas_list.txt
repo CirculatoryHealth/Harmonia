@@ -25,13 +25,13 @@
 # /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz	CAD_Schunkert	EUR	18	.	.	.
 # CARDIoGRAMplusC4D + UKBB (Nelson 2017) – hg19
 # Markername	snptestid	chr	bp_hg19	effect_allele	noneffect_allele	effect_allele_freq	logOR	se_gc	p-value_gc	n_samples	exome	info_ukbb
-/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz	CAD_Nelson	EUR	19	.	10801	137914
+# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz	CAD_Nelson	EUR	19	.	10801	137914
 # Aragam / Million Hearts SAIGE meta-analysis – hg19
 # MarkerName	CHR	BP	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	P-value	DirectionHetISq	HetChiSq	HetDf	HetPVal	Cases	Effective_Cases	N	Meta_analysis
 /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/millionhearts/CHD_meta_SAIGE_complete_filtered_30.1.19.out.gz	CAD_Aragam	EUR	19	.	.	984168
 # van der Harst 2017 – PENDING: no file located yet
 # MarkerName	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	P-value	Direction	HetISq	HetChiSq	HetDf	HetPVal	oldID	CHR	BP
-# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/vanderHarst/CAD_META.gz	CAD_vanderHarst	EUR	19	547261	122733	424528
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/vanderHarst/CAD_META.gz	CAD_vanderHarst	EUR	19	547261	122733	424528
 # CAD MVP (Tcheandjieu 2022) – PENDING: no file located yet
 #/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/MVP/PLACEHOLDER_MVP.txt.gz	CAD_MVP	EUR	19	.	.	.
 # MI (Myocardial Infarction) – PENDING: no file located yet
@@ -54,15 +54,15 @@
 #
 # CHARGE CAC European ancestry (Kavousi 2022) – hg19
 # MarkerName	rsID	Chr	Pos	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	Pvalue	Direction	HetISq	HetChiSq	HetDf	HetPval	N
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz	CHARGE_CAC_EA	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz	CHARGE_CAC_EA	EUR	19	.	.	.
 # CHARGE CAC European + African (EA+AA) ancestry  (Kavousi 2022) – hg19
 #/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz	CHARGE_CAC_EA_REP	EUR	19	.	.	.
 # CHARGE cIMT (Franceschini 2018) – hg19
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,refid,BP,CHR,P,input_name
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz	cIMT	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz	cIMT	EUR	19	.	.	.
 # CHARGE Plaque (Franceschini, 2018) – hg19
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,P_value,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,ID,refid,BP,CHR,P,SNP,maf
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz	Plaque	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz	Plaque	EUR	19	.	.	.
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # ATRIAL FIBRILLATION
@@ -70,24 +70,24 @@
 #
 # AFGen / Roselli 2018 – AF, b38 positions
 # MarkerName	rsid	chr	position_b38	Allele1	Allele2	Freq1	Effect	StdErr	log(P)	n_events	n_total	mean_impQual
-/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz	AF    PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz    AF  PAN 19  .   .   .
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# LIPIDS (GLGC / Graham 2021 – hg19)
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# chromosome	base_pair_location	effect_allele	other_allele	beta	standard_error	effect_allele_frequency	p_value	variant_id	n	N_studies	hm_coordinate_conversion	hm_code	rsid
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/GCST90239652.h.tsv.gz	HDL	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/GCST90239658.h.tsv.gz	LDL	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/GCST90239676.h.tsv.gz	TC	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/GCST90239664.h.tsv.gz	TG	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz    nonHDL	EUR	19	.	.	.
 #
 
 
 
 
 ### NEW NOT RUN YET — PENDING ABOVE PROCESSING
-# ═══════════════════════════════════════════════════════════════════════════════
-# LIPIDS (GLGC / Graham 2021 – hg19)
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-# chromosome	base_pair_location	effect_allele	other_allele	beta	standard_error	effect_allele_frequency	p_value	variant_id	n	N_studies	hm_coordinate_conversion	hm_code	rsid
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/GCST90239652.h.tsv.gz	HDL	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/GCST90239658.h.tsv.gz	LDL	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/GCST90239676.h.tsv.gz	TC	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/GCST90239664.h.tsv.gz	TG	EUR	19	.	.	.
-# /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz    nonHDL	EUR	19	.	.	.
-#
 
 
 #### TO DO ####
