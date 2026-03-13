@@ -77,11 +77,16 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # chromosome	base_pair_location	effect_allele	other_allele	beta	standard_error	effect_allele_frequency	p_value	variant_id	n	N_studies	hm_coordinate_conversion	hm_code	rsid
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/GCST90239652.h.tsv.gz	HDL	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/GCST90239658.h.tsv.gz	LDL	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/GCST90239676.h.tsv.gz	TC	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/GCST90239664.h.tsv.gz	TG	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz    nonHDL	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/GCST90239652.h.tsv.gz	HDL_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/GCST90239658.h.tsv.gz	LDL_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/GCST90239676.h.tsv.gz	TC_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/GCST90239664.h.tsv.gz	TG_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz    nonHDL_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/GCST90239649.h.tsv.gz	HDL_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/GCST90239655.h.tsv.gz	LDL_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/GCST90239673.h.tsv.gz	TC_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/GCST90239661.h.tsv.gz	TG_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_PAN/harmonised/GCST90239667.h.tsv.gz    nonHDL_PAN	PAN	19	.	.	.
 #
 
 

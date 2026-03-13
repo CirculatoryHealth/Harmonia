@@ -25,7 +25,7 @@
 #SBATCH --ntasks=1              # Number of tasks (always 1 for a single Python process)
 #SBATCH --cpus-per-task=8       # CPU cores — keep in sync with --threads below
 #SBATCH --mem=128G               # Total RAM per job (64G or 128G)
-#SBATCH --time=08:00:00              # Time limit (HH:MM:SS)
+#SBATCH --time=16:00:00              # Time limit (HH:MM:SS)
 #SBATCH --mail-type=END,FAIL          # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=s.w.vanderlaan[at]gmail[dot]com      # Where to send mail
 
