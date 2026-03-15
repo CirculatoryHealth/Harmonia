@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
 #
-# gwaslab.process.submit.sh — count valid entries in a config file and submit the
-#                     gwaslab.process.array_for_submit.sh SLURM array job.
+# gwaslab.process.submit.sh — submit one independent SLURM job per GWAS dataset.
+#
+# Memory and time limits are read from the config file (COL8 and COL9), so each
+# dataset gets exactly the resources it needs.  Jobs are never killed because a
+# sibling in an array timed out.
 #
 # Usage:
 #   bash gwaslab.process.submit.sh gwas_list.txt
-#   bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem --time=48:00:00
+#   bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem
 #
-# Any extra arguments are forwarded directly to sbatch, allowing you to
-# override directives from the command line (e.g. --mem, --time, --partition).
+# Any extra arguments are forwarded to every sbatch call (e.g. --partition,
+# --account).  Per-job --mem, --time, --job-name, --output and --error are
+# always set from the config file and cannot be overridden this way.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ARRAY_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
+WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
+LOG_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
-CONFIG="${1:?Usage: bash submit_gwaslab.sh <config.txt> [extra sbatch args]}"
-shift   # remaining args forwarded to sbatch
+CONFIG="${1:?Usage: bash gwaslab.process.submit.sh <config.txt> [extra sbatch args]}"
+shift   # remaining args forwarded to every sbatch call
 
 # ── Validate ──────────────────────────────────────────────────────────────────
 if [[ ! -f "${CONFIG}" ]]; then
@@ -27,26 +32,56 @@ if [[ ! -f "${CONFIG}" ]]; then
     exit 1
 fi
 
-if [[ ! -f "${ARRAY_SCRIPT}" ]]; then
-    echo "ERROR: array script not found: ${ARRAY_SCRIPT}" >&2
+if [[ ! -f "${WORKER_SCRIPT}" ]]; then
+    echo "ERROR: worker script not found: ${WORKER_SCRIPT}" >&2
     exit 1
 fi
 
-# Count valid lines (non-blank, non-comment)
-N=$(grep -cve '^\s*#' -e '^\s*$' "${CONFIG}" || true)
+# ── Read valid lines (non-blank, non-comment) ─────────────────────────────────
+mapfile -t LINES < <(grep -v '^\s*#' "${CONFIG}" | grep -v '^\s*$')
 
-if [[ "${N}" -eq 0 ]]; then
+NTOTAL="${#LINES[@]}"
+if [[ "${NTOTAL}" -eq 0 ]]; then
     echo "ERROR: no valid entries found in ${CONFIG}" >&2
     exit 1
 fi
 
-# ── Create log directory ───────────────────────────────────────────────────────
-mkdir -p logs
+echo "Config  : ${CONFIG}"
+echo "Entries : ${NTOTAL} GWAS studies"
+echo "──────────────────────────────────────────────────────────"
 
-# ── Submit ────────────────────────────────────────────────────────────────────
-echo "Config      : ${CONFIG}"
-echo "Entries     : ${N} GWAS studies"
-echo "Array range : 1–${N}"
-echo ""
+# ── Submit one job per dataset ────────────────────────────────────────────────
+SUBMITTED=0
+SKIPPED=0
 
-sbatch --array="1-${N}" "$@" "${ARRAY_SCRIPT}" "${CONFIG}"
+for LINE in "${LINES[@]}"; do
+
+    # Parse semicolon-delimited fields
+    IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME \
+        <<< "${LINE}"
+
+    # Basic sanity check: all required fields must be non-empty
+    if [[ -z "${INPUT_PATH}" || -z "${GWAS_NAME}" || -z "${POPULATION}" || \
+          -z "${BUILD}"      || -z "${MEM}"        || -z "${TIME}" ]]; then
+        echo "SKIP (malformed line — missing required field): ${LINE}" >&2
+        (( SKIPPED++ )) || true
+        continue
+    fi
+
+    JOB_ID=$(sbatch \
+        --job-name="gwaslab_${GWAS_NAME}" \
+        --mem="${MEM}" \
+        --time="${TIME}" \
+        --output="${LOG_BASE}/${GWAS_NAME}_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_%j.err" \
+        "$@" \
+        "${WORKER_SCRIPT}" "${LINE}" \
+        | awk '{print $NF}')
+
+    echo "Submitted ${GWAS_NAME}  (mem=${MEM}, time=${TIME}) → job ${JOB_ID}"
+    (( SUBMITTED++ )) || true
+
+done
+
+echo "──────────────────────────────────────────────────────────"
+echo "Done: ${SUBMITTED} job(s) submitted, ${SKIPPED} line(s) skipped."

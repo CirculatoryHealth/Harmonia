@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-15 🛠️ Overhaul of SLURM submission and GWAS list
+- 🛠️**Updated**: The `gwas_list.txt` file to use semicolons (`;`) as the field delimiter instead of tabs, avoiding parsing issues when paths or values contain whitespace.
+- 🆕**Added**: Two new columns to `gwas_list.txt`: `MEM` (COL8, SLURM memory per job, e.g. `64G` or `128G`) and `TIME` (COL9, SLURM time limit per job, e.g. `48:00:00`), allowing resource requirements to be set individually per dataset.
+- 🛠️**Updated**: `gwaslab.process.submit.sh` to submit one independent SLURM job per dataset instead of a single array job. Memory (`--mem`) and time (`--time`) are now read from the config file and passed to each `sbatch` call individually, so datasets with different resource needs no longer share a single limit. Each job receives its own `--job-name`, `--output`, and `--error` derived from the dataset name.
+- 🛠️**Updated**: `gwaslab.process.array_for_submit.sh` to act as a single-dataset worker script. Removed array job logic (`SLURM_ARRAY_TASK_ID`), removed fixed `--mem`, `--time`, `--output`, and `--error` SBATCH directives (these are now set dynamically by `gwaslab.process.submit.sh`). The script now accepts a semicolon-delimited config line as its first argument and parses it directly.
+
 ## 2025-03-12 🛠️ Updates to GWAS list
 - 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
     - AFGen Roselli 2018 dataset for allele frequencies (AF) with b38 positions.
