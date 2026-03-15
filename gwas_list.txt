@@ -56,7 +56,7 @@
 # MarkerName	rsID	Chr	Pos	Allele1	Allele2	Freq1	FreqSE	MinFreq	MaxFreq	Effect	StdErr	Pvalue	Direction	HetISq	HetChiSq	HetDf	HetPval	N
 # /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz	CHARGE_CAC_EA	EUR	19	.	.	.
 # CHARGE CAC European + African (EA+AA) ancestry  (Kavousi 2022) – hg19
-#/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz	CHARGE_CAC_EA_REP	EUR	19	.	.	.
+# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz	CHARGE_CAC_EA_REP	EUR	19	.	.	.
 # CHARGE cIMT (Franceschini 2018) – hg19
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,refid,BP,CHR,P,input_name
 # /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz	cIMT	EUR	19	.	.	.
@@ -77,15 +77,15 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # chromosome	base_pair_location	effect_allele	other_allele	beta	standard_error	effect_allele_frequency	p_value	variant_id	n	N_studies	hm_coordinate_conversion	hm_code	rsid
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/GCST90239652.h.tsv.gz	HDL_EUR	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/GCST90239658.h.tsv.gz	LDL_EUR	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/GCST90239676.h.tsv.gz	TC_EUR	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/GCST90239664.h.tsv.gz	TG_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/harmonised/GCST90239652.h.tsv.gz	HDL_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/harmonised/GCST90239658.h.tsv.gz	LDL_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/harmonised/GCST90239676.h.tsv.gz	TC_EUR	EUR	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/harmonised/GCST90239664.h.tsv.gz	TG_EUR	EUR	19	.	.	.
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz    nonHDL_EUR	EUR	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/GCST90239649.h.tsv.gz	HDL_PAN	PAN	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/GCST90239655.h.tsv.gz	LDL_PAN	PAN	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/GCST90239673.h.tsv.gz	TC_PAN	PAN	19	.	.	.
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/GCST90239661.h.tsv.gz	TG_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/harmonised/GCST90239649.h.tsv.gz	HDL_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/harmonised/GCST90239655.h.tsv.gz	LDL_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/harmonised/GCST90239673.h.tsv.gz	TC_PAN	PAN	19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/harmonised/GCST90239661.h.tsv.gz	TG_PAN	PAN	19	.	.	.
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_PAN/harmonised/GCST90239667.h.tsv.gz    nonHDL_PAN	PAN	19	.	.	.
 #
 
