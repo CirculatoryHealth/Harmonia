@@ -70,7 +70,7 @@
 #
 # AFGen / Roselli 2018 – AF, b38 positions
 # MarkerName	rsid	chr	position_b38	Allele1	Allele2	Freq1	Effect	StdErr	log(P)	n_events	n_total	mean_impQual
-/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz	AF	PAN 19	.	.	.
+/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz	AF	PAN	19	.	.	.
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # LIPIDS (GLGC / Graham 2021 – hg19)
