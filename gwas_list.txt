@@ -110,7 +110,7 @@
 # HEADER
 # MarkerName;rsid;chr;position_b38;Allele1;Allele2;Freq1;Effect;StdErr;log(P);n_events;n_total;mean_impQual
 # 
-/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz;AF;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz;AF;PAN;19;.;.;.;128G;24:00:00;256G;24:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # LIPIDS (GLGC / Graham 2021 – hg19)
@@ -119,16 +119,16 @@
 # HEADER
 # chromosome;base_pair_location;effect_allele;other_allele;beta;standard_error;effect_allele_frequency;p_value;variant_id;n;N_studies;hm_coordinate_conversion;hm_code;rsid
 #
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/harmonised/GCST90239652.h.tsv.gz;HDL_EUR;EUR;19;.;.;.;64G;08:00:00;32G;12:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/harmonised/GCST90239658.h.tsv.gz;LDL_EUR;EUR;19;.;.;.;64G;08:00:00;32G;12:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/harmonised/GCST90239676.h.tsv.gz;TC_EUR;EUR;19;.;.;.;64G;08:00:00;32G;12:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/harmonised/GCST90239664.h.tsv.gz;TG_EUR;EUR;19;.;.;.;64G;08:00:00;32G;12:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz;nonHDL_EUR;EUR;19;.;.;.;64G;08:00:00;32G;12:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/harmonised/GCST90239649.h.tsv.gz;HDL_PAN;PAN;19;.;.;.;128G;96:00:00;64G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/harmonised/GCST90239655.h.tsv.gz;LDL_PAN;PAN;19;.;.;.;128G;96:00:00;64G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/harmonised/GCST90239673.h.tsv.gz;TC_PAN;PAN;19;.;.;.;128G;96:00:00;64G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/harmonised/GCST90239661.h.tsv.gz;TG_PAN;PAN;19;.;.;.;128G;96:00:00;64G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_PAN/harmonised/GCST90239667.h.tsv.gz;nonHDL_PAN;PAN;19;.;.;.;128G;96:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/harmonised/GCST90239652.h.tsv.gz;HDL_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/harmonised/GCST90239658.h.tsv.gz;LDL_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/harmonised/GCST90239676.h.tsv.gz;TC_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/harmonised/GCST90239664.h.tsv.gz;TG_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz;nonHDL_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/harmonised/GCST90239649.h.tsv.gz;HDL_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/harmonised/GCST90239655.h.tsv.gz;LDL_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/harmonised/GCST90239673.h.tsv.gz;TC_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/harmonised/GCST90239661.h.tsv.gz;TG_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_PAN/harmonised/GCST90239667.h.tsv.gz;nonHDL_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
 #
 
 
