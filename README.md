@@ -467,6 +467,46 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 
 ---
 
+# 📥 Reference file management
+
+`gwaslab.download_refs.py` is a complete inventory of all gwaslab reference files. It uses gwaslab's built-in `gl.download_ref()` function; `.tbi` index files are fetched automatically alongside VCFs. Files already present are listed as comments — only the missing 1KG population VCFs (AFR, EAS, AMR, SAS) are active by default. Uncomment any entry to (re-)download it.
+
+## Reference file inventory
+
+| Keyword | File | Default |
+|---------|------|---------|
+| `1kg_eur_hg19` / `_hg38` | `EUR.ALL.split_norm_af.*` | commented — already present |
+| `1kg_pan_hg19` / `_hg38` | `PAN.ALL.split_norm_af.*` | commented — already present |
+| `1kg_afr_hg19` / `_hg38` | `AFR.ALL.split_norm_af.*` | **downloaded** |
+| `1kg_eas_hg19` / `_hg38` | `EAS.ALL.split_norm_af.*` | **downloaded** |
+| `1kg_amr_hg19` / `_hg38` | `AMR.ALL.split_norm_af.*` | **downloaded** |
+| `1kg_sas_hg19` / `_hg38` | `SAS.ALL.split_norm_af.*` | **downloaded** |
+| `1kg_hm3_hg19_eaf` / `_hg38_eaf` | `PAN.hapmap3.hg{19,38}.EAF.tsv.gz` | commented — already present |
+| `1kg_dbsnp151_hg19_auto` / `_hg38_auto` | `1kg_dbsnp151_hg{19,38}_auto.txt.gz` | commented — already present |
+| `dbsnp_v151_hg19` / `_hg38` | `00-All.vcf.gz` (very large, NCBI FTP) | commented — already present |
+| `dbsnp_v157_hg19` / `_hg38` | `GCF_000001405.{25,40}.gz` (very large, NCBI FTP) | commented — already present |
+| `ucsc_genome_hg19` / `_hg38` | `hg{19,38}.fa.gz` (large, UCSC) | commented — already present |
+| `recombination_hg19` / `_hg38` | `recombination_hg{19,38}.tar.gz` | commented — already present |
+| `ensembl_hg19_gtf` / `_hg38_gtf` | `Homo_sapiens.GRCh3{7,8}.*.gtf.gz` | commented — already present |
+| `refseq_hg19_gtf` / `_hg38_gtf` | `GRCh3{7,8}_latest_genomic.gtf.gz` | commented — already present |
+
+> **Note:** recombination maps and GTF files are auto-downloaded by gwaslab at runtime when needed. Pre-downloading them is optional but useful on HPC nodes without outbound internet during jobs.
+
+## Usage
+
+```bash
+conda activate gwas2cojo
+python gwaslab.download_refs.py
+# or with a custom path:
+python gwaslab.download_refs.py --ref-dir /hpc/dhl_ec/data/references/gwaslab/
+```
+
+The default target directory is `/hpc/dhl_ec/data/references/gwaslab/`. Pass `--ref-dir` to override. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
+
+> **Note:** Files are hosted on Dropbox and may not be accessible from all HPC networks. Run from a login node with outbound internet access, or use a node with proxy configured.
+
+---
+
 # 🖥️ HPC: SLURM submission
 
 For large-scale processing of many GWAS studies on a compute cluster, four helper scripts are provided.
@@ -479,6 +519,7 @@ For large-scale processing of many GWAS studies on a compute cluster, four helpe
 | `gwaslab.process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
 | `gwaslab.process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
 | `gwaslab.process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
+| `gwaslab.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |
 
 ## Config file format (`gwas_list.txt`)
 
