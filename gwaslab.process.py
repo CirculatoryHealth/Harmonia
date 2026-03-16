@@ -23,7 +23,7 @@
 #  13.  infer_strand + flip_allele_stats  [always]
 #  14.  assign_rsid (dbSNP)  [--no-dbsnp to disable]
 #  15.  check_af2 [always]  (sweep variant — bcftools one-pass)
-#  16.  Save raw output (pickle + parquet + TSV.GZ)  [always]
+#  16.  Save raw output (pickle + parquet + TSV.GZ)  [always; use --no-pickle to skip pkl]
 #  17.  Manhattan + QQ plots (unfiltered)  [--no-figures to disable]
 #  18.  QC filter  [--no-qc to disable]
 #  19.  Save QC output  [when QC enabled]
@@ -60,8 +60,8 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.0.0"
-VERSION_DATE = "2026-03-12"
+VERSION      = "1.2.0"
+VERSION_DATE = "2026-03-16"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -88,11 +88,12 @@ Reference: http://opensource.org.
 # General-purpose packages
 import sys
 import os
+import json
 import argparse
 import gzip
 import logging
 import shutil
-# import gc -- only for debug of killed 9 signal in infer_strand2 --- IGNORE ---
+import gc
 
 # Visualisation and data handling
 import matplotlib
@@ -203,6 +204,34 @@ def parse_args() -> argparse.Namespace:
     tog.add_argument("--fill-eaf",     action="store_true",
                    help="Look up missing EAF values from the (1KG) reference VCF "
                         "(slow for large datasets; skipped by default).")
+    tog.add_argument("--no-pickle",    action="store_true",
+                   help="Skip saving .pkl files (reduces peak memory and disk usage "
+                        "on the save step; disables --only-qc for this run).")
+    tog.add_argument("--stage",
+                   choices=["all",
+                            "preprocess",
+                            "process-normalize",
+                            "process-check-ref",
+                            "process-infer-strand",
+                            "process-assign-rsid",
+                            "process-check-af",
+                            "qc",
+                            "cojo"],
+                   default="all", metavar="STAGE",
+                   help=("Run a single pipeline stage using parquet/pickle checkpoints "
+                         "for handoff, so each stage can be submitted as a separate "
+                         "SLURM job with its own memory and time limits. "
+                         "  preprocess          : load + standardise → .preprocess.parquet  (light)  "
+                         "  process-normalize   : basic_check + remove_dup + liftover → .normalize.pkl  (medium)  "
+                         "  process-check-ref   : check_ref + flip + fix_id → .checkref.pkl  (medium)  "
+                         "  process-infer-strand: infer_strand2 + flip → .inferstrand.pkl  (high — 1KG sweep)  "
+                         "  process-assign-rsid : assign_rsid → .assignrsid.pkl  (extreme — dbSNP sweep)  "
+                         "  process-check-af    : check_af2 → .pkl + .parquet + .tsv.gz  (high — 1KG sweep)  "
+                         "  qc                  : QC filter → .qc.pkl + .qc.parquet + .qc.tsv.gz  (medium)  "
+                         "  cojo                : write COJO file from existing pickle  (light)  "
+                         "  all                 : full pipeline end-to-end, no checkpoints (default). "
+                         "Pass identical --gwas / --build / --liftover / --output / --dbsnp flags "
+                         "to every stage so file stems and checkpoint paths match."))
     tog.add_argument("--figures",      action="store_true",
                    help="Generate diagnostic plots.")
     tog.add_argument("--leads",        action="store_true",
@@ -535,7 +564,7 @@ def write_cojo(gwas_obj, phenotype: str, population: str,
     add_pos   : prepend CHR and BP columns immediately after SNP
     suffix    : optional filename tag, e.g. 'qc'
     """
-    df = gwas_obj.data.copy()
+    df = gwas_obj.data   # read-only — no in-place modifications below
 
     # Build the SNP identifier column
     if snpid_fmt == "rsid":
@@ -590,6 +619,224 @@ def write_cojo(gwas_obj, phenotype: str, population: str,
     )
     cojo.to_csv(cojo_path, sep="\t", index=False, compression="gzip")
     logging.info("[SAVE] COJO  → %s  (%s variants)", cojo_path, f"{len(cojo):,}")
+
+# ── Stage checkpoint I/O ───────────────────────────────────────────────────────
+
+def save_preprocess_checkpoint(gwas_data: pd.DataFrame, meta: dict,
+                                stem: str, output_loc: str) -> None:
+    """
+    Save the standardised DataFrame + metadata JSON for the 'process' stage to load.
+
+    Files written:
+      {stem}.preprocess.parquet  — standardised DataFrame (BROTLI-compressed)
+      {stem}.preprocess.json     — build metadata (reference, build_num, input_build)
+    """
+    parquet_path = os.path.join(output_loc, f"{stem}.preprocess.parquet")
+    json_path    = os.path.join(output_loc, f"{stem}.preprocess.json")
+    pq.write_table(pa.Table.from_pandas(gwas_data), parquet_path, compression="BROTLI")
+    with open(json_path, "w") as fh:
+        json.dump(meta, fh, indent=2)
+    logging.info("[SAVE] Preprocess parquet  → %s  (%s variants)",
+                 parquet_path, f"{len(gwas_data):,}")
+    logging.info("[SAVE] Preprocess metadata → %s", json_path)
+
+
+def load_preprocess_checkpoint(stem: str, output_loc: str) -> tuple:
+    """
+    Load the standardised DataFrame + metadata JSON written by --stage preprocess.
+
+    Returns (gwas_data, meta) where meta contains at minimum:
+      reference, build_num, input_build
+    """
+    parquet_path = os.path.join(output_loc, f"{stem}.preprocess.parquet")
+    json_path    = os.path.join(output_loc, f"{stem}.preprocess.json")
+    for path, label in [(parquet_path, "Preprocess parquet"),
+                        (json_path,    "Preprocess metadata")]:
+        if not os.path.isfile(path):
+            logging.error("%s checkpoint not found: %s\n"
+                          "Run --stage preprocess first.", label, path)
+            sys.exit(1)
+    gwas_data = pq.read_table(parquet_path).to_pandas()
+    with open(json_path) as fh:
+        meta = json.load(fh)
+    logging.info("[LOAD] Preprocess checkpoint: %s  (%s variants, build=%s)",
+                 parquet_path, f"{len(gwas_data):,}", meta.get("reference", "?"))
+    return gwas_data, meta
+
+
+# ── Process sub-stage checkpoint I/O ──────────────────────────────────────────
+
+# Suffix → (stage name for error messages, previous stage that writes it)
+_PROCESS_CHECKPOINT_META = {
+    "normalize":   ("process-normalize",    "preprocess"),
+    "checkref":    ("process-check-ref",    "process-normalize"),
+    "inferstrand": ("process-infer-strand", "process-check-ref"),
+    "assignrsid":  ("process-assign-rsid",  "process-infer-strand"),
+}
+
+
+def save_process_checkpoint(gwas_obj, stem: str, output_loc: str, suffix: str) -> str:
+    """
+    Persist an intermediate Sumstats object as a pickle checkpoint.
+    Returns the full path to the written pickle.
+
+    File written: {stem}.{suffix}.pkl
+    """
+    pkl_path = os.path.join(output_loc, f"{stem}.{suffix}.pkl")
+    logging.info("[SAVE] Process checkpoint (%s) → %s", suffix, pkl_path)
+    gl.dump_pickle(gwas_obj, pkl_path, overwrite=True)
+    return pkl_path
+
+
+def load_process_checkpoint(stem: str, output_loc: str, suffix: str) -> object:
+    """
+    Load an intermediate Sumstats pickle written by a process sub-stage.
+    Exits with an error message if the file is missing.
+    """
+    pkl_path = os.path.join(output_loc, f"{stem}.{suffix}.pkl")
+    stage_name, prev_stage = _PROCESS_CHECKPOINT_META.get(
+        suffix, (f"process-{suffix}", "prior stage")
+    )
+    if not os.path.isfile(pkl_path):
+        logging.error(
+            "[%s] Checkpoint not found: %s\n"
+            "Run --stage %s first (with the same --gwas / --build / "
+            "--liftover / --output / --dbsnp flags).",
+            stage_name, pkl_path, prev_stage,
+        )
+        sys.exit(1)
+    logging.info("[LOAD] Process checkpoint (%s): %s", suffix, pkl_path)
+    gwas_obj = gl.load_pickle(pkl_path)
+    if gwas_obj is None:
+        logging.error("[%s] Failed to load checkpoint: %s", stage_name, pkl_path)
+        sys.exit(1)
+    return gwas_obj
+
+
+# ── Process sub-stage runner functions ────────────────────────────────────────
+
+def run_normalize(gwas_obj, reference: str, ref_loc: str,
+                  n_cores: int, do_liftover: bool, population: str) -> tuple:
+    """
+    process-normalize: basic_check + remove_dup + liftover.
+    Returns (gwas_obj, reference) — reference may be updated to '38' after liftover.
+    """
+    logging.info("\n===== Running basic_check =====")
+    gwas_obj.basic_check(verbose=True)
+
+    logging.info("\n===== Running remove_dup =====")
+    gwas_obj.remove_dup(mode="md", keep_col="P", keep="first")
+    logging.info("After duplicate removal: %d variants remain.", len(gwas_obj.data))
+
+    logging.info("\n===== Running liftover =====")
+    if do_liftover:
+        ref_norm = normalise_build(reference)
+        if ref_norm == "18":
+            chain18 = os.path.join(ref_loc, "hg18ToHg38.over.chain.gz")
+            if not os.path.isfile(chain18):
+                logging.error(
+                    "hg18→hg38 liftover requires 'hg18ToHg38.over.chain.gz' "
+                    "in the reference directory:\n  %s", chain18,
+                )
+                sys.exit(1)
+            logging.info("Lifting over from hg18 to hg38 using chain: %s …", chain18)
+            gwas_obj.liftover(chain_path=chain18, to_build="38", remove=True)
+            reference = "38"
+            logging.info("Liftover complete. REFERENCE updated to '%s'.", reference)
+        elif ref_norm == "19":
+            logging.info("Lifting over from hg19 to hg38 …")
+            gwas_obj.liftover(from_build="19", to_build="38", remove=True)
+            reference = "38"
+            logging.info("Liftover complete. REFERENCE updated to '%s'.", reference)
+        elif ref_norm == "38":
+            logging.info("Liftover skipped — data is already hg38.")
+        else:
+            logging.warning("Liftover skipped — unrecognised build '%s'.", reference)
+    else:
+        logging.info("Liftover skipped (--liftover not set).")
+
+    return gwas_obj, reference
+
+
+def run_check_ref(gwas_obj, reference: str, ref_loc: str) -> object:
+    """
+    process-check-ref: check_ref + flip_allele_stats + fix_id.
+    """
+    fasta_build = normalise_build(reference)
+    fasta = os.path.join(ref_loc, f"hg{fasta_build}.fa.gz")
+
+    logging.info("\n===== Running check_ref =====")
+    if os.path.isfile(fasta):
+        logging.info("Running check_ref with %s …", fasta)
+        gwas_obj.check_ref(ref_seq=fasta)
+        gwas_obj.flip_allele_stats()
+    else:
+        logging.warning("FASTA not found at '%s' — skipping check_ref.", fasta)
+
+    logging.info("\n===== Running fix_id =====")
+    gwas_obj.fix_id(fixid=True, forcefixid=True, overwrite=True)
+
+    return gwas_obj
+
+
+def run_infer_strand(gwas_obj, ref_loc: str, vcf: str, n_cores: int) -> object:
+    """
+    process-infer-strand: infer_strand2 + flip_allele_stats.
+    High memory — bcftools sweep over the full 1KG VCF (~84 M variants).
+    """
+    logging.info("\n===== Running infer_strand2 =====")
+    if vcf is None or not os.path.isfile(vcf):
+        logging.warning("infer_strand2 skipped — reference VCF not available: %s", vcf)
+    else:
+        logging.info("Using reference file: %s …", vcf)
+        gwas_obj.infer_strand2(vcf_path=vcf, threads=n_cores)
+        gwas_obj.flip_allele_stats()
+
+    return gwas_obj
+
+
+def run_assign_rsid(gwas_obj, reference: str, ref_loc: str, n_cores: int) -> object:
+    """
+    process-assign-rsid: assign_rsid via dbSNP VCF sweep.
+    Extreme memory — bcftools sweep over the full dbSNP VCF (~1 B variants for hg38).
+    Only runs when --dbsnp is set; otherwise exits gracefully.
+    """
+    logging.info("\n===== Running assign_rsid =====")
+    dbsnp = dbsnp_vcf_path(ref_loc, normalise_build(reference))
+    if not os.path.isfile(dbsnp):
+        logging.error("dbSNP VCF not found: %s — cannot run assign_rsid.", dbsnp)
+        sys.exit(1)
+    if not check_bgzf(dbsnp):
+        logging.error(
+            "dbSNP VCF is not BGZF-compressed (pysam requires BGZF, not plain gzip):\n"
+            "  %s\nRe-compress with bgzip and index with tabix.", dbsnp,
+        )
+        sys.exit(1)
+    logging.info("Using reference file: %s …", dbsnp)
+    gwas_obj.harmonize(
+        basic_check=False,
+        ref_rsid_vcf=dbsnp,
+        threads=n_cores,
+        sweep_mode=True,
+        verbose=True,
+    )
+    return gwas_obj
+
+
+def run_check_af(gwas_obj, vcf: str, n_cores: int) -> object:
+    """
+    process-check-af: check_af2 (bcftools sweep over 1KG VCF).
+    High memory — same sweep as infer_strand2 but against AF annotations.
+    check_af2 is an annotation/flagging step; it does not flip alleles.
+    """
+    logging.info("\n===== Running check_af =====")
+    if vcf is None or not os.path.isfile(vcf):
+        logging.warning("check_af2 skipped — reference VCF not available: %s", vcf)
+    else:
+        gwas_obj.check_af2(vcf_path=vcf, ref_alt_freq="AF", threads=n_cores)
+
+    return gwas_obj
+
 
 # ── Pipeline steps ─────────────────────────────────────────────────────────────
 
@@ -1163,24 +1410,30 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
 # This function saves the outputs at each stage in multiple formats, with logging.
 def save_raw_outputs(gwas_obj, phenotype: str, population: str,
                      input_build: str, output_build: str,
-                     output_loc: str, added_n: bool = False) -> str:
-    """Save raw (pre-QC) outputs: pickle, parquet, TSV.GZ. Returns parquet path."""
+                     output_loc: str, added_n: bool = False,
+                     save_pickle: bool = True) -> str:
+    """Save raw (pre-QC) outputs: pickle (optional), parquet, TSV.GZ. Returns parquet path."""
     stem         = file_tag(phenotype, population, input_build, output_build, added_n)
     pkl_path     = os.path.join(output_loc, f"{stem}.pkl")
     parquet_path = os.path.join(output_loc, f"{stem}.parquet")
     tsv_path     = os.path.join(output_loc, f"{stem}.tsv")
 
     logging.info("\n===== Saving raw (pre-QC) outputs =====")
-    logging.info("[SAVE] Pickle  → %s", pkl_path)
-    gl.dump_pickle(gwas_obj, pkl_path, overwrite=True)
+    if save_pickle:
+        logging.info("[SAVE] Pickle  → %s", pkl_path)
+        gl.dump_pickle(gwas_obj, pkl_path, overwrite=True)
+    else:
+        logging.info("[SAVE] Pickle  skipped (--no-pickle).")
     gwas_obj.log.show()
     gwas_obj.log.save(pkl_path.replace(".pkl", ".log"))
 
     logging.info("[SAVE] Parquet → %s", parquet_path)
     pq.write_table(pa.Table.from_pandas(gwas_obj.data), parquet_path, compression="BROTLI")
 
+    # Write TSV directly from gwas_obj.data — avoids reading the parquet back
+    # into memory as a second copy just to reformat and write it out.
     logging.info("[SAVE] TSV.GZ  → %s.gz", tsv_path)
-    save_tsv_gz(reformat_output(pd.read_parquet(parquet_path)), tsv_path)
+    save_tsv_gz(reformat_output(gwas_obj.data), tsv_path)
 
     return parquet_path
 
@@ -1257,23 +1510,29 @@ def apply_qc(gwas_obj, eaf_min: float, beta_max: float, se_max: float,
 # This function saves the QC-filtered outputs in multiple formats, with logging.
 def save_qc_outputs(gwas_obj_qc, phenotype: str, population: str,
                     input_build: str, output_build: str,
-                    output_loc: str, added_n: bool = False) -> str:
-    """Save QC-filtered outputs: pickle, parquet, TSV.GZ. Returns parquet path."""
+                    output_loc: str, added_n: bool = False,
+                    save_pickle: bool = True) -> str:
+    """Save QC-filtered outputs: pickle (optional), parquet, TSV.GZ. Returns parquet path."""
     logging.info("\n===== Saving QC-filtered outputs =====")
     stem         = file_tag(phenotype, population, input_build, output_build, added_n)
     pkl_path     = os.path.join(output_loc, f"{stem}.qc.pkl")
     parquet_path = os.path.join(output_loc, f"{stem}.qc.parquet")
     tsv_path     = os.path.join(output_loc, f"{stem}.qc.tsv")
 
-    logging.info("[SAVE] QC Pickle  → %s", pkl_path)
-    gl.dump_pickle(gwas_obj_qc, pkl_path, overwrite=True)
+    if save_pickle:
+        logging.info("[SAVE] QC Pickle  → %s", pkl_path)
+        gl.dump_pickle(gwas_obj_qc, pkl_path, overwrite=True)
+    else:
+        logging.info("[SAVE] QC Pickle  skipped (--no-pickle).")
     gwas_obj_qc.log.save(pkl_path.replace(".pkl", ".log"))
 
     logging.info("[SAVE] QC Parquet → %s", parquet_path)
     pq.write_table(pa.Table.from_pandas(gwas_obj_qc.data), parquet_path, compression="BROTLI")
 
+    # Write TSV directly from gwas_obj_qc.data — avoids reading the parquet back
+    # into memory as a second copy just to reformat and write it out.
     logging.info("[SAVE] QC TSV.GZ  → %s.gz", tsv_path)
-    save_tsv_gz(reformat_output(pd.read_parquet(parquet_path)), tsv_path)
+    save_tsv_gz(reformat_output(gwas_obj_qc.data), tsv_path)
 
     return parquet_path
 
@@ -1329,9 +1588,23 @@ def extract_leads(source_obj, phenotype: str, population: str,
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
-# The main function orchestrates the entire workflow: parsing arguments, 
-# setting up paths and logging, loading data, running processing steps, applying QC, 
-# and saving outputs.
+# The main function orchestrates the entire workflow.  It supports both the
+# classic end-to-end run (--stage all, the default) and a staged execution
+# model (--stage preprocess / process / qc / cojo) where each stage saves a
+# checkpoint so successive stages can be submitted as separate SLURM jobs with
+# individual memory and time limits.
+#
+# Stage handoff files (checkpoint chain):
+#   preprocess          → process-normalize   : {stem}.preprocess.parquet + .json
+#   process-normalize   → process-check-ref   : {stem}.normalize.pkl
+#   process-check-ref   → process-infer-strand: {stem}.checkref.pkl
+#   process-infer-strand→ process-assign-rsid  : {stem}.inferstrand.pkl
+#   process-assign-rsid → process-check-af    : {stem}.assignrsid.pkl
+#   process-check-af    → qc / cojo           : {stem}.pkl + .parquet + .tsv.gz
+#   qc                  → cojo                : {stem}.qc.pkl + .qc.parquet + .qc.tsv.gz
+#
+# Pass identical --gwas / --build / --liftover / --output / --dbsnp flags to
+# every stage so that file stems and checkpoint paths are consistent.
 def main() -> None:
     args = parse_args()
 
@@ -1340,8 +1613,6 @@ def main() -> None:
                   else os.path.join(args.directory, args.input))
 
     if args.output:
-        # Guard against accidentally passing a shell-unresolved brace expression
-        # (e.g. --output /some/path/{PHENOTYPE}/GWASCatalog)
         if "{" in args.output or "}" in args.output:
             print(
                 f"[ERROR] --output contains unresolved placeholder: {args.output!r}\n"
@@ -1354,7 +1625,7 @@ def main() -> None:
     else:
         output_loc = os.path.join(args.directory, args.gwas, "GWASCatalog")
 
-    plots_loc  = os.path.join(output_loc, "PLOTS")
+    plots_loc = os.path.join(output_loc, "PLOTS")
     ensure_dir(output_loc)
     ensure_dir(plots_loc)
 
@@ -1372,9 +1643,11 @@ def main() -> None:
     logging.info("Population   : %s", args.population)
     logging.info("Build        : %s", args.build)
     logging.info("Toggles      : liftover=%s  dbsnp=%s  qc=%s  "
-                 "only_qc=%s  fill_eaf=%s  figures=%s  leads=%s  threads=%d",
+                 "only_qc=%s  fill_eaf=%s  figures=%s  leads=%s  "
+                 "no_pickle=%s  stage=%s  threads=%d",
                  args.liftover, args.dbsnp, args.qc,
-                 args.only_qc, args.fill_eaf, args.figures, args.leads, args.threads)
+                 args.only_qc, args.fill_eaf, args.figures, args.leads,
+                 args.no_pickle, args.stage, args.threads)
     if args.cojo:
         logging.info("COJO options : id=%s  pos=%s", args.cojo_id, args.cojo_pos)
     if any(v is not None for v in [args.n, args.n_cases, args.n_controls]):
@@ -1382,7 +1655,6 @@ def main() -> None:
                      args.n, args.n_cases, args.n_controls, args.force_n)
     logging.info("Threads      : %d", args.threads)
 
-    # Warn if rsid COJO requested without dbSNP
     if args.cojo and args.cojo_id == "rsid" and not args.dbsnp:
         logging.warning(
             "--cojo-id rsid selected but --dbsnp is not set. "
@@ -1396,13 +1668,11 @@ def main() -> None:
     # ── GWASLab data directory ─────────────────────────────────────────────────
     gl.options.set_option("data_directory", args.ref)
 
-    # ── Resolve reference VCF (build may change after liftover) ───────────────
+    # ── Resolve reference VCF ──────────────────────────────────────────────────
     build_num = normalise_build(REFERENCE)
     vcf = ref_vcf_path(args.ref, args.population, build_num)
 
     if vcf is None:
-        # Build 18 has no 1KG VCF. The pipeline will liftover to hg38 and
-        # run_processing will resolve the hg38 VCF after liftover.
         logging.info(
             "Build %s: no 1KG reference VCF for this build — "
             "VCF will be resolved after liftover to hg38.", build_num,
@@ -1419,48 +1689,62 @@ def main() -> None:
         assert_bgzf(vcf, "Reference VCF")
         logging.info("Reference VCF : %s", vcf)
 
-    # If liftover is requested the pipeline will convert to hg38, so the output
-    # build_num will be hg38.  Update it *before* constructing pkl_path so the
-    # filename is correct even in --only-qc mode where run_processing never runs
-    # (and therefore never updates build_num itself).
+    # If liftover is requested, output build will be hg38.  Update build_num
+    # before constructing stems/pkl_path so filenames are consistent across all
+    # stages even when run_processing has not yet executed.
     if args.liftover and build_num != "38":
         build_num = "38"
 
-    pkl_path = os.path.join(
-        output_loc,
-        f"{file_tag(args.gwas, args.population, input_build, build_num, added_n)}.pkl",
-    )
+    stem     = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+    pkl_path = os.path.join(output_loc, f"{stem}.pkl")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    # ONLY-QC mode: reload from pickle and skip all pre-processing
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Stage routing ──────────────────────────────────────────────────────────
+    # --only-qc is a legacy alias for --stage qc.
+    stage = args.stage
     if args.only_qc:
-        logging.info("[only-qc] Loading existing pickle: %s", pkl_path)
-        gwas_obj = gl.load_pickle(pkl_path)
-        if gwas_obj is None:
-            logging.error(
-                "[only-qc] Failed to load pickle — file not found or could not be read:\n"
-                "  %s\n"
-                "Ensure --gwas, --population, --build, --liftover, and --output "
-                "match the original run that created the pickle.",
-                pkl_path,
-            )
-            sys.exit(1)
-        # Regenerate full-dataset plots from the loaded pickle when requested.
-        # This lets you resume after a plot failure without re-running the full
-        # pipeline — just add --figures to the --only-qc invocation.
-        if args.figures:
-            plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
-                              plots_loc, args.daf_max,
-                              file_tag(args.gwas, args.population,
-                                       input_build, build_num, added_n))
-    else:
-        # ── Load data ──────────────────────────────────────────────────────────
+        if stage == "all":
+            stage = "qc"
+            logging.info("--only-qc detected: treating as --stage qc.")
+        else:
+            logging.warning("--only-qc is redundant when --stage is set; ignoring --only-qc.")
+
+    # Guard incompatible flag combinations
+    _pickle_required_stages = (
+        "qc", "cojo",
+        "process-check-ref", "process-infer-strand",
+        "process-assign-rsid", "process-check-af",
+    )
+    if stage in _pickle_required_stages and args.no_pickle:
+        logging.error(
+            "--stage %s requires a pickle checkpoint written by a prior stage. "
+            "--no-pickle is incompatible with --stage %s.", stage, stage,
+        )
+        sys.exit(1)
+
+    if stage == "process-assign-rsid" and not args.dbsnp:
+        logging.error(
+            "--stage process-assign-rsid requires --dbsnp.  "
+            "Without --dbsnp there is nothing to do in this stage."
+        )
+        sys.exit(1)
+
+    logging.info("Pipeline stage : %s", stage)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: preprocess
+    # Load data, verify build, standardise columns.
+    # --stage all  : gwas_data flows directly into the process stage below.
+    # --stage preprocess : saves checkpoint and exits.
+    # ══════════════════════════════════════════════════════════════════════════
+    gwas_data = None
+    if stage in ("all", "preprocess"):
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: preprocess")
+        logging.info("=" * 60)
+
         logging.info("\n===== Loading GWAS summary statistics =====")
         logging.info("Loading: %s", input_path)
-        _sep = detect_separator(input_path)
-        # pyarrow engine does not support regex separators (r"\s+");
-        # fall back to the python engine in that case.
+        _sep    = detect_separator(input_path)
         _engine = "python" if _sep == r"\s+" else "pyarrow"
         gwas_data = pd.read_csv(
             input_path, sep=_sep, header=0,
@@ -1469,10 +1753,8 @@ def main() -> None:
         logging.info("Loaded %s variants, %d columns.",
                      f"{len(gwas_data):,}", gwas_data.shape[1])
 
-        # ── Build verification ─────────────────────────────────────────────────
         REFERENCE = verify_build(gwas_data, REFERENCE)
 
-        # ── EAF lookup ─────────────────────────────────────────────────────────
         if args.fill_eaf and vcf is not None:
             gwas_data = check_and_fill_eaf(gwas_data, vcf)
         elif args.fill_eaf:
@@ -1480,7 +1762,6 @@ def main() -> None:
         else:
             logging.info("EAF lookup skipped (--fill-eaf not set).")
 
-        # ── Fixed sample sizes (from command line) ─────────────────────────────
         if any(v is not None for v in [args.n, args.n_cases, args.n_controls]):
             gwas_data = apply_fixed_n(
                 gwas_data,
@@ -1488,93 +1769,317 @@ def main() -> None:
                 force=args.force_n,
             )
 
-        # ── Column correction ──────────────────────────────────────────────────
         gwas_data = correct_columns(gwas_data)
-
-        # ── Column standardisation ─────────────────────────────────────────────
         gwas_data = standardise_columns(gwas_data)
 
-        # ── Create Sumstats object ─────────────────────────────────────────────
-        gwas_obj = make_sumstats_object(gwas_data, REFERENCE)
-
-        # ── Raw histograms ─────────────────────────────────────────────────────
         if args.figures:
-            # Use input_build for both builds — liftover hasn't happened yet.
             raw_stem = file_tag(args.gwas, args.population,
                                 input_build, input_build, added_n)
             plot_raw_histograms(gwas_data, raw_stem, plots_loc)
 
-        # ── Core processing pipeline ───────────────────────────────────────────
-        gwas_obj, REFERENCE = run_processing(
-            gwas_obj, REFERENCE, args.ref, vcf,
-            args.threads, args.liftover, args.dbsnp,
-            population=args.population,
-        )
+        if stage == "preprocess":
+            save_preprocess_checkpoint(
+                gwas_data,
+                {"reference": REFERENCE, "build_num": build_num,
+                 "input_build": input_build},
+                stem, output_loc,
+            )
+            logging.info("Stage 'preprocess' complete.")
+            logging.info("Next: --stage process  (pass the same --gwas / --build / "
+                         "--liftover / --output flags).")
+            logging.info("=" * 70)
+            logging.info("Log : %s", log_path)
+            logging.info("=" * 70)
+            return
+        # else: gwas_data flows into the process stage below
 
-        # Update VCF path if liftover changed the build
-        build_num = normalise_build(REFERENCE)
-        vcf = ref_vcf_path(args.ref, args.population, build_num)
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: process-normalize
+    # basic_check + remove_dup + liftover.
+    # --stage all / process-normalize : entry from preprocess (gwas_data in memory
+    #                                   or loaded from .preprocess.parquet).
+    # Saves: {stem}.normalize.pkl
+    # ══════════════════════════════════════════════════════════════════════════
+    gwas_obj = None
+    _process_substages = {
+        "process-normalize", "process-check-ref",
+        "process-infer-strand", "process-assign-rsid", "process-check-af",
+    }
+    if stage in ("all",) or stage in _process_substages:
 
-        # ── Save raw outputs ───────────────────────────────────────────────────
-        stem = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+        if stage == "process-normalize":
+            logging.info("\n" + "=" * 60)
+            logging.info("STAGE: process-normalize")
+            logging.info("=" * 60)
+            gwas_data, meta = load_preprocess_checkpoint(stem, output_loc)
+            REFERENCE   = meta.get("reference",   REFERENCE)
+            build_num   = meta.get("build_num",   build_num)
+            input_build = meta.get("input_build", input_build)
+            stem        = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+            gwas_obj = make_sumstats_object(gwas_data, REFERENCE)
+            del gwas_data
+            gc.collect()
+            gwas_obj, REFERENCE = run_normalize(
+                gwas_obj, REFERENCE, args.ref, args.threads,
+                args.liftover, args.population,
+            )
+            build_num = normalise_build(REFERENCE)
+            stem      = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+            save_process_checkpoint(gwas_obj, stem, output_loc, "normalize")
+            logging.info("Stage 'process-normalize' complete.")
+            logging.info("Next: --stage process-check-ref")
+            logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+            return
+
+        elif stage == "all":
+            # In --stage all, gwas_data still in memory from preprocess block
+            if gwas_data is None:
+                logging.error("Internal error: gwas_data not available for --stage all.")
+                sys.exit(1)
+            logging.info("\n" + "=" * 60)
+            logging.info("STAGE: process  (all — running full run_processing)")
+            logging.info("=" * 60)
+            gwas_obj = make_sumstats_object(gwas_data, REFERENCE)
+            del gwas_data
+            gc.collect()
+            gwas_obj, REFERENCE = run_processing(
+                gwas_obj, REFERENCE, args.ref, vcf,
+                args.threads, args.liftover, args.dbsnp,
+                population=args.population,
+            )
+            build_num = normalise_build(REFERENCE)
+            vcf       = ref_vcf_path(args.ref, args.population, build_num)
+            stem      = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+            pkl_path  = os.path.join(output_loc, f"{stem}.pkl")
+            save_raw_outputs(gwas_obj, args.gwas, args.population,
+                             input_build, build_num, output_loc, added_n,
+                             save_pickle=not args.no_pickle)
+            if args.figures:
+                plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
+                                  plots_loc, args.daf_max, stem)
+            if args.cojo:
+                write_cojo(
+                    gwas_obj, args.gwas, args.population,
+                    input_build, build_num, output_loc,
+                    snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+                    suffix="", added_n=added_n,
+                )
+            # Falls through to the qc/leads/cojo blocks below
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: process-check-ref
+    # check_ref + flip_allele_stats + fix_id.
+    # Loads: {stem}.normalize.pkl
+    # Saves: {stem}.checkref.pkl
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "process-check-ref":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: process-check-ref")
+        logging.info("=" * 60)
+        gwas_obj = load_process_checkpoint(stem, output_loc, "normalize")
+        gwas_obj = run_check_ref(gwas_obj, normalise_build(REFERENCE), args.ref)
+        save_process_checkpoint(gwas_obj, stem, output_loc, "checkref")
+        logging.info("Stage 'process-check-ref' complete.")
+        logging.info("Next: --stage process-infer-strand")
+        logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+        return
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: process-infer-strand
+    # infer_strand2 + flip_allele_stats.
+    # Loads: {stem}.checkref.pkl
+    # Saves: {stem}.inferstrand.pkl
+    # High memory — full 1KG VCF sweep.
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "process-infer-strand":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: process-infer-strand")
+        logging.info("=" * 60)
+        gwas_obj = load_process_checkpoint(stem, output_loc, "checkref")
+        _vcf = ref_vcf_path(args.ref, args.population, build_num)
+        gwas_obj = run_infer_strand(gwas_obj, args.ref, _vcf, args.threads)
+        save_process_checkpoint(gwas_obj, stem, output_loc, "inferstrand")
+        _next = "process-assign-rsid" if args.dbsnp else "process-check-af"
+        logging.info("Stage 'process-infer-strand' complete.")
+        logging.info("Next: --stage %s", _next)
+        logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+        return
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: process-assign-rsid
+    # assign_rsid via dbSNP VCF sweep.
+    # Loads: {stem}.inferstrand.pkl
+    # Saves: {stem}.assignrsid.pkl
+    # Extreme memory — full dbSNP VCF sweep.
+    # Only reached when --dbsnp is set (guarded above).
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "process-assign-rsid":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: process-assign-rsid")
+        logging.info("=" * 60)
+        gwas_obj = load_process_checkpoint(stem, output_loc, "inferstrand")
+        gwas_obj = run_assign_rsid(gwas_obj, normalise_build(REFERENCE), args.ref, args.threads)
+        save_process_checkpoint(gwas_obj, stem, output_loc, "assignrsid")
+        logging.info("Stage 'process-assign-rsid' complete.")
+        logging.info("Next: --stage process-check-af")
+        logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+        return
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: process-check-af
+    # check_af2 — frequency concordance against 1KG VCF.
+    # Loads: {stem}.assignrsid.pkl  (if --dbsnp)  or  {stem}.inferstrand.pkl
+    # Saves: final raw outputs — {stem}.pkl + .parquet + .tsv.gz
+    # High memory — full 1KG VCF sweep.
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "process-check-af":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: process-check-af")
+        logging.info("=" * 60)
+        _prev_suffix = "assignrsid" if args.dbsnp else "inferstrand"
+        gwas_obj = load_process_checkpoint(stem, output_loc, _prev_suffix)
+        _vcf = ref_vcf_path(args.ref, args.population, build_num)
+        gwas_obj = run_check_af(gwas_obj, _vcf, args.threads)
+        pkl_path = os.path.join(output_loc, f"{stem}.pkl")
+        # process-check-af is the terminal process sub-stage: write final raw outputs
         save_raw_outputs(gwas_obj, args.gwas, args.population,
-                         input_build, build_num, output_loc, added_n)
-
-        # ── Full-dataset plots ─────────────────────────────────────────────────
+                         input_build, build_num, output_loc, added_n,
+                         save_pickle=not args.no_pickle)
         if args.figures:
             plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
                               plots_loc, args.daf_max, stem)
-
-        # ── COJO (raw) ─────────────────────────────────────────────────────────
         if args.cojo:
             write_cojo(
                 gwas_obj, args.gwas, args.population,
                 input_build, build_num, output_loc,
-                snpid_fmt=args.cojo_id,
-                add_pos=args.cojo_pos,
-                suffix="",
-                added_n=added_n,
+                snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+                suffix="", added_n=added_n,
             )
+        logging.info("Stage 'process-check-af' complete.")
+        logging.info("Next: --stage qc")
+        logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+        return
 
-    # Ensure `stem` is always defined for both the normal and --only-qc paths.
-    # In the normal path it was already set inside the else block (and build_num
-    # was updated there after liftover); here we recompute so the QC section,
-    # plots, leads, and COJO-QC all see the correct value regardless of which
-    # branch was taken above.
+    # Ensure stem is always defined for both the normal path and the qc/cojo
+    # stages that enter below without running the process block.
     stem = file_tag(args.gwas, args.population, input_build, build_num, added_n)
 
-    # ── QC ─────────────────────────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: qc
+    # Apply QC filters, save QC outputs, generate QC plots, extract leads.
+    # --stage all : gwas_obj is still in memory from the process stage above.
+    # --stage qc  : loads the raw pickle written by --stage process.
+    # ══════════════════════════════════════════════════════════════════════════
     gwas_obj_qc = None
-    if args.qc or args.only_qc:
+    run_qc = (args.qc or stage == "qc") and stage != "cojo"
+    if run_qc:
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: qc")
+        logging.info("=" * 60)
+
+        if stage == "qc":
+            logging.info("[qc] Loading pickle: %s", pkl_path)
+            gwas_obj = gl.load_pickle(pkl_path)
+            if gwas_obj is None:
+                logging.error(
+                    "[qc] Failed to load pickle — file not found or unreadable:\n"
+                    "  %s\n"
+                    "Ensure --stage process has been run with the same "
+                    "--gwas / --build / --liftover / --output flags.",
+                    pkl_path,
+                )
+                sys.exit(1)
+            # Optionally regenerate full-dataset plots from the loaded pickle.
+            if args.figures:
+                plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
+                                  plots_loc, args.daf_max, stem)
+
         gwas_obj_qc = apply_qc(
             gwas_obj,
             args.eaf_min, args.beta_max, args.se_max,
             args.info_min, args.daf_max,
         )
-        save_qc_outputs(gwas_obj_qc, args.gwas, args.population,
-                        input_build, build_num, output_loc, added_n)
+        # Free the unfiltered object — gwas_obj_qc is now the working copy.
+        del gwas_obj
+        gc.collect()
 
-        # ── QC-dataset plots ─────────────────────────────────────────────────
+        save_qc_outputs(gwas_obj_qc, args.gwas, args.population,
+                        input_build, build_num, output_loc, added_n,
+                        save_pickle=not args.no_pickle)
+
         if args.figures:
             plot_qc_dataset(gwas_obj_qc, args.gwas, REFERENCE,
                             plots_loc, args.daf_max, stem)
 
-        # ── COJO (QC) ─────────────────────────────────────────────────────────
         if args.cojo:
             write_cojo(
                 gwas_obj_qc, args.gwas, args.population,
                 input_build, build_num, output_loc,
-                snpid_fmt=args.cojo_id,
-                add_pos=args.cojo_pos,
-                suffix="qc",
-                added_n=added_n,
+                snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+                suffix="qc", added_n=added_n,
             )
-    # ── Lead SNPs ──────────────────────────────────────────────────────────────
-    if args.leads:
-        is_qc      = (args.qc or args.only_qc) and gwas_obj_qc is not None
-        source_obj = gwas_obj_qc if is_qc else gwas_obj
-        extract_leads(source_obj, args.gwas, args.population,
-                      input_build, build_num, output_loc, is_qc, added_n)
+
+        if args.leads:
+            extract_leads(gwas_obj_qc, args.gwas, args.population,
+                          input_build, build_num, output_loc, True, added_n)
+
+        if stage == "qc":
+            logging.info("Stage 'qc' complete.")
+            logging.info("=" * 70)
+            logging.info("Output : %s", output_loc)
+            logging.info("Log    : %s", log_path)
+            logging.info("=" * 70)
+            return
+
+    # ── Leads (--stage all, QC disabled) ──────────────────────────────────────
+    # When QC ran, leads were already extracted inside the qc block above.
+    # When QC did not run, extract from gwas_obj which is still in scope.
+    if stage == "all" and args.leads and not run_qc:
+        if gwas_obj is not None:
+            extract_leads(gwas_obj, args.gwas, args.population,
+                          input_build, build_num, output_loc, False, added_n)
+        else:
+            logging.warning("--leads requested but gwas_obj is not available; skipping.")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: cojo  (standalone)
+    # Write a COJO file from an existing pickle.  Prefers the QC pickle if
+    # present; falls back to the raw pickle.
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "cojo":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: cojo")
+        logging.info("=" * 60)
+
+        qc_pkl_path = os.path.join(output_loc, f"{stem}.qc.pkl")
+        if os.path.isfile(qc_pkl_path):
+            logging.info("[cojo] Loading QC pickle: %s", qc_pkl_path)
+            cojo_obj    = gl.load_pickle(qc_pkl_path)
+            cojo_suffix = "qc"
+        elif os.path.isfile(pkl_path):
+            logging.info("[cojo] Loading raw pickle: %s", pkl_path)
+            cojo_obj    = gl.load_pickle(pkl_path)
+            cojo_suffix = ""
+        else:
+            logging.error(
+                "[cojo] No pickle found at:\n  %s\n  %s\n"
+                "Run --stage process (and optionally --stage qc) first.",
+                pkl_path, qc_pkl_path,
+            )
+            sys.exit(1)
+
+        write_cojo(
+            cojo_obj, args.gwas, args.population,
+            input_build, build_num, output_loc,
+            snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+            suffix=cojo_suffix, added_n=added_n,
+        )
+        logging.info("Stage 'cojo' complete.")
+        logging.info("=" * 70)
+        logging.info("Output : %s", output_loc)
+        logging.info("Log    : %s", log_path)
+        logging.info("=" * 70)
+        return
 
     # ── Done ───────────────────────────────────────────────────────────────────
     logging.info("=" * 70)
