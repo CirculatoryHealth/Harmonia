@@ -23,27 +23,47 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # CARDIoGRAM (Schunkert 2011) – hg18; requires --liftover when running
+# HEADER
 # SNP CHR BP REFERENCE_ALLELE OTHER_ALLELE RAF P HET_Pvalue LOG_ODDS LOG_ODDS_SE N_case N_control MODEL
+#
 # /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz;CAD_Schunkert;EUR;18;.;.;.;64G;08:00:00
+#
 # CARDIoGRAMplusC4D + UKBB (Nelson 2017) – hg19
+# HEADER
 # Markername;snptestid;chr;bp_hg19;effect_allele;noneffect_allele;effect_allele_freq;logOR;se_gc;p-value_gc;n_samples;exome;info_ukbb
+#
 # /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz;CAD_Nelson;EUR;19;.;10801;137914;64G;08:00:00
+#
 # Aragam / Million Hearts SAIGE meta-analysis – hg19
+# HEADER
 # MarkerName;CHR;BP;Allele1;Allele2;Freq1;FreqSE;MinFreq;MaxFreq;Effect;StdErr;P-value;DirectionHetISq;HetChiSq;HetDf;HetPVal;Cases;Effective_Cases;N;Meta_analysis
+#
 /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/millionhearts/CHD_meta_SAIGE_complete_filtered_30.1.19.out.gz;CAD_Aragam;EUR;19;.;.;984168;128G;96:00:00
+#
 # van der Harst 2017 – hg19
+# HEADER
 # MarkerName;Allele1;Allele2;Freq1;FreqSE;MinFreq;MaxFreq;Effect;StdErr;P-value;Direction;HetISq;HetChiSq;HetDf;HetPVal;oldID;CHR;BP
+#
 /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/vanderHarst/CAD_META.gz;CAD_vanderHarst;EUR;19;547261;122733;424528;64G;08:00:00
+#
 # CAD MVP (Tcheandjieu 2022) – PENDING: no file located yet
-#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/MVP/PLACEHOLDER_MVP.txt.gz;CAD_MVP;EUR;19;.;.;.;64G;08:00:00
+# HEADER
+#
+# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/MVP/PLACEHOLDER_MVP.txt.gz;CAD_MVP;EUR;19;.;.;.;64G;08:00:00
+#
 # MI (Myocardial Infarction) – PENDING: no file located yet
-#/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM//PLACEHOLDER_MI.txt.gz;MI;EUR;19;.;.;.;64G;08:00:00
+#
+# HEADER
+#
+# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM//PLACEHOLDER_MI.txt.gz;MI;EUR;19;.;.;.;64G;08:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # STROKE (ISGC GigaStroke, Mishra 2022 – GRCh37 / hg19)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
+# HEADER
 # chromosome;base_pair_location;effect_allele_frequency;beta;standard_error;p_value;odds_ratio;ci_lower;ci_upper;effect_allele;other_allele
+#
 # /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz;AS;EUR;19;1245612;10804;1234808;64G;08:00:00
 # /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz;IS;EUR;19;1308460;73652;1234808;64G;08:00:00
 # /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz;CES;EUR;19;1296908;62100;1234808;64G;08:00:00
@@ -55,15 +75,25 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # CHARGE CAC European ancestry (Kavousi 2022) – hg19
+# HEADER
 # MarkerName;rsID;Chr;Pos;Allele1;Allele2;Freq1;FreqSE;MinFreq;MaxFreq;Effect;StdErr;Pvalue;Direction;HetISq;HetChiSq;HetDf;HetPval;N
+# 
 # /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz;CHARGE_CAC_EA;EUR;19;.;.;.;64G;08:00:00
+#
 # CHARGE CAC European + African (EA+AA) ancestry  (Kavousi 2022) – hg19
+#
 # /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz;CHARGE_CAC_EA_REP;EUR;19;.;.;.;64G;08:00:00
+#
 # CHARGE cIMT (Franceschini 2018) – hg19
+# HEADER
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,refid,BP,CHR,P,input_name
+#
 # /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz;cIMT;EUR;19;.;.;.;64G;08:00:00
+#
 # CHARGE Plaque (Franceschini, 2018) – hg19
+# HEADER
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,P_value,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,ID,refid,BP,CHR,P,SNP,maf
+#
 # /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz;Plaque;EUR;19;.;.;.;64G;08:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -71,14 +101,18 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # AFGen / Roselli 2018 – AF, b38 positions
+# HEADER
 # MarkerName;rsid;chr;position_b38;Allele1;Allele2;Freq1;Effect;StdErr;log(P);n_events;n_total;mean_impQual
+# 
 /hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz;AF;PAN;19;.;.;.;128G;96:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # LIPIDS (GLGC / Graham 2021 – hg19)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
+# HEADER
 # chromosome;base_pair_location;effect_allele;other_allele;beta;standard_error;effect_allele_frequency;p_value;variant_id;n;N_studies;hm_coordinate_conversion;hm_code;rsid
+#
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_EUR/harmonised/GCST90239652.h.tsv.gz;HDL_EUR;EUR;19;.;.;.;64G;08:00:00
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_EUR/harmonised/GCST90239658.h.tsv.gz;LDL_EUR;EUR;19;.;.;.;64G;08:00:00
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/harmonised/GCST90239676.h.tsv.gz;TC_EUR;EUR;19;.;.;.;64G;08:00:00
