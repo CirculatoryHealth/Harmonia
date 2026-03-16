@@ -65,8 +65,8 @@ echo "Submission log: ${SUBMIT_LOG}"
 WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --cojo-id rsid --leads --fill-eaf"
 
 # ── Fixed (trivial) stage resources — not per-study configurable ──────────────
-MEM_PREPROCESS="32G";  TIME_PREPROCESS="12:00:00"  # CSV load + standardise only
-MEM_COJO="16G";        TIME_COJO="4:00:00"          # file write only
+MEM_PREPROCESS="32G";  TIME_PREPROCESS="00:30:00"  # CSV load + standardise only
+MEM_COJO="16G";        TIME_COJO="00:30:00"          # file write only
 
 # ── Script-level fallback defaults (used when config COL10/COL11 are absent) ─
 MEM_LIGHT_DEFAULT="64G";   TIME_LIGHT_DEFAULT="24:00:00"  # normalize, check-ref, qc
