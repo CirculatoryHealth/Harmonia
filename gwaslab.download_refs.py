@@ -27,6 +27,13 @@ https://cloufield.github.io/gwaslab/Download/
 
 import argparse
 import gwaslab as gl
+from gwaslab.bd.bd_download import (
+    set_default_directory,
+    get_default_directory,
+    download_ref,
+    check_downloaded_ref,
+    get_path,
+)
 
 DEFAULT_REF_DIR = "/hpc/dhl_ec/data/references/gwaslab/"
 
@@ -93,18 +100,18 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Reference directory : {args.ref_dir}")
-    gl.set_default_directory(args.ref_dir)
+    set_default_directory(args.ref_dir)
 
     for keyword in TO_DOWNLOAD:
         print(f"\n{'─' * 60}")
         print(f"Downloading: {keyword}")
-        gl.download_ref(keyword)
-        path = gl.get_path(keyword, verbose=False)
+        download_ref(keyword)
+        path = get_path(keyword, verbose=False)
         print(f"  → {path}")
 
     print(f"\n{'═' * 60}")
     print("Done. Downloaded references:")
-    gl.check_downloaded_ref()
+    check_downloaded_ref()
 
 
 if __name__ == "__main__":
