@@ -32,13 +32,13 @@
 # HEADER
 # SNP CHR BP REFERENCE_ALLELE OTHER_ALLELE RAF P HET_Pvalue LOG_ODDS LOG_ODDS_SE N_case N_control MODEL
 #
-# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz;CAD_Schunkert;EUR;18;.;.;.;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/cardiogram_gwas_results_edited.txt.gz;CAD_Schunkert;EUR;18;.;.;.;128G;24:00:00;64G;24:00:00
 #
 # CARDIoGRAMplusC4D + UKBB (Nelson 2017) – hg19
 # HEADER
 # Markername;snptestid;chr;bp_hg19;effect_allele;noneffect_allele;effect_allele_freq;logOR;se_gc;p-value_gc;n_samples;exome;info_ukbb
 #
-# /hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz;CAD_Nelson;EUR;19;.;10801;137914;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CARDIoGRAM/ukbiobank_cardiogramplusc4d/UKBB.GWAS1KG.EXOME.CAD.SOFT.META.PublicRelease.300517.txt.gz;CAD_Nelson;EUR;19;.;10801;137914;128G;24:00:00;64G;24:00:00
 #
 # Aragam / Million Hearts SAIGE meta-analysis – hg19
 # HEADER
@@ -70,11 +70,11 @@
 # HEADER
 # chromosome;base_pair_location;effect_allele_frequency;beta;standard_error;p_value;odds_ratio;ci_lower;ci_upper;effect_allele;other_allele
 #
-# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz;AS;EUR;19;1245612;10804;1234808;64G;08:00:00
-# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz;IS;EUR;19;1308460;73652;1234808;64G;08:00:00
-# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz;CES;EUR;19;1296908;62100;1234808;64G;08:00:00
-# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/LAS_EUR_GCST90104538_buildGRCh37.tsv.gz;LAS;EUR;19;1241619;6811;1234808;64G;08:00:00
-# /hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/SVD_EUR_GCST90104543_buildGRCh37.tsv.gz;SVD;EUR;19;1241207;6399;1234808;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/ALLSTROKE_EUR_GCST90104534_buildGRCh37.tsv.gz;AS;EUR;19;1245612;10804;1234808;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/IS_EUR_GCST90104540_buildGRCh37.tsv.gz;IS;EUR;19;1308460;73652;1234808;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/CES_EUR_GCST90104541_buildGRCh37.tsv.gz;CES;EUR;19;1296908;62100;1234808;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/LAS_EUR_GCST90104538_buildGRCh37.tsv.gz;LAS;EUR;19;1241619;6811;1234808;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_ISGC/gigastroke/SVD_EUR_GCST90104543_buildGRCh37.tsv.gz;SVD;EUR;19;1241207;6399;1234808;128G;24:00:00;64G;24:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # CORONARY ARTERY CALCIUM / ARTERIAL STIFFNESS / CAROTID IMT / PLAQUE
@@ -84,23 +84,23 @@
 # HEADER
 # MarkerName;rsID;Chr;Pos;Allele1;Allele2;Freq1;FreqSE;MinFreq;MaxFreq;Effect;StdErr;Pvalue;Direction;HetISq;HetChiSq;HetDf;HetPval;N
 # 
-# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz;CHARGE_CAC_EA;EUR;19;.;.;.;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz;CHARGE_CAC_EA;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
 #
 # CHARGE CAC European + African (EA+AA) ancestry  (Kavousi 2022) – hg19
 #
-# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz;CHARGE_CAC_EA_REP;EUR;19;.;.;.;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz;CHARGE_CAC_EA_REP;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
 #
 # CHARGE cIMT (Franceschini 2018) – hg19
 # HEADER
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,refid,BP,CHR,P,input_name
 #
-# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz;cIMT;EUR;19;.;.;.;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/IMT.EA.META.MAF1.HetDF4_jun.csv.gz;cIMT;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
 #
 # CHARGE Plaque (Franceschini, 2018) – hg19
 # HEADER
 # MarkerName,Allele1,Allele2,Freq1,FreqSE,MinFreq,MaxFreq,Effect,StdErr,P_value,Direction,HetISq,HetDf,HetPVal,TotalSampleSize,HetChiSq,ID,refid,BP,CHR,P,SNP,maf
 #
-# /hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz;Plaque;EUR;19;.;.;.;64G;08:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_cIMT_PlaquePresence/1000g/Plaque_meta_032218.csv.gz;Plaque;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # ATRIAL FIBRILLATION
@@ -110,7 +110,7 @@
 # HEADER
 # MarkerName;rsid;chr;position_b38;Allele1;Allele2;Freq1;Effect;StdErr;log(P);n_events;n_total;mean_impQual
 # 
-/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz;AF;PAN;19;.;.;.;128G;24:00:00;256G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz;AF;PAN;19;.;.;.;128G;96:00:00;256G;24:00:00
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 # LIPIDS (GLGC / Graham 2021 – hg19)
@@ -124,11 +124,11 @@
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_EUR/harmonised/GCST90239676.h.tsv.gz;TC_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_EUR/harmonised/GCST90239664.h.tsv.gz;TG_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
 /hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_EUR/harmonised/GCST90239670.h.tsv.gz;nonHDL_EUR;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/harmonised/GCST90239649.h.tsv.gz;HDL_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/harmonised/GCST90239655.h.tsv.gz;LDL_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/harmonised/GCST90239673.h.tsv.gz;TC_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/harmonised/GCST90239661.h.tsv.gz;TG_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
-/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_PAN/harmonised/GCST90239667.h.tsv.gz;nonHDL_PAN;PAN;19;.;.;.;128G;24:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/HDL_PAN/harmonised/GCST90239649.h.tsv.gz;HDL_PAN;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/LDL_PAN/harmonised/GCST90239655.h.tsv.gz;LDL_PAN;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TC_PAN/harmonised/GCST90239673.h.tsv.gz;TC_PAN;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/TG_PAN/harmonised/GCST90239661.h.tsv.gz;TG_PAN;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_LIPIDS/_graham_2021/nonHDL_PAN/harmonised/GCST90239667.h.tsv.gz;nonHDL_PAN;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
 #
 
 
