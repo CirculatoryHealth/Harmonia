@@ -60,7 +60,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.2.0"
+VERSION      = "1.3.0"
 VERSION_DATE = "2026-03-16"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''

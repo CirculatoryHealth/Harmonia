@@ -130,68 +130,89 @@ You will need a reference to map the data to. You can create your own, or use th
 
 ## ⚙️ Requirements
 
-* Python ≥3.6
+* Python 3.12
 * Tested on Linux and macOS
-* Optional dependencies:
-* `numpy` → for allele frequency concordance (R²)
-* `pyliftover` → for genome build conversion (hg18/hg19/hg38)
+* `bcftools` ≥1.17 (used by GWASLab VCF sweep steps; installed via bioconda)
+* See `environment.yml` for the full dependency list
 
 ## 🧩 Installation
 
 We recommend using `mamba` (a faster drop-in replacement for `conda`).
 
-### 1️⃣ Create and activate the environment
+### Option A — from `environment.yml` *(recommended)*
 
-```
+```bash
 mamba env create -f environment.yml
 mamba activate gwas2cojo
 ```
 
+This installs Python 3.12, `bcftools` (bioconda), and all pip dependencies in one step.
+
+### Option B — manual create + pip install
+
+If you prefer to build the environment by hand:
+
+```bash
+mamba create --name gwas2cojo python=3.12
+mamba activate gwas2cojo
+pip install \
+    "numpy>=1.21.2,<2" pyliftover tqdm "adjusttext==0.8" \
+    "matplotlib>=3.8,<3.9" "pandas>=1.3,!=1.5" "pysam==0.22.1" \
+    "scikit-allel>=1.3.5" "scipy>=1.12" "seaborn>=0.12" \
+    "h5py>=3.10.0" pyarrow "polars>=1.27.0" \
+    "sumstats-liftover==1.1.0" "jupyter==1.0.0" \
+    gwaslab bcftools
+```
+
+> **Note:** `bcftools` is also available as a conda package from bioconda and is preferred over the pip wrapper on most HPC systems:
+> ```bash
+> mamba install -c bioconda bcftools
+> ```
+
 ### 2️⃣ Verify installation
 
-Check that the required Python modules are available:
+Check that the core modules load correctly:
 
+```bash
+python -c "import numpy, gwaslab, pyliftover, polars; print('OK')"
 ```
-python -c "import numpy, pyliftover; print('OK')"
-```
 
-If you see OK, the environment is ready.
+If you see `OK`, the environment is ready.
 
-### 3️⃣ (Optional) Test the script
+### 3️⃣ (Optional) Test the scripts
 
-You can confirm that `gwas2cojo.py` runs correctly:
+Confirm that `gwas2cojo.py` runs:
 
-```
+```bash
 python gwas2cojo.py --help
 ```
 
-Expected output:
+Confirm that `gwaslab.process.py` runs:
 
-A help message showing available arguments such as `--gwas`, `--gen`, `-o`, `-r`, `--fmid`, and others.
-
-If you want to run a minimal functionality test:
-
+```bash
+python gwaslab.process.py --help
 ```
+
+For a minimal parsing test without running the full pipeline:
+
+```bash
 python gwas2cojo.py --header-only --gwas example_gwas.txt.gz
 ```
 
-This checks header parsing without performing alignment.
-
 ## 🔧 Troubleshooting
 
-### 🧱 Missing `pyliftover`
+### 🧱 Dependency conflicts
 
-If `pyliftover` is missing, install it manually:
+If `pip install` reports conflicts, try installing inside the activated conda environment and letting conda resolve system libraries first:
 
-```
-mamba install -c conda-forge pyliftover
+```bash
+mamba install -c conda-forge -c bioconda bcftools pysam h5py
+pip install "numpy>=1.21.2,<2" gwaslab "polars>=1.27.0" ...
 ```
 
 ### 🐍 Prefer `conda` instead of `mamba`?
 
-If you prefer `conda`:
-
-```
+```bash
 conda env create -f environment.yml
 conda activate gwas2cojo
 ```
@@ -200,34 +221,36 @@ conda activate gwas2cojo
 
 # 🔬 gwaslab.process.py — GWASLab Processing Pipeline
 
-`gwaslab.process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (pickle, parquet, TSV.GZ, COJO). It is the recommended successor to `gwas2cojo.py` for new datasets.
+`gwaslab.process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
 
 ## 🗺️ Pipeline overview
 
-Steps run in order; individual steps can be toggled with the flags described below.
+Steps run in order; individual steps can be toggled with the flags described below. Each stage can be run as an independent SLURM job using `--stage`; see [HPC: Staged SLURM submission](#-hpc-staged-slurm-submission) below.
 
-| Step | Description | Toggle |
-|------|-------------|--------|
-| 1 | Load and parse input file; auto-detect column names | always |
-| 2 | Verify / normalise genome build | always |
-| 3 | Correct P-values, SE, and N columns | always |
-| 4 | Standardise to GWASLab `Sumstats` object | always |
-| 5 | Plot raw input histograms | `--figures` |
-| 6 | `basic_check` — flag malformed variants | always |
-| 7 | `remove_dup` — drop duplicate variants | always |
-| 8 | Liftover (hg18→hg38 or hg19→hg38) | `--liftover` |
-| 9 | `check_ref` against hg38 FASTA | always |
-| 10 | `fix_id` — normalise variant IDs | always |
-| 11 | `infer_strand2` — resolve strand from 1KG VCF | always |
-| 12 | `assign_rsid` — annotate with dbSNP rsIDs | `--dbsnp` |
-| 13 | `check_af2` — allele-frequency concordance vs 1KG VCF | always |
-| 14 | Save raw outputs (pickle + parquet + TSV.GZ) | always |
-| 15 | Manhattan, QQ, and DAF plots (pre-QC) | `--figures` |
-| 16 | QC filter (EAF, BETA, SE, INFO, HWE, MAC, DAF) | `--qc` |
-| 17 | Save QC outputs | `--qc` |
-| 18 | Manhattan, QQ, and DAF plots (post-QC) | `--figures` + `--qc` |
-| 19 | Extract genome-wide significant lead SNPs | `--leads` |
-| 20 | Write COJO-format file(s) | `--cojo` |
+| Step | Description | Stage (`--stage`) | Toggle |
+|------|-------------|-------------------|--------|
+| 1 | Load and parse input file; auto-detect column names | `preprocess` | always |
+| 2 | Verify / normalise genome build | `preprocess` | always |
+| 3 | Correct P-values, SE, and N columns | `preprocess` | always |
+| 4 | Standardise to GWASLab `Sumstats` object | `preprocess` | always |
+| 5 | Plot raw input histograms | `preprocess` | `--figures` |
+| 6 | `basic_check` — flag malformed variants | `process-normalize` | always |
+| 7 | `remove_dup` — drop duplicate variants | `process-normalize` | always |
+| 8 | Liftover (hg18→hg38 or hg19→hg38) | `process-normalize` | `--liftover` |
+| 9 | `check_ref` against hg38 FASTA | `process-check-ref` | always |
+| 10 | `flip_allele_stats` — correct BETA/EAF for reference-flipped alleles | `process-check-ref` | always |
+| 11 | `fix_id` — normalise variant IDs | `process-check-ref` | always |
+| 12 | `infer_strand2` — resolve strand ambiguity from 1KG VCF (full sweep) | `process-infer-strand` | always |
+| 13 | `flip_allele_stats` — correct stats for strand-resolved variants | `process-infer-strand` | always |
+| 14 | `assign_rsid` — annotate with dbSNP rsIDs (full dbSNP VCF sweep) | `process-assign-rsid` | `--dbsnp` |
+| 15 | `check_af2` — allele-frequency concordance vs 1KG VCF | `process-check-af` | always |
+| 16 | Save raw outputs (pickle + parquet + TSV.GZ) | `process-check-af` | always |
+| 17 | Manhattan, QQ, and DAF plots (pre-QC) | `process-check-af` | `--figures` |
+| 18 | QC filter (EAF, BETA, SE, INFO, HWE, MAC, DAF) | `qc` | `--qc` |
+| 19 | Save QC outputs | `qc` | `--qc` |
+| 20 | Manhattan, QQ, and DAF plots (post-QC) | `qc` | `--figures` + `--qc` |
+| 21 | Extract genome-wide significant lead SNPs | `qc` | `--leads` |
+| 22 | Write COJO-format file(s) | `cojo` | `--cojo` |
 
 ## 🚀 Usage
 
@@ -262,25 +285,57 @@ python3 gwaslab.process.py \
     --threads 4
 ```
 
-### Resume from a saved pickle (skip re-processing)
+### Run a single stage (staged mode)
 
-If the pipeline completed successfully up to the pickle save step but failed later (e.g. during plotting), you can reload from the pickle and re-run downstream steps without repeating the expensive processing:
+Use `--stage` to run only one part of the pipeline. Pass the same `--gwas`, `--build`, `--liftover`, and `--output` flags to every stage so file stems match and checkpoints can be found.
+
+```bash
+# Stage 1 — light: load + standardise (saves .preprocess.parquet)
+python3 gwaslab.process.py --gwas CAD_SCHUNKERT --input cardiogram_gwas_results_edited.txt.gz \
+    --directory /data/gwas/CARDIoGRAM --ref /data/references/gwaslab \
+    --output /data/results/CAD_SCHUNKERT --population EUR --build 18 \
+    --liftover --dbsnp --qc --figures --leads --cojo --cojo-pos --cojo-id rsid \
+    --stage preprocess
+
+# Stage 2 — light: basic checks + liftover (saves .normalize.pkl)
+python3 gwaslab.process.py ... --stage process-normalize
+
+# Stage 3 — medium: reference check + flip (saves .checkref.pkl)
+python3 gwaslab.process.py ... --stage process-check-ref
+
+# Stage 4 — heavy: 1KG strand inference (saves .inferstrand.pkl)
+python3 gwaslab.process.py ... --stage process-infer-strand
+
+# Stage 5 — heaviest: dbSNP rsID sweep (saves .assignrsid.pkl)
+python3 gwaslab.process.py ... --stage process-assign-rsid
+
+# Stage 6 — heavy: AF check + save final raw outputs (.pkl / .parquet / .tsv.gz)
+python3 gwaslab.process.py ... --stage process-check-af
+
+# Stage 7 — medium: QC filter + plots + leads
+python3 gwaslab.process.py ... --stage qc
+
+# Stage 8 — light: write COJO file
+python3 gwaslab.process.py ... --stage cojo
+```
+
+> **Important:** pass the same `--gwas`, `--population`, `--build`, `--liftover`, and `--output` flags to every stage so file stems match.
+
+### Resume QC from a saved pickle
+
+If the pipeline completed the processing stages but failed later (e.g. during plotting), resume from the pickle without repeating the expensive VCF sweeps:
 
 ```bash
 python3 gwaslab.process.py \
     --gwas    CAD_SCHUNKERT \
-    --input   cardiogram_gwas_results_edited.txt.gz \   # ignored; pickle is used instead
-    --directory /data/gwas/CARDIoGRAM \                # ignored; pickle is used instead
+    --input   cardiogram_gwas_results_edited.txt.gz \
+    --directory /data/gwas/CARDIoGRAM \
     --ref     /data/references/gwaslab \
-    --output  /data/results/CAD_SCHUNKERT \            # must match the original run
-    --population EUR \
-    --build   18 \                                     # must match the original run
-    --liftover \                                       # must match the original run
+    --output  /data/results/CAD_SCHUNKERT \
+    --population EUR --build 18 --liftover \
     --qc --figures --leads \
-    --only-qc
+    --stage qc          # replaces the old --only-qc flag
 ```
-
-> **Important:** `--output`, `--population`, `--build`, and `--liftover` must match the original run exactly — they determine the pickle filename that is looked up.
 
 ## 📜 Full argument reference
 
@@ -313,10 +368,25 @@ python3 gwaslab.process.py \
 | `--liftover` | Lift coordinates to hg38 (hg18→hg38 or hg19→hg38). Requires `hg18ToHg38.over.chain.gz` in `--ref` for build 18. |
 | `--dbsnp` | Assign rsIDs from a dbSNP VCF |
 | `--qc` | Apply QC filters and save a filtered output |
-| `--only-qc` | Skip loading; reload from an existing pickle and run QC / plots / leads only |
+| `--only-qc` | *(Deprecated — use `--stage qc`)* Reload from an existing pickle and run QC / plots / leads only |
 | `--fill-eaf` | Look up missing EAF values from the 1KG reference VCF |
 | `--figures` | Generate diagnostic plots (Manhattan, QQ, DAF, histograms) |
 | `--leads` | Extract genome-wide significant lead SNPs (p < 5×10⁻⁸) |
+| `--no-pickle` | Skip writing `.pkl` files (reduces peak memory and disk; incompatible with `--stage qc` and `--stage cojo`) |
+
+### Stage control
+
+| Argument | Description |
+|----------|-------------|
+| `--stage all` | Run the full pipeline end-to-end *(default)* |
+| `--stage preprocess` | Load + standardise → `.preprocess.parquet` + `.preprocess.json` |
+| `--stage process-normalize` | `basic_check` + `remove_dup` + liftover → `.normalize.pkl` |
+| `--stage process-check-ref` | `check_ref` + `flip_allele_stats` + `fix_id` → `.checkref.pkl` |
+| `--stage process-infer-strand` | `infer_strand2` + `flip_allele_stats` → `.inferstrand.pkl` |
+| `--stage process-assign-rsid` | `assign_rsid` via dbSNP VCF → `.assignrsid.pkl` *(requires `--dbsnp`)* |
+| `--stage process-check-af` | `check_af2` → final raw outputs `.pkl` / `.parquet` / `.tsv.gz` |
+| `--stage qc` | QC filter → `.qc.pkl` / `.qc.parquet` / `.qc.tsv.gz`; loads prior pickle |
+| `--stage cojo` | Write COJO file from existing pickle (prefers `.qc.pkl` if present) |
 
 ### COJO output
 
@@ -367,9 +437,22 @@ All output files share a common stem:
 
 For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 
+### Stage checkpoint files *(intermediate; safe to remove after pipeline completes)*
+
+| File | Written by stage | Description |
+|------|-----------------|-------------|
+| `<stem>.preprocess.parquet` | `preprocess` | Standardised DataFrame (BROTLI-compressed) |
+| `<stem>.preprocess.json` | `preprocess` | Build metadata (reference, build_num, input_build) |
+| `<stem>.normalize.pkl` | `process-normalize` | After basic checks + liftover |
+| `<stem>.checkref.pkl` | `process-check-ref` | After reference allele check + flip |
+| `<stem>.inferstrand.pkl` | `process-infer-strand` | After 1KG strand inference |
+| `<stem>.assignrsid.pkl` | `process-assign-rsid` | After dbSNP rsID assignment |
+
+### Final output files *(never removed by cleanup)*
+
 | File | Description |
 |------|-------------|
-| `<stem>.pkl` | GWASLab `Sumstats` pickle — used for `--only-qc` resume |
+| `<stem>.pkl` | Final raw GWASLab `Sumstats` pickle |
 | `<stem>.parquet` | Raw harmonised data (parquet) |
 | `<stem>.tsv.gz` | Raw harmonised data (TSV.GZ) |
 | `<stem>.log` | GWASLab internal log |
@@ -384,83 +467,136 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 
 ---
 
-# 🖥️ HPC: SLURM array-job submission
+# 🖥️ HPC: SLURM submission
 
-For large-scale processing of many GWAS studies on a compute cluster, two helper scripts are provided.
+For large-scale processing of many GWAS studies on a compute cluster, four helper scripts are provided.
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `gwaslab_array.sh` | SLURM batch script; runs one `gwaslab.process.py` call per array task |
-| `submit_gwaslab.sh` | Submission helper; counts config entries and calls `sbatch --array=1-N` |
-| `gwas_list.txt.example` | Annotated example config file |
+| `gwaslab.process.array_for_submit.sh` | SLURM worker — runs one `gwaslab.process.py` call for one study and one stage |
+| `gwaslab.process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
+| `gwaslab.process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
+| `gwaslab.process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
 
-## Config file format
+## Config file format (`gwas_list.txt`)
 
-Tab-separated, one GWAS per line. Lines starting with `#` and blank lines are ignored.
+Semicolon-separated, one GWAS per line. Lines starting with `#` and blank lines are ignored.
 
 ```
-# COL1  Full path to input GWAS file
-# COL2  GWAS name          → --gwas and output subdirectory
-# COL3  Population         → EUR / EAS / SAS / AFR / AMR / META
-# COL4  Build              → 18 / 19 / 38
-# COL5  N total            → integer, or . if not applicable
-# COL6  N cases            → integer, or . if not applicable
-# COL7  N controls         → integer, or . if not applicable
+# COL1  Full path to input GWAS file (directory + filename)
+# COL2  GWAS name         → --gwas and output subdirectory
+# COL3  Population        → EUR / EAS / SAS / AFR / AMR / PAN
+# COL4  Build             → 18 / 19 / 38
+# COL5  N (total)         → integer or .
+# COL6  N_cases           → integer or .
+# COL7  N_controls        → integer or .
+# COL8  MEM               → SLURM memory for HEAVY stages (process-infer-strand,
+#                           process-assign-rsid, process-check-af); e.g. 128G or 256G
+# COL9  TIME              → SLURM time limit for HEAVY stages (HH:MM:SS, e.g. 96:00:00)
+# COL10 MEM_LIGHT         → SLURM memory for LIGHT stages (process-normalize,
+#                           process-check-ref, qc); e.g. 32G or 64G or 128G
+# COL11 TIME_LIGHT        → SLURM time limit for LIGHT stages (HH:MM:SS, e.g. 12:00:00)
 ```
 
 If **all three** of COL5–COL7 are non-`.`, `--force-n` is added automatically.
 
+> **Note on MEM_LIGHT:** Set this higher for studies with many columns or complex allele structure. Multi-ancestry meta-analyses can require 128G even at `process-check-ref` despite having fewer variants than standard EUR studies.
+
 Example:
 
 ```
-/data/gwas/CARDIoGRAM/cardiogram_gwas.txt.gz	CAD_SCHUNKERT	EUR	18	.	.	.
-/data/gwas/MI/nikpay2015.txt.gz	MI_NIKPAY	EUR	19	.	43676	128199
-/data/gwas/T2D/mahajan2018.txt.gz	T2D_MAHAJAN	EUR	38	898130	.	.
+/data/gwas/CARDIoGRAM/CHD_meta_SAIGE.out.gz;CAD_Aragam;EUR;19;.;.;984168;128G;96:00:00;64G;24:00:00
+/data/gwas/LIPIDS/HDL_EUR.h.tsv.gz;HDL_EUR;EUR;19;.;.;.;64G;08:00:00;32G;12:00:00
+/data/gwas/AFGen/AF_TOPMed.txt.gz;AF;PAN;19;.;.;.;128G;96:00:00;128G;24:00:00
 ```
 
-## Quick start
+---
 
-**1.** Copy and edit the example config:
+## Option 1: Single full-pipeline job per study (`gwaslab.process.submit.sh`)
+
+Submits one SLURM job per study running `--stage all`. The `MEM` and `TIME` from the config are used for the entire job. Suitable when you want simplicity over granular resource control.
 
 ```bash
-cp gwas_list.txt.example gwas_list.txt
-# fill in your actual paths and study details
+bash gwaslab.process.submit.sh gwas_list.txt
 ```
 
-**2.** Edit the `USER CONFIGURATION` block at the top of `gwaslab_array.sh` for your cluster:
+Extra `sbatch` arguments can be appended:
 
 ```bash
-PYTHON_SCRIPT="/hpc/...path.../gwaslab.process.py"
-REF_DIR="/hpc/...path.../references/gwaslab"
-OUT_BASE="/hpc/...path.../results"
-CONDA_ENV="gwas2cojo"
+bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem
 ```
 
-**3.** Submit:
+---
+
+## Option 2: Staged per-study chain (`gwaslab.process.submit_staged.sh`)
+
+Submits one SLURM job **per stage per study**, chained with `--dependency=afterok`. If a stage fails, SLURM automatically cancels all downstream stages for that study (`DependencyNeverSatisfied`). Other studies are completely independent and keep running.
+
+```
+preprocess → process-normalize → process-check-ref → process-infer-strand
+  → [process-assign-rsid]  → process-check-af → qc → cojo
+```
+
+### Resource tiers
+
+| Tier | Stages | Resource source |
+|------|--------|----------------|
+| Fixed (trivial) | `preprocess`, `cojo` | Hardcoded in script (32G/12h and 16G/4h) |
+| **LIGHT** | `process-normalize`, `process-check-ref`, `qc` | COL10 (`MEM_LIGHT`) + COL11 (`TIME_LIGHT`) from config |
+| **HEAVY** | `process-infer-strand`, `process-assign-rsid`, `process-check-af` | COL8 (`MEM`) + COL9 (`TIME`) from config |
+
+`process-assign-rsid` is only submitted when `--dbsnp` appears in `WORKER_FLAGS` inside the script.
+
+### Submit
 
 ```bash
-bash submit_gwaslab.sh gwas_list.txt
+bash gwaslab.process.submit_staged.sh gwas_list.txt
 ```
 
-This counts valid entries in the config and submits one SLURM array task per GWAS study. Extra `sbatch` arguments can be passed to override defaults:
+Output shows the two-tier resources and the full job chain per study:
+
+```
+GWAS                    MEM_L    TIME_L      MEM_H    TIME_H      JOB CHAIN
+────────────────────────────────────────────────────────────────────────────
+CAD_Aragam              64G      24:00:00    128G     96:00:00    1001 → 1002 → ... → 1008
+AF                      128G     24:00:00    128G     96:00:00    1009 → 1010 → ... → 1016
+HDL_EUR                 32G      12:00:00    64G      08:00:00    1017 → 1018 → ... → 1024
+```
+
+A timestamped submission log is automatically written to `${LOG_BASE}/gwaslab.process.submit_staged_YYYYMMDD_HHMMSS.log`.
+
+### Monitor and cancel
 
 ```bash
-bash submit_gwaslab.sh gwas_list.txt --partition=highmem --time=48:00:00
+squeue -u $USER                                           # all jobs
+scancel --name=gl_CAD_Aragam_preprocess                   # cancel one study's chain
+sacct -j 1004 --format=JobID,State,Elapsed,MaxRSS        # check completed stage
 ```
 
-## SLURM defaults
+---
 
-The defaults set in `gwaslab_array.sh` are:
+## Cleanup intermediate checkpoints (`gwaslab.process.cleanup.sh`)
 
-| Resource | Default |
-|----------|---------|
-| Memory | 64 GB |
-| CPUs | 4 |
-| Wall time | 24 h |
+After a successful run the intermediate pickle checkpoints (`.normalize.pkl`, `.checkref.pkl`, `.inferstrand.pkl`, `.assignrsid.pkl`, `.preprocess.parquet`, `.preprocess.json`) can be safely removed. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `PLOTS/`) are **never** touched.
 
-Adjust the `#SBATCH` directives in `gwaslab_array.sh` or override on the command line when submitting.
+```bash
+# Remove checkpoints for a single study
+bash gwaslab.process.cleanup.sh --study CAD_Aragam
+
+# Remove checkpoints for all studies in a config file
+bash gwaslab.process.cleanup.sh --config gwas_list.txt
+
+# Preview what would be deleted (no files are removed)
+bash gwaslab.process.cleanup.sh --config gwas_list.txt --dry-run
+
+# Also keep the final raw pickle (default: removed)
+bash gwaslab.process.cleanup.sh --config gwas_list.txt --keep-raw-pkl
+
+# Also remove the QC pickle (default: kept)
+bash gwaslab.process.cleanup.sh --config gwas_list.txt --remove-qc-pkl
+```
 
 ---
 

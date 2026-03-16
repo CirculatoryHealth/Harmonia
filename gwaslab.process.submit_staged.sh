@@ -54,6 +54,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
 LOG_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
 
+# ── Submission log (tee stdout+stderr to a timestamped file) ──────────────────
+SUBMIT_LOG="${LOG_BASE}/gwaslab.process.submit_staged_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p "${LOG_BASE}"
+exec > >(tee -a "${SUBMIT_LOG}") 2>&1
+echo "Submission log: ${SUBMIT_LOG}"
+
 # Flags always passed to the Python worker (must match across all stages).
 # --dbsnp controls whether process-assign-rsid is submitted.
 WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --cojo-id rsid --leads --fill-eaf"
@@ -139,8 +145,8 @@ for LINE in "${LINES[@]}"; do
     JID_PRE=$(sbatch \
         --job-name="gl_${GWAS_NAME}_preprocess" \
         --mem="${MEM_PREPROCESS}" --time="${TIME_PREPROCESS}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_preprocess_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_preprocess_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_1_preprocess_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_1_preprocess_%j.err" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "preprocess" \
         | awk '{print $NF}')
@@ -149,8 +155,8 @@ for LINE in "${LINES[@]}"; do
     JID_NRM=$(sbatch \
         --job-name="gl_${GWAS_NAME}_normalize" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_normalize_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_normalize_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_2_normalize_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_2_normalize_%j.err" \
         --dependency="afterok:${JID_PRE}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-normalize" \
@@ -160,8 +166,8 @@ for LINE in "${LINES[@]}"; do
     JID_CHR=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkref" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_checkref_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_checkref_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_3_checkref_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_3_checkref_%j.err" \
         --dependency="afterok:${JID_NRM}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-check-ref" \
@@ -171,8 +177,8 @@ for LINE in "${LINES[@]}"; do
     JID_IST=$(sbatch \
         --job-name="gl_${GWAS_NAME}_inferstrand" \
         --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_inferstrand_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_inferstrand_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_4_inferstrand_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_4_inferstrand_%j.err" \
         --dependency="afterok:${JID_CHR}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-infer-strand" \
@@ -183,8 +189,8 @@ for LINE in "${LINES[@]}"; do
         JID_RSI=$(sbatch \
             --job-name="gl_${GWAS_NAME}_assignrsid" \
             --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
-            --output="${LOG_BASE}/${GWAS_NAME}_assignrsid_%j.out" \
-            --error="${LOG_BASE}/${GWAS_NAME}_assignrsid_%j.err" \
+            --output="${LOG_BASE}/${GWAS_NAME}_5_assignrsid_%j.out" \
+            --error="${LOG_BASE}/${GWAS_NAME}_5_assignrsid_%j.err" \
             --dependency="afterok:${JID_IST}" \
             "$@" \
             "${WORKER_SCRIPT}" "${LINE}" "process-assign-rsid" \
@@ -199,8 +205,8 @@ for LINE in "${LINES[@]}"; do
     JID_CAF=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkaf" \
         --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_checkaf_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_checkaf_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_6_checkaf_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_6_checkaf_%j.err" \
         --dependency="afterok:${JID_PREV_CHECKAF}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-check-af" \
@@ -210,8 +216,8 @@ for LINE in "${LINES[@]}"; do
     JID_QC=$(sbatch \
         --job-name="gl_${GWAS_NAME}_qc" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_qc_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_qc_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_7_qc_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_7_qc_%j.err" \
         --dependency="afterok:${JID_CAF}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "qc" \
@@ -221,8 +227,8 @@ for LINE in "${LINES[@]}"; do
     JID_COJO=$(sbatch \
         --job-name="gl_${GWAS_NAME}_cojo" \
         --mem="${MEM_COJO}" --time="${TIME_COJO}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_cojo_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_cojo_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_8_cojo_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_8_cojo_%j.err" \
         --dependency="afterok:${JID_QC}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "cojo" \

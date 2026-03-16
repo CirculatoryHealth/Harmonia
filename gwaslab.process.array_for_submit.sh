@@ -6,8 +6,9 @@
 # Use gwaslab.process.submit.sh, which calls sbatch once per dataset with the
 # correct --mem, --time, --output, and --error set per job.
 #
-# The script expects exactly one argument: a semicolon-delimited config line
-# from gwas_list.txt (all 9 fields).
+# The script expects at least one argument: a semicolon-delimited config line
+# from gwas_list.txt (COL1–COL9 required; COL10–COL11 MEM_LIGHT/TIME_LIGHT are
+# read by gwaslab.process.submit_staged.sh and ignored here).
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -41,12 +42,13 @@ conda activate "${CONDA_ENV}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Parse the semicolon-delimited config line passed as $1
-# Format: INPUT_PATH;GWAS_NAME;POPULATION;BUILD;N;N_CASES;N_CONTROLS;MEM;TIME
+# Format: INPUT_PATH;GWAS_NAME;POPULATION;BUILD;N;N_CASES;N_CONTROLS;MEM;TIME[;MEM_LIGHT;TIME_LIGHT]
+# COL10–COL11 (MEM_LIGHT/TIME_LIGHT) are consumed by submit_staged.sh; ignored here.
 # ─────────────────────────────────────────────────────────────────────────────
 LINE="${1:?ERROR: no config line provided. Submit via gwaslab.process.submit.sh or gwaslab.process.submit_staged.sh}"
 STAGE="${2:-all}"   # pipeline stage; defaults to 'all' (full end-to-end run)
 
-IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME \
+IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME _ _ \
     <<< "${LINE}"
 
 # Derive --directory and --input from the full path
