@@ -13,26 +13,35 @@
 #   → [process-assign-rsid, if --dbsnp is set in WORKER_FLAGS]
 #   → process-check-af → qc → cojo
 #
-# Resource defaults (override in the USER CONFIGURATION block below):
-#   preprocess          : 32G  / 12:00:00
-#   process-normalize   : 64G  / 24:00:00
-#   process-check-ref   : 64G  / 24:00:00
-#   process-infer-strand: 128G / 48:00:00   ← 1KG VCF sweep
-#   process-assign-rsid : 256G / 96:00:00   ← dbSNP VCF sweep (largest)
-#   process-check-af    : 128G / 48:00:00   ← 1KG VCF sweep
-#   qc                  :  64G / 24:00:00
-#   cojo                :  16G /  4:00:00
+# Two resource tiers are read from gwas_list.txt (COL8/COL9 and COL10/COL11):
 #
-# The MEM and TIME columns from gwas_list.txt are applied to the two heaviest
-# stages (process-infer-strand and process-assign-rsid) as a per-study override
-# of the defaults above.
+#   HEAVY tier  (COL8=MEM, COL9=TIME)   — large VCF sweeps:
+#     process-infer-strand   ← 1KG VCF sweep
+#     process-assign-rsid    ← dbSNP VCF sweep (largest)
+#     process-check-af       ← 1KG VCF sweep
+#
+#   LIGHT tier  (COL10=MEM_LIGHT, COL11=TIME_LIGHT)  — moderate steps:
+#     process-normalize      ← DataFrame ops only
+#     process-check-ref      ← FASTA random access; can spike for wide/complex files
+#     qc                     ← filtering + plots
+#
+#   Fixed (trivial, not configurable per study):
+#     preprocess             : 32G  / 12:00:00  ← CSV load + standardise
+#     cojo                   : 16G  /  4:00:00  ← file write only
+#
+# Script-level fallback defaults (used when COL8–COL11 are absent from config):
+#   LIGHT fallback : 64G  / 24:00:00
+#   HEAVY fallback : 128G / 96:00:00
+#
+# Set MEM_LIGHT higher for studies with many columns or complex allele structure
+# (e.g. multi-ancestry meta-analyses may need 128G even at process-check-ref).
 #
 # Usage:
 #   bash gwaslab.process.submit_staged.sh gwas_list.txt
 #   bash gwaslab.process.submit_staged.sh gwas_list.txt --partition=highmem
 #
-# Any extra arguments are forwarded to every sbatch call (e.g. --partition,
-# --account, --reservation).
+# Any extra arguments after the config file are forwarded to every sbatch call
+# (e.g. --partition, --account, --reservation).
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -49,20 +58,16 @@ LOG_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
 # --dbsnp controls whether process-assign-rsid is submitted.
 WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --cojo-id rsid --leads --fill-eaf"
 
-# ── Per-stage resource defaults ───────────────────────────────────────────────
-MEM_PREPROCESS="32G";           TIME_PREPROCESS="12:00:00"
-MEM_NORMALIZE="64G";            TIME_NORMALIZE="24:00:00"
-MEM_CHECKREF="64G";             TIME_CHECKREF="24:00:00"
-# infer-strand and assign-rsid use MEM/TIME from the config file (per study).
-# The values below are fallback defaults used when the config fields are missing.
-MEM_INFERSTRAND_DEFAULT="128G"; TIME_INFERSTRAND_DEFAULT="24:00:00"
-MEM_ASSIGNRSID_DEFAULT="128G";  TIME_ASSIGNRSID_DEFAULT="24:00:00"
-MEM_CHECKAF="128G";             TIME_CHECKAF="24:00:00"
-MEM_QC="64G";                   TIME_QC="24:00:00"
-MEM_COJO="16G";                 TIME_COJO="4:00:00"
+# ── Fixed (trivial) stage resources — not per-study configurable ──────────────
+MEM_PREPROCESS="32G";  TIME_PREPROCESS="12:00:00"  # CSV load + standardise only
+MEM_COJO="16G";        TIME_COJO="4:00:00"          # file write only
+
+# ── Script-level fallback defaults (used when config COL10/COL11 are absent) ─
+MEM_LIGHT_DEFAULT="64G";   TIME_LIGHT_DEFAULT="24:00:00"  # normalize, check-ref, qc
+MEM_HEAVY_DEFAULT="128G";  TIME_HEAVY_DEFAULT="96:00:00"  # infer-strand, assign-rsid, check-af
 
 # Whether process-assign-rsid is included in the chain.
-# Set to 1 when --dbsnp appears in WORKER_FLAGS (auto-detected below).
+# Auto-detected from WORKER_FLAGS; set to 1 when --dbsnp is present.
 USE_DBSNP=0
 if [[ "${WORKER_FLAGS}" == *"--dbsnp"* ]]; then USE_DBSNP=1; fi
 
@@ -92,9 +97,10 @@ echo "Studies     : ${NTOTAL}"
 echo "Worker      : ${WORKER_SCRIPT}"
 echo "Use dbSNP   : ${USE_DBSNP}"
 if [[ $# -gt 0 ]]; then echo "Extra sbatch: $*"; fi
-echo "──────────────────────────────────────────────────────────────────────"
-printf "%-22s  %-10s  %-10s  %s\n" "GWAS" "MEM(heavy)" "TIME(heavy)" "JOB CHAIN"
-echo "──────────────────────────────────────────────────────────────────────"
+echo "──────────────────────────────────────────────────────────────────────────────"
+printf "%-22s  %-8s %-10s  %-8s %-10s  %s\n" \
+    "GWAS" "MEM_L" "TIME_L" "MEM_H" "TIME_H" "JOB CHAIN"
+echo "──────────────────────────────────────────────────────────────────────────────"
 
 SUBMITTED=0
 SKIPPED=0
@@ -102,27 +108,34 @@ SKIPPED=0
 for LINE in "${LINES[@]}"; do
 
     # ── Parse config line ─────────────────────────────────────────────────────
-    IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME \
+    # COL1–COL9 are required; COL10–COL11 (MEM_LIGHT, TIME_LIGHT) are optional
+    # and fall back to script defaults when absent.
+    IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS \
+        MEM TIME MEM_LIGHT TIME_LIGHT \
         <<< "${LINE}"
 
     if [[ -z "${INPUT_PATH}" || -z "${GWAS_NAME}" || -z "${POPULATION}" || \
           -z "${BUILD}"      || -z "${MEM}"        || -z "${TIME}" ]]; then
-        echo "SKIP (malformed — missing required field): ${LINE}" >&2
+        echo "SKIP (malformed — missing required field in COL1–COL9): ${LINE}" >&2
         (( SKIPPED++ )) || true
         continue
     fi
 
-    # ── Per-study heavy-stage resources (from config; fallback to defaults) ───
-    MEM_INFERSTRAND="${MEM:-${MEM_INFERSTRAND_DEFAULT}}"
-    TIME_INFERSTRAND="${TIME:-${TIME_INFERSTRAND_DEFAULT}}"
-    MEM_ASSIGNRSID="${MEM:-${MEM_ASSIGNRSID_DEFAULT}}"
-    TIME_ASSIGNRSID="${TIME:-${TIME_ASSIGNRSID_DEFAULT}}"
+    # ── Resolve per-study resources, falling back to script defaults ──────────
+    # LIGHT tier: COL10/COL11 → fallback to MEM_LIGHT_DEFAULT/TIME_LIGHT_DEFAULT
+    _MEM_LIGHT="${MEM_LIGHT:-${MEM_LIGHT_DEFAULT}}"
+    _TIME_LIGHT="${TIME_LIGHT:-${TIME_LIGHT_DEFAULT}}"
+
+    # HEAVY tier: COL8/COL9 → fallback to MEM_HEAVY_DEFAULT/TIME_HEAVY_DEFAULT
+    _MEM_HEAVY="${MEM:-${MEM_HEAVY_DEFAULT}}"
+    _TIME_HEAVY="${TIME:-${TIME_HEAVY_DEFAULT}}"
 
     # ── Submit the chain ──────────────────────────────────────────────────────
     # The worker script (array_for_submit.sh) handles conda activation, path
     # definitions, and building the python command.  We pass LINE as $1 and the
     # stage name as $2.  Each sbatch captures the job ID for the next dependency.
 
+    # preprocess — fixed resources (trivial: CSV load + column standardisation)
     JID_PRE=$(sbatch \
         --job-name="gl_${GWAS_NAME}_preprocess" \
         --mem="${MEM_PREPROCESS}" --time="${TIME_PREPROCESS}" \
@@ -132,9 +145,10 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "preprocess" \
         | awk '{print $NF}')
 
+    # process-normalize — LIGHT tier
     JID_NRM=$(sbatch \
         --job-name="gl_${GWAS_NAME}_normalize" \
-        --mem="${MEM_NORMALIZE}" --time="${TIME_NORMALIZE}" \
+        --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
         --output="${LOG_BASE}/${GWAS_NAME}_normalize_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_normalize_%j.err" \
         --dependency="afterok:${JID_PRE}" \
@@ -142,9 +156,10 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "process-normalize" \
         | awk '{print $NF}')
 
+    # process-check-ref — LIGHT tier (can spike for wide/multi-ancestry files)
     JID_CHR=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkref" \
-        --mem="${MEM_CHECKREF}" --time="${TIME_CHECKREF}" \
+        --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
         --output="${LOG_BASE}/${GWAS_NAME}_checkref_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_checkref_%j.err" \
         --dependency="afterok:${JID_NRM}" \
@@ -152,9 +167,10 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "process-check-ref" \
         | awk '{print $NF}')
 
+    # process-infer-strand — HEAVY tier (1KG VCF full sweep)
     JID_IST=$(sbatch \
         --job-name="gl_${GWAS_NAME}_inferstrand" \
-        --mem="${MEM_INFERSTRAND}" --time="${TIME_INFERSTRAND}" \
+        --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
         --output="${LOG_BASE}/${GWAS_NAME}_inferstrand_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_inferstrand_%j.err" \
         --dependency="afterok:${JID_CHR}" \
@@ -162,11 +178,11 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "process-infer-strand" \
         | awk '{print $NF}')
 
-    # process-assign-rsid: only submitted when --dbsnp is in WORKER_FLAGS
+    # process-assign-rsid — HEAVY tier (dbSNP VCF full sweep; only if --dbsnp)
     if [[ "${USE_DBSNP}" -eq 1 ]]; then
         JID_RSI=$(sbatch \
             --job-name="gl_${GWAS_NAME}_assignrsid" \
-            --mem="${MEM_ASSIGNRSID}" --time="${TIME_ASSIGNRSID}" \
+            --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
             --output="${LOG_BASE}/${GWAS_NAME}_assignrsid_%j.out" \
             --error="${LOG_BASE}/${GWAS_NAME}_assignrsid_%j.err" \
             --dependency="afterok:${JID_IST}" \
@@ -179,9 +195,10 @@ for LINE in "${LINES[@]}"; do
         JID_PREV_CHECKAF="${JID_IST}"
     fi
 
+    # process-check-af — HEAVY tier (1KG VCF full sweep)
     JID_CAF=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkaf" \
-        --mem="${MEM_CHECKAF}" --time="${TIME_CHECKAF}" \
+        --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
         --output="${LOG_BASE}/${GWAS_NAME}_checkaf_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_checkaf_%j.err" \
         --dependency="afterok:${JID_PREV_CHECKAF}" \
@@ -189,9 +206,10 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "process-check-af" \
         | awk '{print $NF}')
 
+    # qc — LIGHT tier (QC filtering + plots; no VCF sweeps)
     JID_QC=$(sbatch \
         --job-name="gl_${GWAS_NAME}_qc" \
-        --mem="${MEM_QC}" --time="${TIME_QC}" \
+        --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
         --output="${LOG_BASE}/${GWAS_NAME}_qc_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_qc_%j.err" \
         --dependency="afterok:${JID_CAF}" \
@@ -199,6 +217,7 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "qc" \
         | awk '{print $NF}')
 
+    # cojo — fixed resources (trivial: file write only)
     JID_COJO=$(sbatch \
         --job-name="gl_${GWAS_NAME}_cojo" \
         --mem="${MEM_COJO}" --time="${TIME_COJO}" \
@@ -210,8 +229,10 @@ for LINE in "${LINES[@]}"; do
         | awk '{print $NF}')
 
     # ── Report ────────────────────────────────────────────────────────────────
-    printf "%-22s  %-10s  %-10s  %s → %s → %s → %s → %s → %s → %s → %s\n" \
-        "${GWAS_NAME}" "${MEM_INFERSTRAND}" "${TIME_INFERSTRAND}" \
+    printf "%-22s  %-8s %-10s  %-8s %-10s  %s → %s → %s → %s → %s → %s → %s → %s\n" \
+        "${GWAS_NAME}" \
+        "${_MEM_LIGHT}" "${_TIME_LIGHT}" \
+        "${_MEM_HEAVY}" "${_TIME_HEAVY}" \
         "${JID_PRE}" "${JID_NRM}" "${JID_CHR}" "${JID_IST}" \
         "${JID_RSI}" "${JID_CAF}" "${JID_QC}" "${JID_COJO}"
 
@@ -219,9 +240,9 @@ for LINE in "${LINES[@]}"; do
 
 done
 
-echo "──────────────────────────────────────────────────────────────────────"
+echo "──────────────────────────────────────────────────────────────────────────────"
 echo "Done: ${SUBMITTED} study chain(s) submitted, ${SKIPPED} line(s) skipped."
 echo ""
-echo "Monitor with:  squeue -u \$USER"
-echo "Cancel study:  scancel --name=gl_<GWAS_NAME>_preprocess  (cancels chain)"
-echo "Job details:   sacct -j <JOB_ID> --format=JobID,JobName,State,Elapsed,MaxRSS"
+echo "Monitor  :  squeue -u \$USER"
+echo "Cancel   :  scancel --name=gl_<GWAS_NAME>_preprocess  (cancels whole chain)"
+echo "Details  :  sacct -j <JOB_ID> --format=JobID,JobName,State,Elapsed,MaxRSS"
