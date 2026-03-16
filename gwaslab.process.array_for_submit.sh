@@ -43,7 +43,8 @@ conda activate "${CONDA_ENV}"
 # Parse the semicolon-delimited config line passed as $1
 # Format: INPUT_PATH;GWAS_NAME;POPULATION;BUILD;N;N_CASES;N_CONTROLS;MEM;TIME
 # ─────────────────────────────────────────────────────────────────────────────
-LINE="${1:?ERROR: no config line provided. Submit via gwaslab.process.submit.sh}"
+LINE="${1:?ERROR: no config line provided. Submit via gwaslab.process.submit.sh or gwaslab.process.submit_staged.sh}"
+STAGE="${2:-all}"   # pipeline stage; defaults to 'all' (full end-to-end run)
 
 IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME \
     <<< "${LINE}"
@@ -72,6 +73,7 @@ CMD=(
     --cojo --cojo-pos --cojo-id rsid
     --leads
     --fill-eaf
+    --stage       "${STAGE}"
 )
 
 # ── Optional N arguments ──────────────────────────────────────────────────────
@@ -95,6 +97,7 @@ echo "GWAS        : ${GWAS_NAME}"
 echo "Input       : ${INPUT_PATH}"
 echo "Output      : ${OUT_BASE}/${GWAS_NAME}"
 echo "Population  : ${POPULATION}  |  Build: ${BUILD}"
+echo "Stage       : ${STAGE}"
 echo "Memory      : ${MEM}  |  Time limit: ${TIME}"
 echo "N / Ncases / Ncontrols: ${N:-'.'} / ${N_CASES:-'.'} / ${N_CONTROLS:-'.'}"
 echo "Command     : ${CMD[*]}"

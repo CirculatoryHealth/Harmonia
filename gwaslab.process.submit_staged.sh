@@ -55,9 +55,9 @@ MEM_NORMALIZE="64G";            TIME_NORMALIZE="24:00:00"
 MEM_CHECKREF="64G";             TIME_CHECKREF="24:00:00"
 # infer-strand and assign-rsid use MEM/TIME from the config file (per study).
 # The values below are fallback defaults used when the config fields are missing.
-MEM_INFERSTRAND_DEFAULT="128G"; TIME_INFERSTRAND_DEFAULT="48:00:00"
-MEM_ASSIGNRSID_DEFAULT="256G";  TIME_ASSIGNRSID_DEFAULT="96:00:00"
-MEM_CHECKAF="128G";             TIME_CHECKAF="48:00:00"
+MEM_INFERSTRAND_DEFAULT="128G"; TIME_INFERSTRAND_DEFAULT="24:00:00"
+MEM_ASSIGNRSID_DEFAULT="128G";  TIME_ASSIGNRSID_DEFAULT="24:00:00"
+MEM_CHECKAF="128G";             TIME_CHECKAF="24:00:00"
 MEM_QC="64G";                   TIME_QC="24:00:00"
 MEM_COJO="16G";                 TIME_COJO="4:00:00"
 
@@ -118,54 +118,10 @@ for LINE in "${LINES[@]}"; do
     MEM_ASSIGNRSID="${MEM:-${MEM_ASSIGNRSID_DEFAULT}}"
     TIME_ASSIGNRSID="${TIME:-${TIME_ASSIGNRSID_DEFAULT}}"
 
-    # ── Build the common python command prefix (excluding --stage) ────────────
-    GWAS_DIR=$(dirname  "${INPUT_PATH}")
-    INPUT_FILE=$(basename "${INPUT_PATH}")
-
-    # Collect optional N arguments
-    N_ARGS=()
-    N_SET=0; NCASES_SET=0; NCONTROLS_SET=0
-    if [[ -n "${N:-}"          && "${N}"          != "." ]]; then N_ARGS+=(--n         "${N}");        N_SET=1;        fi
-    if [[ -n "${N_CASES:-}"    && "${N_CASES}"    != "." ]]; then N_ARGS+=(--n-cases   "${N_CASES}");  NCASES_SET=1;   fi
-    if [[ -n "${N_CONTROLS:-}" && "${N_CONTROLS}" != "." ]]; then N_ARGS+=(--n-controls "${N_CONTROLS}"); NCONTROLS_SET=1; fi
-    if [[ "${N_SET}" -eq 1 && "${NCASES_SET}" -eq 1 && "${NCONTROLS_SET}" -eq 1 ]]; then
-        N_ARGS+=(--force-n)
-    fi
-
-    # Base python invocation — --stage is appended per-job below
-    BASE_CMD=(
-        python "${PYTHON_SCRIPT:-/hpc/local/Rocky8/dhl_ec/software/gwas2cojo/gwaslab.process.py}"
-        --gwas        "${GWAS_NAME}"
-        --input       "${INPUT_FILE}"
-        --directory   "${GWAS_DIR}"
-        --ref         "${REF_DIR:-/hpc/dhl_ec/data/references/gwaslab}"
-        --output      "${OUT_BASE}/${GWAS_NAME}"
-        --population  "${POPULATION}"
-        --build       "${BUILD}"
-        ${WORKER_FLAGS}
-        "${N_ARGS[@]}"
-    )
-
-    # ── Helper: submit one stage, return job ID ───────────────────────────────
-    submit_stage() {
-        local stage_name="$1" mem="$2" time="$3" dep="$4"
-        local dep_flag=""
-        [[ -n "${dep}" ]] && dep_flag="--dependency=afterok:${dep}"
-
-        sbatch \
-            --job-name="gl_${GWAS_NAME}_${stage_name}" \
-            --mem="${mem}" \
-            --time="${time}" \
-            --output="${LOG_BASE}/${GWAS_NAME}_${stage_name}_%j.out" \
-            --error="${LOG_BASE}/${GWAS_NAME}_${stage_name}_%j.err" \
-            ${dep_flag} \
-            "$@_EXTRA" \
-            --wrap="${BASE_CMD[*]} --stage ${stage_name}" \
-            | awk '{print $NF}'
-    }
-
     # ── Submit the chain ──────────────────────────────────────────────────────
-    # Each sbatch call captures the job ID and passes it as dependency to the next.
+    # The worker script (array_for_submit.sh) handles conda activation, path
+    # definitions, and building the python command.  We pass LINE as $1 and the
+    # stage name as $2.  Each sbatch captures the job ID for the next dependency.
 
     JID_PRE=$(sbatch \
         --job-name="gl_${GWAS_NAME}_preprocess" \
@@ -173,7 +129,7 @@ for LINE in "${LINES[@]}"; do
         --output="${LOG_BASE}/${GWAS_NAME}_preprocess_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_preprocess_%j.err" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage preprocess" \
+        "${WORKER_SCRIPT}" "${LINE}" "preprocess" \
         | awk '{print $NF}')
 
     JID_NRM=$(sbatch \
@@ -183,7 +139,7 @@ for LINE in "${LINES[@]}"; do
         --error="${LOG_BASE}/${GWAS_NAME}_normalize_%j.err" \
         --dependency="afterok:${JID_PRE}" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage process-normalize" \
+        "${WORKER_SCRIPT}" "${LINE}" "process-normalize" \
         | awk '{print $NF}')
 
     JID_CHR=$(sbatch \
@@ -193,7 +149,7 @@ for LINE in "${LINES[@]}"; do
         --error="${LOG_BASE}/${GWAS_NAME}_checkref_%j.err" \
         --dependency="afterok:${JID_NRM}" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage process-check-ref" \
+        "${WORKER_SCRIPT}" "${LINE}" "process-check-ref" \
         | awk '{print $NF}')
 
     JID_IST=$(sbatch \
@@ -203,7 +159,7 @@ for LINE in "${LINES[@]}"; do
         --error="${LOG_BASE}/${GWAS_NAME}_inferstrand_%j.err" \
         --dependency="afterok:${JID_CHR}" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage process-infer-strand" \
+        "${WORKER_SCRIPT}" "${LINE}" "process-infer-strand" \
         | awk '{print $NF}')
 
     # process-assign-rsid: only submitted when --dbsnp is in WORKER_FLAGS
@@ -215,7 +171,7 @@ for LINE in "${LINES[@]}"; do
             --error="${LOG_BASE}/${GWAS_NAME}_assignrsid_%j.err" \
             --dependency="afterok:${JID_IST}" \
             "$@" \
-            --wrap="${BASE_CMD[*]} --stage process-assign-rsid" \
+            "${WORKER_SCRIPT}" "${LINE}" "process-assign-rsid" \
             | awk '{print $NF}')
         JID_PREV_CHECKAF="${JID_RSI}"
     else
@@ -230,7 +186,7 @@ for LINE in "${LINES[@]}"; do
         --error="${LOG_BASE}/${GWAS_NAME}_checkaf_%j.err" \
         --dependency="afterok:${JID_PREV_CHECKAF}" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage process-check-af" \
+        "${WORKER_SCRIPT}" "${LINE}" "process-check-af" \
         | awk '{print $NF}')
 
     JID_QC=$(sbatch \
@@ -240,7 +196,7 @@ for LINE in "${LINES[@]}"; do
         --error="${LOG_BASE}/${GWAS_NAME}_qc_%j.err" \
         --dependency="afterok:${JID_CAF}" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage qc" \
+        "${WORKER_SCRIPT}" "${LINE}" "qc" \
         | awk '{print $NF}')
 
     JID_COJO=$(sbatch \
@@ -250,7 +206,7 @@ for LINE in "${LINES[@]}"; do
         --error="${LOG_BASE}/${GWAS_NAME}_cojo_%j.err" \
         --dependency="afterok:${JID_QC}" \
         "$@" \
-        --wrap="${BASE_CMD[*]} --stage cojo" \
+        "${WORKER_SCRIPT}" "${LINE}" "cojo" \
         | awk '{print $NF}')
 
     # ── Report ────────────────────────────────────────────────────────────────
