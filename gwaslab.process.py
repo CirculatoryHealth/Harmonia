@@ -875,7 +875,7 @@ def run_merge(stem: str, output_loc: str, reference: str,
     plots_loc = os.path.join(output_loc, "PLOTS")
     ensure_dir(plots_loc)
 
-    gwas_obj = make_sumstats_from_chrom_df(combined, reference)
+    gwas_obj = make_sumstats_from_chrom_df(combined, build_num)
     del combined
     gc.collect()
 
@@ -886,7 +886,7 @@ def run_merge(stem: str, output_loc: str, reference: str,
 
     if args.figures:
         stem_out = file_tag(args.gwas, args.population, input_build, build_num, added_n)
-        plot_full_dataset(gwas_obj, args.gwas, reference,
+        plot_full_dataset(gwas_obj, args.gwas, build_num,
                           plots_loc, args.daf_max, stem_out)
 
     if args.cojo:
@@ -908,7 +908,7 @@ def run_merge(stem: str, output_loc: str, reference: str,
                         save_pickle=not args.no_pickle)
 
         if args.figures:
-            plot_qc_dataset(gwas_obj_qc, args.gwas, reference,
+            plot_qc_dataset(gwas_obj_qc, args.gwas, build_num,
                             plots_loc, args.daf_max, stem_out)
 
         if args.cojo:
@@ -2144,14 +2144,14 @@ def main() -> None:
         logging.info("=" * 60)
         if args.chrom:
             df = load_chrom_parquet(stem, output_loc, args.chrom, "normalize")
-            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
-            gwas_obj = run_check_ref(gwas_obj, normalise_build(REFERENCE), args.ref)
+            gwas_obj = make_sumstats_from_chrom_df(df, build_num)
+            gwas_obj = run_check_ref(gwas_obj, build_num, args.ref)
             save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "checkref")
             logging.info("Stage 'process-check-ref' (chr %d) complete.", args.chrom)
             logging.info("Next: --stage process-infer-strand --chrom %d", args.chrom)
         else:
             gwas_obj = load_process_checkpoint(stem, output_loc, "normalize")
-            gwas_obj = run_check_ref(gwas_obj, normalise_build(REFERENCE), args.ref)
+            gwas_obj = run_check_ref(gwas_obj, build_num, args.ref)
             save_process_checkpoint(gwas_obj, stem, output_loc, "checkref")
             logging.info("Stage 'process-check-ref' complete.")
             logging.info("Next: --stage process-infer-strand")
@@ -2179,7 +2179,7 @@ def main() -> None:
         _vcf = ref_vcf_path(args.ref, args.population, build_num)
         if args.chrom:
             df = load_chrom_parquet(stem, output_loc, args.chrom, "checkref")
-            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
+            gwas_obj = make_sumstats_from_chrom_df(df, build_num)
             gwas_obj = run_infer_strand(gwas_obj, args.ref, _vcf, args.threads)
             save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "inferstrand")
             _next = "process-assign-rsid" if args.dbsnp else "process-check-af"
@@ -2216,14 +2216,14 @@ def main() -> None:
         logging.info("=" * 60)
         if args.chrom:
             df = load_chrom_parquet(stem, output_loc, args.chrom, "inferstrand")
-            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
-            gwas_obj = run_assign_rsid(gwas_obj, normalise_build(REFERENCE), args.ref, args.threads)
+            gwas_obj = make_sumstats_from_chrom_df(df, build_num)
+            gwas_obj = run_assign_rsid(gwas_obj, build_num, args.ref, args.threads)
             save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "assignrsid")
             logging.info("Stage 'process-assign-rsid' (chr %d) complete.", args.chrom)
             logging.info("Next: --stage process-check-af --chrom %d", args.chrom)
         else:
             gwas_obj = load_process_checkpoint(stem, output_loc, "inferstrand")
-            gwas_obj = run_assign_rsid(gwas_obj, normalise_build(REFERENCE), args.ref, args.threads)
+            gwas_obj = run_assign_rsid(gwas_obj, build_num, args.ref, args.threads)
             save_process_checkpoint(gwas_obj, stem, output_loc, "assignrsid")
             logging.info("Stage 'process-assign-rsid' complete.")
             logging.info("Next: --stage process-check-af")
@@ -2253,7 +2253,7 @@ def main() -> None:
         _prev_suffix = "assignrsid" if args.dbsnp else "inferstrand"
         if args.chrom:
             df = load_chrom_parquet(stem, output_loc, args.chrom, _prev_suffix)
-            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
+            gwas_obj = make_sumstats_from_chrom_df(df, build_num)
             gwas_obj = run_check_af(gwas_obj, _vcf, args.threads)
             save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "checkaf")
             logging.info("Stage 'process-check-af' (chr %d) complete.", args.chrom)
@@ -2267,7 +2267,7 @@ def main() -> None:
                              input_build, build_num, output_loc, added_n,
                              save_pickle=not args.no_pickle)
             if args.figures:
-                plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
+                plot_full_dataset(gwas_obj, args.gwas, build_num,
                                   plots_loc, args.daf_max, stem)
             if args.cojo:
                 write_cojo(
@@ -2331,7 +2331,7 @@ def main() -> None:
                 sys.exit(1)
             # Optionally regenerate full-dataset plots from the loaded pickle.
             if args.figures:
-                plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
+                plot_full_dataset(gwas_obj, args.gwas, build_num,
                                   plots_loc, args.daf_max, stem)
 
         gwas_obj_qc = apply_qc(
@@ -2348,7 +2348,7 @@ def main() -> None:
                         save_pickle=not args.no_pickle)
 
         if args.figures:
-            plot_qc_dataset(gwas_obj_qc, args.gwas, REFERENCE,
+            plot_qc_dataset(gwas_obj_qc, args.gwas, build_num,
                             plots_loc, args.daf_max, stem)
 
         if args.cojo:

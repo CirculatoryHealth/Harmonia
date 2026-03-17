@@ -2,6 +2,20 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-18 🐛 Wrong build passed to reference-checking stages after liftover
+- **Bug**: In all staged pipeline paths (`process-check-ref`, `process-infer-strand`, `process-assign-rsid`, `process-check-af`, `qc`, and the new `merge`), `normalise_build(REFERENCE)` was used instead of `build_num` when selecting the reference FASTA, dbSNP VCF, and Sumstats build, and when setting the chromosome map for Manhattan/QQ plots. `REFERENCE` is set from `args.build` (the original input build, e.g. `"19"`) and is never updated between staged invocations. `build_num` is correctly set to `"38"` at startup for any hg19/hg18+liftover study.
+- **Impact**: For any study submitted with `--liftover`, all four heavy stages and both plot-generating stages would use:
+  - `hg19.fa.gz` instead of `hg38.fa.gz` in `check_ref` → coordinates are hg38, FASTA is hg19 → nearly all variants incorrectly flagged as MISREF and lost.
+  - `GCF_000001405.25.gz` (hg19 dbSNP) instead of `GCF_000001405.40.gz` (hg38 dbSNP) in `assign_rsid` → rsIDs assigned from the wrong coordinate space.
+  - `build="19"` in reconstructed `Sumstats` objects (per-chr and merge paths) → wrong internal build attribute for all downstream gwaslab operations.
+  - `build=reference` in `plot_mqq` → hg19 chromosome-length map applied to hg38 positions → distorted Manhattan plots.
+- **Why not seen before**: The staged whole-genome path (pre-v1.4.0) always OOM'd inside `process-check-ref` or later, so these stages never produced output. The per-chromosome refactor (v1.4.0) is specifically designed to make these stages complete — meaning the wrong results would be written and stored for the first time.
+- 🐛**Fixed** `gwaslab.process.py` — replaced `normalise_build(REFERENCE)` / `REFERENCE` with `build_num` at nine call sites across `main()` and `run_merge()`:
+  - `process-check-ref` per-chr and whole-genome: `run_check_ref(gwas_obj, build_num, args.ref)` (FASTA path)
+  - `process-assign-rsid` per-chr and whole-genome: `run_assign_rsid(gwas_obj, build_num, args.ref, …)` (dbSNP VCF path)
+  - `make_sumstats_from_chrom_df(df, build_num)` in all four per-chr stage branches and in `run_merge()`
+  - `plot_full_dataset(…, build_num, …)` and `plot_qc_dataset(…, build_num, …)` in `process-check-af` (whole-genome), `qc`, and `merge`
+
 ## 2026-03-17 🆕 Per-chromosome array-job pipeline for heavy stages (v1.4.0)
 - 🛠️**Updated**: Bumped version to `1.4.0` (`2026-03-17`).
 - **Context**: Studies were OOM-failing at `process-check-ref`, `process-infer-strand`, `process-assign-rsid`, and `process-check-af` even at 128–256 G. The root cause is that these stages sweep large VCF files (1KG ~84 M variants, dbSNP ~1 B variants) against the full genome-wide GWAS dataset. The fix splits the dataset by chromosome before the heavy stages so each VCF-sweep job works on ~1/22 of the variants.
