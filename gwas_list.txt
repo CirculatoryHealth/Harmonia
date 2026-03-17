@@ -88,7 +88,7 @@
 #
 # CHARGE CAC European + African (EA+AA) ancestry  (Kavousi 2022) – hg19
 #
-/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz;CHARGE_CAC_EA_REP;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+/hpc/dhl_ec/data/_gwas_datasets/_CHARGE_CAC/CAC1000G_EA_AA_FINAL_FULL.txt.gz;CHARGE_CAC_EA_AA;PAN;19;.;.;.;128G;24:00:00;64G;24:00:00
 #
 # CHARGE cIMT (Franceschini 2018) – hg19
 # HEADER
