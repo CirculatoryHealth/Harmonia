@@ -60,8 +60,8 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.3.0"
-VERSION_DATE = "2026-03-16"
+VERSION      = "1.4.0"
+VERSION_DATE = "2026-03-17"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -211,10 +211,12 @@ def parse_args() -> argparse.Namespace:
                    choices=["all",
                             "preprocess",
                             "process-normalize",
+                            "process-split",
                             "process-check-ref",
                             "process-infer-strand",
                             "process-assign-rsid",
                             "process-check-af",
+                            "merge",
                             "qc",
                             "cojo"],
                    default="all", metavar="STAGE",
@@ -223,15 +225,26 @@ def parse_args() -> argparse.Namespace:
                          "SLURM job with its own memory and time limits. "
                          "  preprocess          : load + standardise → .preprocess.parquet  (light)  "
                          "  process-normalize   : basic_check + remove_dup + liftover → .normalize.pkl  (medium)  "
-                         "  process-check-ref   : check_ref + flip + fix_id → .checkref.pkl  (medium)  "
-                         "  process-infer-strand: infer_strand2 + flip → .inferstrand.pkl  (high — 1KG sweep)  "
-                         "  process-assign-rsid : assign_rsid → .assignrsid.pkl  (extreme — dbSNP sweep)  "
-                         "  process-check-af    : check_af2 → .pkl + .parquet + .tsv.gz  (high — 1KG sweep)  "
-                         "  qc                  : QC filter → .qc.pkl + .qc.parquet + .qc.tsv.gz  (medium)  "
-                         "  cojo                : write COJO file from existing pickle  (light)  "
+                         "  process-split       : split normalize.pkl into per-chr parquets + manifest  (trivial)  "
+                         "  process-check-ref   : check_ref + flip + fix_id  (medium; per-chr with --chrom)  "
+                         "  process-infer-strand: infer_strand2 + flip  (high — 1KG sweep; per-chr with --chrom)  "
+                         "  process-assign-rsid : assign_rsid  (extreme — dbSNP sweep; per-chr with --chrom)  "
+                         "  process-check-af    : check_af2  (high — 1KG sweep; per-chr with --chrom)  "
+                         "  merge               : concat per-chr parquets + QC + plots + leads + COJO  (medium)  "
+                         "  qc                  : QC filter → .qc.pkl + .qc.parquet + .qc.tsv.gz  (medium; whole-genome only)  "
+                         "  cojo                : write COJO file from existing pickle  (light; whole-genome only)  "
                          "  all                 : full pipeline end-to-end, no checkpoints (default). "
                          "Pass identical --gwas / --build / --liftover / --output / --dbsnp flags "
                          "to every stage so file stems and checkpoint paths match."))
+    tog.add_argument("--chrom", type=int, default=None, metavar="N",
+                   help=("Chromosome task ID 1–26 for per-chromosome processing. "
+                         "23=X  24=Y  25=nonPAR  26=MT. "
+                         "Set automatically by SLURM array jobs via $SLURM_ARRAY_TASK_ID. "
+                         "When provided, process-check-ref / process-infer-strand / "
+                         "process-assign-rsid / process-check-af each operate on a single "
+                         "chromosome shard written by process-split. "
+                         "If the chromosome is not present in the study the stage exits "
+                         "gracefully (exit 0) so SLURM afterok dependencies are satisfied."))
     tog.add_argument("--figures",      action="store_true",
                    help="Generate diagnostic plots.")
     tog.add_argument("--leads",        action="store_true",
@@ -711,6 +724,208 @@ def load_process_checkpoint(stem: str, output_loc: str, suffix: str) -> object:
         logging.error("[%s] Failed to load checkpoint: %s", stage_name, pkl_path)
         sys.exit(1)
     return gwas_obj
+
+
+# ── Per-chromosome checkpoint helpers ─────────────────────────────────────────
+
+# gwaslab stores CHR as Int64 (nullable integer) after basic_check/_fix_chr:
+#   1–22 = autosomes   23 = X   24 = Y   25 = nonPAR   26 = MT
+# The SLURM array task ID maps directly to these integers, so no translation
+# is needed — task 23 processes CHR == 23 (X chromosome).
+
+def load_chrom_parquet(stem: str, output_loc: str, task_id: int,
+                       suffix: str) -> pd.DataFrame:
+    """
+    Load a per-chromosome parquet written by split_by_chrom or a prior chr stage.
+
+    If the file does not exist the chromosome is not present in this study;
+    we log an info message and exit(0) so SLURM afterok dependencies are
+    satisfied for the downstream array task.
+    """
+    path = os.path.join(output_loc, f"{stem}.chr{task_id}.{suffix}.parquet")
+    if not os.path.isfile(path):
+        logging.info(
+            "[chr%d] Parquet not found — chromosome %d not present in this "
+            "study. Exiting gracefully (exit 0).", task_id, task_id,
+        )
+        sys.exit(0)
+    df = pq.read_table(path).to_pandas()
+    logging.info("[chr%d] Loaded %s variants from %s", task_id, f"{len(df):,}", path)
+    return df
+
+
+def save_chrom_parquet(df: pd.DataFrame, stem: str, output_loc: str,
+                       task_id: int, suffix: str) -> str:
+    """
+    Save a per-chromosome DataFrame as a BROTLI-compressed parquet.
+    Returns the full path written.
+    """
+    path = os.path.join(output_loc, f"{stem}.chr{task_id}.{suffix}.parquet")
+    pq.write_table(pa.Table.from_pandas(df), path, compression="BROTLI")
+    logging.info("[chr%d] Saved %s variants → %s", task_id, f"{len(df):,}", path)
+    return path
+
+
+def make_sumstats_from_chrom_df(df: pd.DataFrame, reference: str) -> "gl.Sumstats":
+    """
+    Recreate a gwaslab Sumstats object from a per-chromosome DataFrame.
+
+    Calls make_sumstats_object() then restores the STATUS column that was
+    preserved through the parquet checkpoint.  STATUS is gwaslab's internal
+    variant-state bitmask; if it is not carried over, gwaslab treats every
+    variant as unprocessed and may re-run steps incorrectly.
+    """
+    status_backup = df["STATUS"].copy() if "STATUS" in df.columns else None
+    gwas_obj = make_sumstats_object(df, reference)
+    if status_backup is not None:
+        gwas_obj.data["STATUS"] = status_backup.values
+        logging.debug("STATUS column restored from parquet checkpoint (%d variants).",
+                      len(status_backup))
+    return gwas_obj
+
+
+def split_by_chrom(gwas_obj, stem: str, output_loc: str) -> dict:
+    """
+    Split gwas_obj.data by CHR and save one parquet per chromosome.
+
+    File names: {stem}.chr{N}.normalize.parquet  (N = CHR integer, 1–26)
+    Manifest  : {stem}.chrsplit.json
+
+    Returns the manifest dict (task_id_str → {chrom_int, n_variants}).
+    """
+    data = gwas_obj.data
+    chr_values = data["CHR"].dropna().unique()
+    logging.info("Splitting %s variants across %d chromosomes.",
+                 f"{len(data):,}", len(chr_values))
+
+    manifest: dict = {}
+    for chrom_val in sorted(chr_values):
+        task_id = int(chrom_val)
+        subset  = data[data["CHR"] == chrom_val].reset_index(drop=True)
+        if len(subset) == 0:
+            continue
+        save_chrom_parquet(subset, stem, output_loc, task_id, "normalize")
+        manifest[str(task_id)] = {"chrom_int": task_id, "n_variants": len(subset)}
+
+    json_path = os.path.join(output_loc, f"{stem}.chrsplit.json")
+    with open(json_path, "w") as fh:
+        json.dump(manifest, fh, indent=2)
+    logging.info("[SAVE] Chr-split manifest → %s  (%d chromosomes)",
+                 json_path, len(manifest))
+    return manifest
+
+
+def load_chrsplit_manifest(stem: str, output_loc: str) -> dict:
+    """
+    Load the chromosome manifest written by process-split.
+    Exits with an error if the manifest is missing.
+    """
+    json_path = os.path.join(output_loc, f"{stem}.chrsplit.json")
+    if not os.path.isfile(json_path):
+        logging.error(
+            "Chr-split manifest not found: %s\n"
+            "Run --stage process-split first.", json_path,
+        )
+        sys.exit(1)
+    with open(json_path) as fh:
+        manifest = json.load(fh)
+    logging.info("[LOAD] Chr-split manifest: %s  (%d chromosomes)",
+                 json_path, len(manifest))
+    return manifest
+
+
+def run_merge(stem: str, output_loc: str, reference: str,
+              build_num: str, input_build: str, args) -> None:
+    """
+    Merge stage: load all per-chromosome checkaf parquets, concatenate,
+    recreate Sumstats (STATUS preserved), then run QC + plots + leads + COJO.
+
+    This stage replaces the combination of process-check-af terminal outputs +
+    the separate qc and cojo stages in the per-chromosome pipeline path.
+    """
+    manifest = load_chrsplit_manifest(stem, output_loc)
+
+    # Choose which per-chr suffix to load: checkaf is always the terminal stage
+    load_suffix = "checkaf"
+    chr_dfs = []
+    missing = []
+    for task_id_str in sorted(manifest.keys(), key=int):
+        task_id = int(task_id_str)
+        path = os.path.join(output_loc, f"{stem}.chr{task_id}.{load_suffix}.parquet")
+        if not os.path.isfile(path):
+            missing.append(task_id)
+            logging.warning("[merge] Missing chr %d parquet: %s", task_id, path)
+            continue
+        df = pq.read_table(path).to_pandas()
+        chr_dfs.append(df)
+        logging.info("[merge] Loaded chr %d: %s variants", task_id, f"{len(df):,}")
+
+    if not chr_dfs:
+        logging.error("[merge] No per-chromosome parquets found — cannot merge.")
+        sys.exit(1)
+    if missing:
+        logging.warning("[merge] %d chromosome(s) missing from merge: %s",
+                        len(missing), missing)
+
+    combined = pd.concat(chr_dfs, ignore_index=True)
+    logging.info("[merge] Combined: %s variants across %d chromosomes.",
+                 f"{len(combined):,}", len(chr_dfs))
+
+    added_n = any(v is not None for v in [args.n, args.n_cases, args.n_controls])
+    plots_loc = os.path.join(output_loc, "PLOTS")
+    ensure_dir(plots_loc)
+
+    gwas_obj = make_sumstats_from_chrom_df(combined, reference)
+    del combined
+    gc.collect()
+
+    # Save raw (pre-QC) merged outputs
+    save_raw_outputs(gwas_obj, args.gwas, args.population,
+                     input_build, build_num, output_loc, added_n,
+                     save_pickle=not args.no_pickle)
+
+    if args.figures:
+        stem_out = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+        plot_full_dataset(gwas_obj, args.gwas, reference,
+                          plots_loc, args.daf_max, stem_out)
+
+    if args.cojo:
+        write_cojo(gwas_obj, args.gwas, args.population,
+                   input_build, build_num, output_loc,
+                   snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+                   suffix="", added_n=added_n)
+
+    # QC
+    if args.qc:
+        stem_out = file_tag(args.gwas, args.population, input_build, build_num, added_n)
+        gwas_obj_qc = apply_qc(gwas_obj, args.eaf_min, args.beta_max,
+                               args.se_max, args.info_min, args.daf_max)
+        del gwas_obj
+        gc.collect()
+
+        save_qc_outputs(gwas_obj_qc, args.gwas, args.population,
+                        input_build, build_num, output_loc, added_n,
+                        save_pickle=not args.no_pickle)
+
+        if args.figures:
+            plot_qc_dataset(gwas_obj_qc, args.gwas, reference,
+                            plots_loc, args.daf_max, stem_out)
+
+        if args.cojo:
+            write_cojo(gwas_obj_qc, args.gwas, args.population,
+                       input_build, build_num, output_loc,
+                       snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+                       suffix="qc", added_n=added_n)
+
+        if args.leads:
+            extract_leads(gwas_obj_qc, args.gwas, args.population,
+                          input_build, build_num, output_loc, True, added_n)
+    else:
+        if args.leads:
+            extract_leads(gwas_obj, args.gwas, args.population,
+                          input_build, build_num, output_loc, False, added_n)
+
+    logging.info("[merge] Stage complete.")
 
 
 # ── Process sub-stage runner functions ────────────────────────────────────────
@@ -1644,10 +1859,12 @@ def main() -> None:
     logging.info("Build        : %s", args.build)
     logging.info("Toggles      : liftover=%s  dbsnp=%s  qc=%s  "
                  "only_qc=%s  fill_eaf=%s  figures=%s  leads=%s  "
-                 "no_pickle=%s  stage=%s  threads=%d",
+                 "no_pickle=%s  stage=%s  chrom=%s  threads=%d",
                  args.liftover, args.dbsnp, args.qc,
                  args.only_qc, args.fill_eaf, args.figures, args.leads,
-                 args.no_pickle, args.stage, args.threads)
+                 args.no_pickle, args.stage,
+                 args.chrom if args.chrom else "(whole-genome)",
+                 args.threads)
     if args.cojo:
         logging.info("COJO options : id=%s  pos=%s", args.cojo_id, args.cojo_pos)
     if any(v is not None for v in [args.n, args.n_cases, args.n_controls]):
@@ -1711,8 +1928,10 @@ def main() -> None:
     # Guard incompatible flag combinations
     _pickle_required_stages = (
         "qc", "cojo",
+        "process-split",
         "process-check-ref", "process-infer-strand",
         "process-assign-rsid", "process-check-af",
+        "merge",
     )
     if stage in _pickle_required_stages and args.no_pickle:
         logging.error(
@@ -1728,7 +1947,27 @@ def main() -> None:
         )
         sys.exit(1)
 
-    logging.info("Pipeline stage : %s", stage)
+    # Validate --chrom range
+    if args.chrom is not None:
+        if not (1 <= args.chrom <= 26):
+            logging.error(
+                "--chrom %d is out of range. Valid values: 1–22 (autosomes), "
+                "23 (X), 24 (Y), 25 (nonPAR), 26 (MT).", args.chrom,
+            )
+            sys.exit(1)
+        _chrom_stages = {
+            "process-check-ref", "process-infer-strand",
+            "process-assign-rsid", "process-check-af",
+        }
+        if stage not in _chrom_stages:
+            logging.error(
+                "--chrom is only valid with per-chromosome stages: %s. "
+                "Got --stage %s.", ", ".join(sorted(_chrom_stages)), stage,
+            )
+            sys.exit(1)
+
+    logging.info("Pipeline stage : %s%s", stage,
+                 f"  (chr {args.chrom})" if args.chrom else "")
 
     # ══════════════════════════════════════════════════════════════════════════
     # STAGE: preprocess
@@ -1867,97 +2106,198 @@ def main() -> None:
             # Falls through to the qc/leads/cojo blocks below
 
     # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: process-split
+    # Split the whole-genome normalize.pkl into per-chromosome parquets.
+    # Loads: {stem}.normalize.pkl
+    # Saves: {stem}.chr{N}.normalize.parquet  ×  N chromosomes
+    #        {stem}.chrsplit.json              (manifest)
+    # Trivial resources — just DataFrame groupby + parquet writes.
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "process-split":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: process-split")
+        logging.info("=" * 60)
+        gwas_obj = load_process_checkpoint(stem, output_loc, "normalize")
+        manifest = split_by_chrom(gwas_obj, stem, output_loc)
+        logging.info("Stage 'process-split' complete. %d chromosome(s) written.",
+                     len(manifest))
+        logging.info("Next: --stage process-check-ref --chrom N  (SLURM array 1-26)")
+        logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+        return
+
+    # ══════════════════════════════════════════════════════════════════════════
     # STAGE: process-check-ref
     # check_ref + flip_allele_stats + fix_id.
-    # Loads: {stem}.normalize.pkl
-    # Saves: {stem}.checkref.pkl
+    #
+    # Whole-genome path (--chrom not set):
+    #   Loads: {stem}.normalize.pkl
+    #   Saves: {stem}.checkref.pkl
+    #
+    # Per-chromosome path (--chrom N):
+    #   Loads: {stem}.chrN.normalize.parquet
+    #   Saves: {stem}.chrN.checkref.parquet
+    #   If chrN parquet missing → exits 0 (chromosome not in study).
     # ══════════════════════════════════════════════════════════════════════════
     if stage == "process-check-ref":
         logging.info("\n" + "=" * 60)
         logging.info("STAGE: process-check-ref")
         logging.info("=" * 60)
-        gwas_obj = load_process_checkpoint(stem, output_loc, "normalize")
-        gwas_obj = run_check_ref(gwas_obj, normalise_build(REFERENCE), args.ref)
-        save_process_checkpoint(gwas_obj, stem, output_loc, "checkref")
-        logging.info("Stage 'process-check-ref' complete.")
-        logging.info("Next: --stage process-infer-strand")
+        if args.chrom:
+            df = load_chrom_parquet(stem, output_loc, args.chrom, "normalize")
+            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
+            gwas_obj = run_check_ref(gwas_obj, normalise_build(REFERENCE), args.ref)
+            save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "checkref")
+            logging.info("Stage 'process-check-ref' (chr %d) complete.", args.chrom)
+            logging.info("Next: --stage process-infer-strand --chrom %d", args.chrom)
+        else:
+            gwas_obj = load_process_checkpoint(stem, output_loc, "normalize")
+            gwas_obj = run_check_ref(gwas_obj, normalise_build(REFERENCE), args.ref)
+            save_process_checkpoint(gwas_obj, stem, output_loc, "checkref")
+            logging.info("Stage 'process-check-ref' complete.")
+            logging.info("Next: --stage process-infer-strand")
         logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
         return
 
     # ══════════════════════════════════════════════════════════════════════════
     # STAGE: process-infer-strand
     # infer_strand2 + flip_allele_stats.
-    # Loads: {stem}.checkref.pkl
-    # Saves: {stem}.inferstrand.pkl
-    # High memory — full 1KG VCF sweep.
+    #
+    # Whole-genome path (--chrom not set):
+    #   Loads: {stem}.checkref.pkl
+    #   Saves: {stem}.inferstrand.pkl
+    #   High memory — full 1KG VCF sweep.
+    #
+    # Per-chromosome path (--chrom N):
+    #   Loads: {stem}.chrN.checkref.parquet
+    #   Saves: {stem}.chrN.inferstrand.parquet
+    #   Memory proportional to chromosome variant count (~1/22 of full sweep).
     # ══════════════════════════════════════════════════════════════════════════
     if stage == "process-infer-strand":
         logging.info("\n" + "=" * 60)
         logging.info("STAGE: process-infer-strand")
         logging.info("=" * 60)
-        gwas_obj = load_process_checkpoint(stem, output_loc, "checkref")
         _vcf = ref_vcf_path(args.ref, args.population, build_num)
-        gwas_obj = run_infer_strand(gwas_obj, args.ref, _vcf, args.threads)
-        save_process_checkpoint(gwas_obj, stem, output_loc, "inferstrand")
-        _next = "process-assign-rsid" if args.dbsnp else "process-check-af"
-        logging.info("Stage 'process-infer-strand' complete.")
-        logging.info("Next: --stage %s", _next)
+        if args.chrom:
+            df = load_chrom_parquet(stem, output_loc, args.chrom, "checkref")
+            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
+            gwas_obj = run_infer_strand(gwas_obj, args.ref, _vcf, args.threads)
+            save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "inferstrand")
+            _next = "process-assign-rsid" if args.dbsnp else "process-check-af"
+            logging.info("Stage 'process-infer-strand' (chr %d) complete.", args.chrom)
+            logging.info("Next: --stage %s --chrom %d", _next, args.chrom)
+        else:
+            gwas_obj = load_process_checkpoint(stem, output_loc, "checkref")
+            gwas_obj = run_infer_strand(gwas_obj, args.ref, _vcf, args.threads)
+            save_process_checkpoint(gwas_obj, stem, output_loc, "inferstrand")
+            _next = "process-assign-rsid" if args.dbsnp else "process-check-af"
+            logging.info("Stage 'process-infer-strand' complete.")
+            logging.info("Next: --stage %s", _next)
         logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
         return
 
     # ══════════════════════════════════════════════════════════════════════════
     # STAGE: process-assign-rsid
     # assign_rsid via dbSNP VCF sweep.
-    # Loads: {stem}.inferstrand.pkl
-    # Saves: {stem}.assignrsid.pkl
-    # Extreme memory — full dbSNP VCF sweep.
     # Only reached when --dbsnp is set (guarded above).
+    #
+    # Whole-genome path (--chrom not set):
+    #   Loads: {stem}.inferstrand.pkl
+    #   Saves: {stem}.assignrsid.pkl
+    #   Extreme memory — full dbSNP VCF sweep.
+    #
+    # Per-chromosome path (--chrom N):
+    #   Loads: {stem}.chrN.inferstrand.parquet
+    #   Saves: {stem}.chrN.assignrsid.parquet
+    #   Memory proportional to chromosome variant count.
     # ══════════════════════════════════════════════════════════════════════════
     if stage == "process-assign-rsid":
         logging.info("\n" + "=" * 60)
         logging.info("STAGE: process-assign-rsid")
         logging.info("=" * 60)
-        gwas_obj = load_process_checkpoint(stem, output_loc, "inferstrand")
-        gwas_obj = run_assign_rsid(gwas_obj, normalise_build(REFERENCE), args.ref, args.threads)
-        save_process_checkpoint(gwas_obj, stem, output_loc, "assignrsid")
-        logging.info("Stage 'process-assign-rsid' complete.")
-        logging.info("Next: --stage process-check-af")
+        if args.chrom:
+            df = load_chrom_parquet(stem, output_loc, args.chrom, "inferstrand")
+            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
+            gwas_obj = run_assign_rsid(gwas_obj, normalise_build(REFERENCE), args.ref, args.threads)
+            save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "assignrsid")
+            logging.info("Stage 'process-assign-rsid' (chr %d) complete.", args.chrom)
+            logging.info("Next: --stage process-check-af --chrom %d", args.chrom)
+        else:
+            gwas_obj = load_process_checkpoint(stem, output_loc, "inferstrand")
+            gwas_obj = run_assign_rsid(gwas_obj, normalise_build(REFERENCE), args.ref, args.threads)
+            save_process_checkpoint(gwas_obj, stem, output_loc, "assignrsid")
+            logging.info("Stage 'process-assign-rsid' complete.")
+            logging.info("Next: --stage process-check-af")
         logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
         return
 
     # ══════════════════════════════════════════════════════════════════════════
     # STAGE: process-check-af
     # check_af2 — frequency concordance against 1KG VCF.
-    # Loads: {stem}.assignrsid.pkl  (if --dbsnp)  or  {stem}.inferstrand.pkl
-    # Saves: final raw outputs — {stem}.pkl + .parquet + .tsv.gz
-    # High memory — full 1KG VCF sweep.
+    #
+    # Whole-genome path (--chrom not set):
+    #   Loads: {stem}.assignrsid.pkl (--dbsnp) or {stem}.inferstrand.pkl
+    #   Saves: final raw outputs — {stem}.pkl + .parquet + .tsv.gz
+    #   High memory — full 1KG VCF sweep.
+    #   Next stage: qc (or merge if using the chr-split path).
+    #
+    # Per-chromosome path (--chrom N):
+    #   Loads: {stem}.chrN.assignrsid.parquet (--dbsnp) or {stem}.chrN.inferstrand.parquet
+    #   Saves: {stem}.chrN.checkaf.parquet
+    #   Terminal per-chr stage — merge follows after all chromosomes complete.
     # ══════════════════════════════════════════════════════════════════════════
     if stage == "process-check-af":
         logging.info("\n" + "=" * 60)
         logging.info("STAGE: process-check-af")
         logging.info("=" * 60)
-        _prev_suffix = "assignrsid" if args.dbsnp else "inferstrand"
-        gwas_obj = load_process_checkpoint(stem, output_loc, _prev_suffix)
         _vcf = ref_vcf_path(args.ref, args.population, build_num)
-        gwas_obj = run_check_af(gwas_obj, _vcf, args.threads)
-        pkl_path = os.path.join(output_loc, f"{stem}.pkl")
-        # process-check-af is the terminal process sub-stage: write final raw outputs
-        save_raw_outputs(gwas_obj, args.gwas, args.population,
-                         input_build, build_num, output_loc, added_n,
-                         save_pickle=not args.no_pickle)
-        if args.figures:
-            plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
-                              plots_loc, args.daf_max, stem)
-        if args.cojo:
-            write_cojo(
-                gwas_obj, args.gwas, args.population,
-                input_build, build_num, output_loc,
-                snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
-                suffix="", added_n=added_n,
-            )
-        logging.info("Stage 'process-check-af' complete.")
-        logging.info("Next: --stage qc")
+        _prev_suffix = "assignrsid" if args.dbsnp else "inferstrand"
+        if args.chrom:
+            df = load_chrom_parquet(stem, output_loc, args.chrom, _prev_suffix)
+            gwas_obj = make_sumstats_from_chrom_df(df, normalise_build(REFERENCE))
+            gwas_obj = run_check_af(gwas_obj, _vcf, args.threads)
+            save_chrom_parquet(gwas_obj.data, stem, output_loc, args.chrom, "checkaf")
+            logging.info("Stage 'process-check-af' (chr %d) complete.", args.chrom)
+            logging.info("After all chromosomes: --stage merge")
+        else:
+            gwas_obj = load_process_checkpoint(stem, output_loc, _prev_suffix)
+            gwas_obj = run_check_af(gwas_obj, _vcf, args.threads)
+            pkl_path = os.path.join(output_loc, f"{stem}.pkl")
+            # Whole-genome terminal process sub-stage: write final raw outputs
+            save_raw_outputs(gwas_obj, args.gwas, args.population,
+                             input_build, build_num, output_loc, added_n,
+                             save_pickle=not args.no_pickle)
+            if args.figures:
+                plot_full_dataset(gwas_obj, args.gwas, REFERENCE,
+                                  plots_loc, args.daf_max, stem)
+            if args.cojo:
+                write_cojo(
+                    gwas_obj, args.gwas, args.population,
+                    input_build, build_num, output_loc,
+                    snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
+                    suffix="", added_n=added_n,
+                )
+            logging.info("Stage 'process-check-af' complete.")
+            logging.info("Next: --stage qc")
         logging.info("=" * 70); logging.info("Log : %s", log_path); logging.info("=" * 70)
+        return
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # STAGE: merge
+    # Concatenate all per-chromosome checkaf parquets, then run QC + plots +
+    # leads + COJO.  Replaces the qc + cojo stages in the chr-split path.
+    # Loads: {stem}.chrsplit.json  +  {stem}.chr{N}.checkaf.parquet × N
+    # Saves: same final outputs as process-check-af (raw) + qc + cojo stages
+    # ══════════════════════════════════════════════════════════════════════════
+    if stage == "merge":
+        logging.info("\n" + "=" * 60)
+        logging.info("STAGE: merge")
+        logging.info("=" * 60)
+        run_merge(stem, output_loc, REFERENCE, build_num, input_build, args)
+        logging.info("Stage 'merge' complete.")
+        logging.info("=" * 70)
+        logging.info("Output : %s", output_loc)
+        logging.info("Log    : %s", log_path)
+        logging.info("=" * 70)
         return
 
     # Ensure stem is always defined for both the normal path and the qc/cojo

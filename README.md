@@ -381,12 +381,15 @@ python3 gwaslab.process.py \
 | `--stage all` | Run the full pipeline end-to-end *(default)* |
 | `--stage preprocess` | Load + standardise → `.preprocess.parquet` + `.preprocess.json` |
 | `--stage process-normalize` | `basic_check` + `remove_dup` + liftover → `.normalize.pkl` |
-| `--stage process-check-ref` | `check_ref` + `flip_allele_stats` + `fix_id` → `.checkref.pkl` |
-| `--stage process-infer-strand` | `infer_strand2` + `flip_allele_stats` → `.inferstrand.pkl` |
-| `--stage process-assign-rsid` | `assign_rsid` via dbSNP VCF → `.assignrsid.pkl` *(requires `--dbsnp`)* |
-| `--stage process-check-af` | `check_af2` → final raw outputs `.pkl` / `.parquet` / `.tsv.gz` |
-| `--stage qc` | QC filter → `.qc.pkl` / `.qc.parquet` / `.qc.tsv.gz`; loads prior pickle |
-| `--stage cojo` | Write COJO file from existing pickle (prefers `.qc.pkl` if present) |
+| `--stage process-split` | Split `normalize.pkl` into per-chromosome parquets → `chr{N}.normalize.parquet` × N + `chrsplit.json` *(trivial)* |
+| `--stage process-check-ref` | `check_ref` + `flip_allele_stats` + `fix_id`; whole-genome → `.checkref.pkl` or per-chr with `--chrom N` → `.chr{N}.checkref.parquet` |
+| `--stage process-infer-strand` | `infer_strand2` + `flip_allele_stats`; whole-genome → `.inferstrand.pkl` or per-chr with `--chrom N` |
+| `--stage process-assign-rsid` | `assign_rsid` via dbSNP VCF; whole-genome → `.assignrsid.pkl` or per-chr with `--chrom N` *(requires `--dbsnp`)* |
+| `--stage process-check-af` | `check_af2`; whole-genome → final raw outputs `.pkl/.parquet/.tsv.gz` or per-chr with `--chrom N` → `.chr{N}.checkaf.parquet` |
+| `--stage merge` | Concat all `chr{N}.checkaf.parquet` → raw outputs + QC + plots + leads + COJO *(per-chr path)* |
+| `--stage qc` | QC filter → `.qc.pkl/.parquet/.tsv.gz`; loads prior pickle *(whole-genome path only)* |
+| `--stage cojo` | Write COJO file from existing pickle *(whole-genome path only)* |
+| `--chrom N` | Chromosome task ID 1–26 (23=X, 24=Y, 25=nonPAR, 26=MT). Set automatically by SLURM array jobs. If the chromosome is absent the stage exits 0 gracefully. |
 
 ### COJO output
 
@@ -573,22 +576,36 @@ bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem
 
 ## Option 2: Staged per-study chain (`gwaslab.process.submit_staged.sh`)
 
-Submits one SLURM job **per stage per study**, chained with `--dependency=afterok`. If a stage fails, SLURM automatically cancels all downstream stages for that study (`DependencyNeverSatisfied`). Other studies are completely independent and keep running.
+Submits SLURM jobs chained with `--dependency=afterok`. If a stage fails, SLURM automatically cancels all downstream stages for that study (`DependencyNeverSatisfied`). Other studies are completely independent and keep running.
+
+### Per-chromosome pipeline (default)
+
+The heavy VCF-sweep stages run as **SLURM array jobs** (one task per chromosome), so each job processes ~1/22 of the variants and requires proportionally less memory.
 
 ```
-preprocess → process-normalize → process-check-ref → process-infer-strand
-  → [process-assign-rsid]  → process-check-af → qc → cojo
+preprocess → process-normalize → process-split
+    → [array 1-26] process-check-ref
+    → [array 1-26] process-infer-strand
+    → [array 1-26] process-assign-rsid  (only if --dbsnp)
+    → [array 1-26] process-check-af
+    → merge
 ```
+
+Array task IDs: **1–22** autosomes · **23** = X · **24** = Y · **25** = nonPAR · **26** = MT.
+Tasks for chromosomes absent from a study exit gracefully (exit 0), satisfying `afterok` automatically.
+`afterok` on an array job ID waits for **all** 26 tasks before the next stage starts.
+
+`merge` concatenates all per-chromosome parquets, runs QC + plots + leads + COJO, and produces the same final outputs as the old `qc` + `cojo` stages.
 
 ### Resource tiers
 
 | Tier | Stages | Resource source |
 |------|--------|----------------|
-| Fixed (trivial) | `preprocess`, `cojo` | Hardcoded in script (32G/12h and 16G/4h) |
-| **LIGHT** | `process-normalize`, `process-check-ref`, `qc` | COL10 (`MEM_LIGHT`) + COL11 (`TIME_LIGHT`) from config |
-| **HEAVY** | `process-infer-strand`, `process-assign-rsid`, `process-check-af` | COL8 (`MEM`) + COL9 (`TIME`) from config |
+| Fixed (trivial) | `preprocess` (32G/30min), `process-split` (16G/30min) | Hardcoded in script |
+| **LIGHT** | `process-normalize`, `process-check-ref` (per chr), `merge` | COL10 (`MEM_LIGHT`) + COL11 (`TIME_LIGHT`) |
+| **HEAVY** | `process-infer-strand`, `process-assign-rsid`, `process-check-af` (all per chr) | COL8 (`MEM`) + COL9 (`TIME`) |
 
-`process-assign-rsid` is only submitted when `--dbsnp` appears in `WORKER_FLAGS` inside the script.
+Because each per-chr job sweeps only ~1/22 of the VCF region, the HEAVY tier memory requirement is substantially lower than the equivalent whole-genome sweep.
 
 ### Submit
 
@@ -596,14 +613,11 @@ preprocess → process-normalize → process-check-ref → process-infer-strand
 bash gwaslab.process.submit_staged.sh gwas_list.txt
 ```
 
-Output shows the two-tier resources and the full job chain per study:
+Output shows the two-tier resources and the job IDs per study:
 
 ```
-GWAS                    MEM_L    TIME_L      MEM_H    TIME_H      JOB CHAIN
-────────────────────────────────────────────────────────────────────────────
-CAD_Aragam              64G      24:00:00    128G     96:00:00    1001 → 1002 → ... → 1008
-AF                      128G     24:00:00    128G     96:00:00    1009 → 1010 → ... → 1016
-HDL_EUR                 32G      12:00:00    64G      08:00:00    1017 → 1018 → ... → 1024
+GWAS                    MEM_L    TIME_L      MEM_H    TIME_H      pre=... nrm=... spl=... chr=... ist=... rsi=... caf=... mrg=...
+CAD_Aragam              64G      24:00:00    128G     96:00:00    pre=1001 nrm=1002 spl=1003 chr=1004 ...
 ```
 
 A timestamped submission log is automatically written to `${LOG_BASE}/gwaslab.process.submit_staged_YYYYMMDD_HHMMSS.log`.

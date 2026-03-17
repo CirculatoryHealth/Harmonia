@@ -2,39 +2,49 @@
 #
 # gwaslab.process.submit_staged.sh — submit a chained per-study SLURM pipeline
 #
-# For each active dataset in the config file this script submits one SLURM job
-# per pipeline stage, chained with --dependency=afterok so that:
+# For each active dataset in the config file this script submits SLURM jobs
+# chained with --dependency=afterok so that:
 #   • if a stage fails, all subsequent stages for that study are automatically
 #     cancelled by SLURM (DependencyNeverSatisfied)
 #   • other studies are completely independent and continue running
 #
-# Stage chain (per study):
-#   preprocess → process-normalize → process-check-ref → process-infer-strand
-#   → [process-assign-rsid, if --dbsnp is set in WORKER_FLAGS]
-#   → process-check-af → qc → cojo
+# ── Per-chromosome (chr-split) stage chain (default) ─────────────────────────
 #
-# Two resource tiers are read from gwas_list.txt (COL8/COL9 and COL10/COL11):
+#   preprocess → process-normalize → process-split
+#   → [SLURM array 1-26] process-check-ref
+#   → [SLURM array 1-26] process-infer-strand
+#   → [SLURM array 1-26] process-assign-rsid  (only if --dbsnp in WORKER_FLAGS)
+#   → [SLURM array 1-26] process-check-af
+#   → merge
 #
-#   HEAVY tier  (COL8=MEM, COL9=TIME)   — large VCF sweeps:
-#     process-infer-strand   ← 1KG VCF sweep
-#     process-assign-rsid    ← dbSNP VCF sweep (largest)
-#     process-check-af       ← 1KG VCF sweep
+#   Array task IDs: 1-22 (autosomes)  23=X  24=Y  25=nonPAR  26=MT
+#   Tasks for chromosomes absent from a study exit gracefully (exit 0),
+#   satisfying afterok for the next array stage.
+#   afterok on an array job ID waits for ALL tasks in the array to succeed.
+#
+# ── Resource tiers ────────────────────────────────────────────────────────────
+#
+#   HEAVY tier  (COL8=MEM, COL9=TIME)   — per-chr VCF sweep jobs:
+#     process-infer-strand   ← 1KG VCF sweep (per chr ~1/22 of full dataset)
+#     process-assign-rsid    ← dbSNP VCF sweep (per chr ~1/22)
+#     process-check-af       ← 1KG VCF sweep (per chr ~1/22)
 #
 #   LIGHT tier  (COL10=MEM_LIGHT, COL11=TIME_LIGHT)  — moderate steps:
 #     process-normalize      ← DataFrame ops only
-#     process-check-ref      ← FASTA random access; can spike for wide/complex files
-#     qc                     ← filtering + plots
+#     process-check-ref      ← FASTA random access (per chr)
+#     merge                  ← concat + QC + plots (light — no VCF sweeps)
 #
 #   Fixed (trivial, not configurable per study):
-#     preprocess             : 32G  / 12:00:00  ← CSV load + standardise
-#     cojo                   : 16G  /  4:00:00  ← file write only
+#     preprocess             : 32G  / 00:30:00  ← CSV load + standardise
+#     process-split          : 16G  / 00:30:00  ← parquet split only
 #
 # Script-level fallback defaults (used when COL8–COL11 are absent from config):
 #   LIGHT fallback : 64G  / 24:00:00
 #   HEAVY fallback : 128G / 96:00:00
 #
-# Set MEM_LIGHT higher for studies with many columns or complex allele structure
-# (e.g. multi-ancestry meta-analyses may need 128G even at process-check-ref).
+# Set MEM_HEAVY lower than the old whole-genome tier since each per-chr job
+# only processes ~1/22 of variants.  The defaults above are conservative
+# upper bounds; tune down once you have baseline RSS measurements per study.
 #
 # Usage:
 #   bash gwaslab.process.submit_staged.sh gwas_list.txt
@@ -66,7 +76,7 @@ WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --
 
 # ── Fixed (trivial) stage resources — not per-study configurable ──────────────
 MEM_PREPROCESS="32G";  TIME_PREPROCESS="00:30:00"  # CSV load + standardise only
-MEM_COJO="16G";        TIME_COJO="00:30:00"          # file write only
+MEM_SPLIT="16G";       TIME_SPLIT="00:30:00"        # parquet split only
 
 # ── Script-level fallback defaults (used when config COL10/COL11 are absent) ─
 MEM_LIGHT_DEFAULT="64G";   TIME_LIGHT_DEFAULT="24:00:00"  # normalize, check-ref, qc
@@ -139,9 +149,14 @@ for LINE in "${LINES[@]}"; do
     # ── Submit the chain ──────────────────────────────────────────────────────
     # The worker script (array_for_submit.sh) handles conda activation, path
     # definitions, and building the python command.  We pass LINE as $1 and the
-    # stage name as $2.  Each sbatch captures the job ID for the next dependency.
+    # stage name as $2.  When $SLURM_ARRAY_TASK_ID is set inside the worker,
+    # it automatically appends --chrom $SLURM_ARRAY_TASK_ID to the Python call.
+    #
+    # Array job dependency semantics:
+    #   --dependency=afterok:ARRAY_JOB_ID  waits for ALL tasks in the array.
+    #   Tasks that exit 0 (chromosome absent) count as satisfied.
 
-    # preprocess — fixed resources (trivial: CSV load + column standardisation)
+    # ── 1. preprocess — fixed resources (CSV load + column standardisation) ───
     JID_PRE=$(sbatch \
         --job-name="gl_${GWAS_NAME}_preprocess" \
         --mem="${MEM_PREPROCESS}" --time="${TIME_PREPROCESS}" \
@@ -151,7 +166,7 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "preprocess" \
         | awk '{print $NF}')
 
-    # process-normalize — LIGHT tier
+    # ── 2. process-normalize — LIGHT tier ─────────────────────────────────────
     JID_NRM=$(sbatch \
         --job-name="gl_${GWAS_NAME}_normalize" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
@@ -162,35 +177,49 @@ for LINE in "${LINES[@]}"; do
         "${WORKER_SCRIPT}" "${LINE}" "process-normalize" \
         | awk '{print $NF}')
 
-    # process-check-ref — LIGHT tier (can spike for wide/multi-ancestry files)
+    # ── 3. process-split — fixed (trivial: parquet split) ─────────────────────
+    JID_SPL=$(sbatch \
+        --job-name="gl_${GWAS_NAME}_split" \
+        --mem="${MEM_SPLIT}" --time="${TIME_SPLIT}" \
+        --output="${LOG_BASE}/${GWAS_NAME}_3_split_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_3_split_%j.err" \
+        --dependency="afterok:${JID_NRM}" \
+        "$@" \
+        "${WORKER_SCRIPT}" "${LINE}" "process-split" \
+        | awk '{print $NF}')
+
+    # ── 4. process-check-ref — LIGHT tier, per-chr array ──────────────────────
     JID_CHR=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkref" \
+        --array="1-26" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_3_checkref_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_3_checkref_%j.err" \
-        --dependency="afterok:${JID_NRM}" \
+        --output="${LOG_BASE}/${GWAS_NAME}_4_checkref_%A_%a.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_4_checkref_%A_%a.err" \
+        --dependency="afterok:${JID_SPL}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-check-ref" \
         | awk '{print $NF}')
 
-    # process-infer-strand — HEAVY tier (1KG VCF full sweep)
+    # ── 5. process-infer-strand — HEAVY tier, per-chr array ───────────────────
     JID_IST=$(sbatch \
         --job-name="gl_${GWAS_NAME}_inferstrand" \
+        --array="1-26" \
         --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_4_inferstrand_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_4_inferstrand_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_5_inferstrand_%A_%a.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_5_inferstrand_%A_%a.err" \
         --dependency="afterok:${JID_CHR}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-infer-strand" \
         | awk '{print $NF}')
 
-    # process-assign-rsid — HEAVY tier (dbSNP VCF full sweep; only if --dbsnp)
+    # ── 6. process-assign-rsid — HEAVY tier, per-chr array (only if --dbsnp) ──
     if [[ "${USE_DBSNP}" -eq 1 ]]; then
         JID_RSI=$(sbatch \
             --job-name="gl_${GWAS_NAME}_assignrsid" \
+            --array="1-26" \
             --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
-            --output="${LOG_BASE}/${GWAS_NAME}_5_assignrsid_%j.out" \
-            --error="${LOG_BASE}/${GWAS_NAME}_5_assignrsid_%j.err" \
+            --output="${LOG_BASE}/${GWAS_NAME}_6_assignrsid_%A_%a.out" \
+            --error="${LOG_BASE}/${GWAS_NAME}_6_assignrsid_%A_%a.err" \
             --dependency="afterok:${JID_IST}" \
             "$@" \
             "${WORKER_SCRIPT}" "${LINE}" "process-assign-rsid" \
@@ -201,46 +230,37 @@ for LINE in "${LINES[@]}"; do
         JID_PREV_CHECKAF="${JID_IST}"
     fi
 
-    # process-check-af — HEAVY tier (1KG VCF full sweep)
+    # ── 7. process-check-af — HEAVY tier, per-chr array ───────────────────────
     JID_CAF=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkaf" \
+        --array="1-26" \
         --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_6_checkaf_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_6_checkaf_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_7_checkaf_%A_%a.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_7_checkaf_%A_%a.err" \
         --dependency="afterok:${JID_PREV_CHECKAF}" \
         "$@" \
         "${WORKER_SCRIPT}" "${LINE}" "process-check-af" \
         | awk '{print $NF}')
 
-    # qc — LIGHT tier (QC filtering + plots; no VCF sweeps)
-    JID_QC=$(sbatch \
-        --job-name="gl_${GWAS_NAME}_qc" \
+    # ── 8. merge — LIGHT tier (concat + QC + plots + leads + COJO) ────────────
+    # afterok on an array job ID waits for ALL 26 tasks to succeed.
+    JID_MRG=$(sbatch \
+        --job-name="gl_${GWAS_NAME}_merge" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_7_qc_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_7_qc_%j.err" \
+        --output="${LOG_BASE}/${GWAS_NAME}_8_merge_%j.out" \
+        --error="${LOG_BASE}/${GWAS_NAME}_8_merge_%j.err" \
         --dependency="afterok:${JID_CAF}" \
         "$@" \
-        "${WORKER_SCRIPT}" "${LINE}" "qc" \
-        | awk '{print $NF}')
-
-    # cojo — fixed resources (trivial: file write only)
-    JID_COJO=$(sbatch \
-        --job-name="gl_${GWAS_NAME}_cojo" \
-        --mem="${MEM_COJO}" --time="${TIME_COJO}" \
-        --output="${LOG_BASE}/${GWAS_NAME}_8_cojo_%j.out" \
-        --error="${LOG_BASE}/${GWAS_NAME}_8_cojo_%j.err" \
-        --dependency="afterok:${JID_QC}" \
-        "$@" \
-        "${WORKER_SCRIPT}" "${LINE}" "cojo" \
+        "${WORKER_SCRIPT}" "${LINE}" "merge" \
         | awk '{print $NF}')
 
     # ── Report ────────────────────────────────────────────────────────────────
-    printf "%-22s  %-8s %-10s  %-8s %-10s  %s → %s → %s → %s → %s → %s → %s → %s\n" \
+    printf "%-22s  %-8s %-10s  %-8s %-10s  pre=%s nrm=%s spl=%s chr=%s ist=%s rsi=%s caf=%s mrg=%s\n" \
         "${GWAS_NAME}" \
         "${_MEM_LIGHT}" "${_TIME_LIGHT}" \
         "${_MEM_HEAVY}" "${_TIME_HEAVY}" \
-        "${JID_PRE}" "${JID_NRM}" "${JID_CHR}" "${JID_IST}" \
-        "${JID_RSI}" "${JID_CAF}" "${JID_QC}" "${JID_COJO}"
+        "${JID_PRE}" "${JID_NRM}" "${JID_SPL}" "${JID_CHR}" \
+        "${JID_IST}" "${JID_RSI}" "${JID_CAF}" "${JID_MRG}"
 
     (( SUBMITTED++ )) || true
 
@@ -250,5 +270,6 @@ echo "────────────────────────�
 echo "Done: ${SUBMITTED} study chain(s) submitted, ${SKIPPED} line(s) skipped."
 echo ""
 echo "Monitor  :  squeue -u \$USER"
-echo "Cancel   :  scancel --name=gl_<GWAS_NAME>_preprocess  (cancels whole chain)"
+echo "Cancel   :  scancel --name=gl_<GWAS_NAME>_preprocess  (cancels chain for one study)"
 echo "Details  :  sacct -j <JOB_ID> --format=JobID,JobName,State,Elapsed,MaxRSS"
+echo "Array    :  squeue -u \$USER -r  (show per-task array status)"

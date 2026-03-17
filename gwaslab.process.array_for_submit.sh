@@ -48,6 +48,15 @@ conda activate "${CONDA_ENV}"
 LINE="${1:?ERROR: no config line provided. Submit via gwaslab.process.submit.sh or gwaslab.process.submit_staged.sh}"
 STAGE="${2:-all}"   # pipeline stage; defaults to 'all' (full end-to-end run)
 
+# When running as a SLURM array job, pass the task ID as --chrom so the Python
+# script processes a single chromosome shard.  Task IDs: 1-22=autosomes,
+# 23=X, 24=Y, 25=nonPAR, 26=MT.  If the chromosome is absent the Python script
+# exits 0 gracefully, satisfying afterok for the next array stage.
+CHROM_ARG=()
+if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+    CHROM_ARG=(--chrom "${SLURM_ARRAY_TASK_ID}")
+fi
+
 IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME _ _ \
     <<< "${LINE}"
 
@@ -76,6 +85,7 @@ CMD=(
     --leads
     --fill-eaf
     --stage       "${STAGE}"
+    "${CHROM_ARG[@]}"
 )
 
 # ── Optional N arguments ──────────────────────────────────────────────────────
@@ -94,12 +104,13 @@ fi
 # Log and run
 # ─────────────────────────────────────────────────────────────────────────────
 echo "========================================================"
-echo "Job         : ${SLURM_JOB_ID:-local}"
+echo "Job         : ${SLURM_JOB_ID:-local}${SLURM_ARRAY_TASK_ID:+ [array task ${SLURM_ARRAY_TASK_ID}]}"
 echo "GWAS        : ${GWAS_NAME}"
 echo "Input       : ${INPUT_PATH}"
 echo "Output      : ${OUT_BASE}/${GWAS_NAME}"
 echo "Population  : ${POPULATION}  |  Build: ${BUILD}"
 echo "Stage       : ${STAGE}"
+echo "Chromosome  : ${SLURM_ARRAY_TASK_ID:-'(whole-genome)'}"
 echo "Memory      : ${MEM}  |  Time limit: ${TIME}"
 echo "N / Ncases / Ncontrols: ${N:-'.'} / ${N_CASES:-'.'} / ${N_CONTROLS:-'.'}"
 echo "Command     : ${CMD[*]}"
