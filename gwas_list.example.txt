@@ -1,0 +1,66 @@
+# gwas_list.example.txt — example config file for gwaslab.process.submit.sh
+#
+# This file shows three representative entries covering different use-cases:
+#   • CAD_Aragam  : binary trait with N_controls; hg19; EUR
+#   • CHARGE_CAC_EA : quantitative trait; hg19; EUR
+#   • AF          : multi-ancestry (PAN); hg19; requires large MEM_LIGHT (256G)
+#                   because of many columns and allele-flipping at check-ref.
+#
+# Copy this file to gwas_list.txt (gitignored) and update COL1 paths to point
+# to your local GWAS summary-statistics files.
+#
+# Semicolon-separated, one GWAS per line.  Use . for optional columns that do not apply.
+#
+# COL1  Full path to input GWAS file (directory + filename)
+# COL2  GWAS name         → used for --gwas and the output subdirectory
+# COL3  Population        → EUR / EAS / SAS / AFR / AMR / PAN
+# COL4  Build             → 18 / 19 / 38
+# COL5  N (total)         → integer or .
+# COL6  N_cases           → integer or .
+# COL7  N_controls        → integer or .
+# COL8  MEM               → SLURM memory for HEAVY stages (process-infer-strand,
+#                           process-assign-rsid, process-check-af); e.g. 128G or 256G
+# COL9  TIME              → SLURM time limit for HEAVY stages (HH:MM:SS, e.g. 96:00:00)
+# COL10 MEM_LIGHT         → SLURM memory for LIGHT stages (process-normalize,
+#                           process-check-ref, merge); e.g. 32G or 64G or 128G
+# COL11 TIME_LIGHT        → SLURM time limit for LIGHT stages (HH:MM:SS, e.g. 24:00:00)
+#
+# Note: if COL5, COL6, and COL7 are all provided, --force-n is added automatically.
+# Note: rows starting with # are ignored by the submit scripts.
+# Note: MEM_LIGHT should be set higher if a study has many columns or many alleles
+#       to flip (e.g. multi-ancestry meta-analyses like AF can require 256G at check-ref).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# INPUT_PATH;GWAS_NAME;POPULATION;BUILD;N;N_CASES;N_CONTROLS;MEM;TIME;MEM_LIGHT;TIME_LIGHT
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORONARY ARTERY DISEASE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Aragam / Million Hearts SAIGE meta-analysis – hg19
+# HEADER
+# MarkerName;CHR;BP;Allele1;Allele2;Freq1;FreqSE;MinFreq;MaxFreq;Effect;StdErr;P-value;DirectionHetISq;HetChiSq;HetDf;HetPVal;Cases;Effective_Cases;N;Meta_analysis
+#
+/path/to/gwas_datasets/_CARDIoGRAM/millionhearts/CHD_meta_SAIGE_complete_filtered_30.1.19.out.gz;CAD_Aragam;EUR;19;.;.;984168;128G;96:00:00;64G;24:00:00
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# CORONARY ARTERY CALCIUM
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# CHARGE CAC European ancestry (Kavousi 2022) – hg19
+# HEADER
+# MarkerName;rsID;Chr;Pos;Allele1;Allele2;Freq1;FreqSE;MinFreq;MaxFreq;Effect;StdErr;Pvalue;Direction;HetISq;HetChiSq;HetDf;HetPval;N
+#
+/path/to/gwas_datasets/_CHARGE_CAC/CAC1000G_EA_FINAL_FULL.txt.gz;CHARGE_CAC_EA;EUR;19;.;.;.;128G;24:00:00;64G;24:00:00
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+# ATRIAL FIBRILLATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# AFGen / Roselli 2018 – AF, b38 positions reported in hg19 file; PAN-ancestry
+# Note: MEM_LIGHT=256G required at process-check-ref due to the large number of
+#       columns and alleles in this multi-ancestry meta-analysis.
+# HEADER
+# MarkerName;rsid;chr;position_b38;Allele1;Allele2;Freq1;Effect;StdErr;log(P);n_events;n_total;mean_impQual
+#
+/path/to/gwas_datasets/_AFGen/Roselli2018/AF_TOPMed_Meta_2021_Freeze5_ALL_v21_chr1_22_common.txt.gz;AF;PAN;19;.;.;.;128G;96:00:00;256G;24:00:00

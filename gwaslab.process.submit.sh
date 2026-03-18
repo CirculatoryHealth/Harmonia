@@ -20,12 +20,25 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
-LOG_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Site configuration — loaded from gwas2cojo.conf (next to this script).
+# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
+# ─────────────────────────────────────────────────────────────────────────────
+CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+if [[ ! -f "${CONF}" ]]; then
+    echo "ERROR: ${CONF} not found." >&2
+    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    exit 1
+fi
+# shellcheck source=gwas2cojo.conf.example
+source "${CONF}"
+# Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
+LOG_BASE="${OUT_BASE}"   # submit.sh uses LOG_BASE for SLURM output paths
 
 # ── SLURM job settings ────────────────────────────────────────────────────────
 NODES=1
 CPUS=8
-EMAIL="s.w.vanderlaan[at]gmail[dot]com"
 MAIL_TYPE="FAIL"   # NONE | BEGIN | END | FAIL | ALL
 
 # ── Arguments ─────────────────────────────────────────────────────────────────

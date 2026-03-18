@@ -3,3 +3,5 @@
 _archived/*
 .claude/*
 data/*
+gwas2cojo.conf
+gwas_list.txt

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#
+# gwas2cojo.conf.example — site-specific configuration template
+#
+# ── One-time setup ────────────────────────────────────────────────────────────
+# 1. Copy this file:   cp gwas2cojo.conf.example gwas2cojo.conf
+# 2. Edit gwas2cojo.conf and fill in the four paths + your email below.
+# 3. Done — all gwas2cojo scripts will pick up the settings automatically.
+#
+# gwas2cojo.conf is listed in .gitignore so your local settings are never
+# accidentally committed to the public repository.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Absolute path to gwaslab.process.py
+# (the directory where you cloned / installed gwas2cojo)
+PYTHON_SCRIPT="/path/to/gwas2cojo/gwaslab.process.py"
+
+# Directory containing gwaslab reference files
+# (1KG VCFs, FASTA, dbSNP VCFs, recombination maps, …)
+# Use gwaslab.download_refs.py to populate this directory.
+REF_DIR="/path/to/references/gwaslab"
+
+# Base output directory — per-study subdirectories and SLURM logs go here
+OUT_BASE="/path/to/output/gwas2cojo"
+
+# Conda environment name (created from environment.yml)
+CONDA_ENV="gwas2cojo"
+
+# Email address for SLURM job failure notifications
+EMAIL="your@email.com"

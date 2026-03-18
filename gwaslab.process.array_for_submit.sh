@@ -22,12 +22,19 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# USER CONFIGURATION — adjust these paths for your HPC environment
+# Site configuration — loaded from gwas2cojo.conf (next to this script).
+# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
-PYTHON_SCRIPT="/hpc/local/Rocky8/dhl_ec/software/gwas2cojo/gwaslab.process.py"
-REF_DIR="/hpc/dhl_ec/data/references/gwaslab"
-OUT_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
-CONDA_ENV="gwas2cojo"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+if [[ ! -f "${CONF}" ]]; then
+    echo "ERROR: ${CONF} not found." >&2
+    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    exit 1
+fi
+# shellcheck source=gwas2cojo.conf.example
+source "${CONF}"
+# Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Activate conda environment

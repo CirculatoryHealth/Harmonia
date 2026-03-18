@@ -58,11 +58,21 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# USER CONFIGURATION — adjust for your HPC environment
+# Site configuration — loaded from gwas2cojo.conf (next to this script).
+# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
-LOG_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
+CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+if [[ ! -f "${CONF}" ]]; then
+    echo "ERROR: ${CONF} not found." >&2
+    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    exit 1
+fi
+# shellcheck source=gwas2cojo.conf.example
+source "${CONF}"
+# Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
+LOG_BASE="${OUT_BASE}"   # submit_staged.sh uses LOG_BASE for SLURM output paths
 
 # ── Submission log (tee stdout+stderr to a timestamped file) ──────────────────
 SUBMIT_LOG="${LOG_BASE}/gwaslab.process.submit_staged_$(date +%Y%m%d_%H%M%S).log"
@@ -77,8 +87,8 @@ WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --
 # ── SLURM job settings ────────────────────────────────────────────────────────
 NODES=1          # nodes per job (all stages are single-node)
 CPUS=8           # CPUs per job — must match --threads N in WORKER_FLAGS above
-EMAIL="s.w.vanderlaan[at]gmail[dot]com"
 MAIL_TYPE="FAIL" # NONE | BEGIN | END | FAIL | ALL
+# EMAIL is loaded from gwas2cojo.conf
 
 # ── Fixed (trivial) stage resources — not per-study configurable ──────────────
 MEM_PREPROCESS="32G";  TIME_PREPROCESS="00:30:00"  # CSV load + standardise only

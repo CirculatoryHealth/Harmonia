@@ -6,7 +6,7 @@ Usage
 -----
     python gwaslab.download_refs.py [--ref-dir DIR]
 
-Default ref dir: /hpc/dhl_ec/data/references/gwaslab/
+Default ref dir: /path/to/references/gwaslab/
 
 What this downloads
 -------------------
@@ -35,7 +35,7 @@ from gwaslab.bd.bd_download import (
     get_path,
 )
 
-DEFAULT_REF_DIR = "/hpc/dhl_ec/data/references/gwaslab/"
+DEFAULT_REF_DIR = "/path/to/references/gwaslab/"
 
 # ---------------------------------------------------------------------------
 # Reference file keywords.

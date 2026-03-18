@@ -35,9 +35,19 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# USER CONFIGURATION
+# Site configuration — loaded from gwas2cojo.conf (next to this script).
+# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
-OUT_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+if [[ ! -f "${CONF}" ]]; then
+    echo "ERROR: ${CONF} not found." >&2
+    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    exit 1
+fi
+# shellcheck source=gwas2cojo.conf.example
+source "${CONF}"
+# OUT_BASE is set from gwas2cojo.conf
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Defaults

@@ -513,10 +513,10 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 conda activate gwas2cojo
 python gwaslab.download_refs.py
 # or with a custom path:
-python gwaslab.download_refs.py --ref-dir /hpc/dhl_ec/data/references/gwaslab/
+python gwaslab.download_refs.py --ref-dir /path/to/references/gwaslab/
 ```
 
-The default target directory is `/hpc/dhl_ec/data/references/gwaslab/`. Pass `--ref-dir` to override. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
+The default target directory is `/path/to/references/gwaslab/`. Pass `--ref-dir` to override. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
 
 > **Note:** Files are hosted on Dropbox and may not be accessible from all HPC networks. Run from a login node with outbound internet access, or use a node with proxy configured.
 
@@ -526,10 +526,31 @@ The default target directory is `/hpc/dhl_ec/data/references/gwaslab/`. Pass `--
 
 For large-scale processing of many GWAS studies on a compute cluster, four helper scripts are provided.
 
+## ⚙️ One-time site setup
+
+All HPC scripts read their paths and settings from a single file — **`gwas2cojo.conf`** — that lives next to the scripts. Configure it once; every script picks it up automatically.
+
+```bash
+# 1. Copy the template
+cp gwas2cojo.conf.example gwas2cojo.conf
+
+# 2. Open gwas2cojo.conf and fill in the five values:
+#    PYTHON_SCRIPT  — absolute path to gwaslab.process.py
+#    REF_DIR        — directory containing gwaslab reference files
+#    OUT_BASE       — base output directory (per-study subdirs + SLURM logs go here)
+#    CONDA_ENV      — conda environment name (default: gwas2cojo)
+#    EMAIL          — your email address for SLURM failure notifications
+nano gwas2cojo.conf
+```
+
+`gwas2cojo.conf` and `gwas_list.txt` are both listed in `.gitignore` so your local settings and study list are never accidentally committed. `gwas2cojo.conf.example` and `gwas_list.example.txt` (with placeholder values) are the committed templates.
+
 ## Files
 
 | File | Description |
 |------|-------------|
+| `gwas2cojo.conf.example` | Site configuration template — copy to `gwas2cojo.conf` and fill in your paths |
+| `gwas_list.example.txt` | Study list template (3 example studies) — copy to `gwas_list.txt` and update paths |
 | `gwaslab.process.array_for_submit.sh` | SLURM worker — runs one `gwaslab.process.py` call for one study and one stage |
 | `gwaslab.process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
 | `gwaslab.process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
