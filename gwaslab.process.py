@@ -60,7 +60,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.6"
+VERSION      = "1.4.7"
 VERSION_DATE = "2026-03-18"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -94,6 +94,7 @@ import gzip
 import logging
 import shutil
 import gc
+import warnings
 
 # Visualisation and data handling
 import matplotlib
@@ -900,7 +901,26 @@ def run_merge(stem: str, output_loc: str, reference: str,
         logging.warning("[merge] %d chromosome(s) missing from merge: %s",
                         len(missing), missing)
 
-    combined = pd.concat(chr_dfs, ignore_index=True)
+    # Drop genuinely empty shards (shouldn't happen, but guards against edge cases).
+    chr_dfs = [df for df in chr_dfs if not df.empty]
+    if not chr_dfs:
+        logging.error("[merge] All per-chromosome DataFrames are empty — cannot merge.")
+        sys.exit(1)
+
+    # Per-chromosome shards for continuous traits have all-NA columns (e.g.
+    # N_cases, N_controls).  pd.concat raises a FutureWarning about dtype
+    # inference for those columns even though the parquet-preserved dtypes are
+    # already correct (Int64 nullable integer).  Suppress this specific warning
+    # because the current concat behaviour is exactly what we want and the
+    # dtypes are already set correctly in every shard.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="The behavior of DataFrame concatenation with empty or all-NA entries",
+            category=FutureWarning,
+        )
+        combined = pd.concat(chr_dfs, ignore_index=True)
+
     logging.info("[merge] Combined: %s variants across %d chromosomes.",
                  f"{len(combined):,}", len(chr_dfs))
 
