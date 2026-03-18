@@ -2,6 +2,11 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-18 🧪 Synthetic test datasets for gwas2cojo.py
+- 🆕**Added** `test/generate_test_data.py` — stdlib-only Python script that generates 10,000 synthetic biallelic SNPs and writes four files: a genetic reference (`ref.txt.gz`) and three GWAS summary-statistics files covering different column-naming conventions (`gwas_metal_tab.txt.gz`, `gwas_plink2.txt.gz`, `gwas_saige.txt.gz`). Datasets include deliberate complement-strand and allele-switched variants so the NOP, FLIP, and translated-allele branches of `select_action()` are all exercised. Regenerate at any time with `python3 test/generate_test_data.py`.
+- 🆕**Added** `test/ref.txt.gz`, `test/gwas_metal_tab.txt.gz`, `test/gwas_plink2.txt.gz`, `test/gwas_saige.txt.gz` — pre-generated test fixtures (~870 KB total) committed so `bash test/run.sh` runs without a generation step.
+- 🛠️**Updated** `test/run.sh` — extended from a 1-variant smoke test to four tests: (0) the original A.txt/B.txt sanity check; (1) METAL-style with full auto-detection and `gwas2cojo-verify.py` validation (0 errors); (2) PLINK2-style exercising the new `A1FREQ`/`OBS_CT` aliases; (3) SAIGE-style requiring `--gwas:effect Allele2 --gwas:other Allele1 --gwas:freq AF_Allele2` manual overrides.
+
 ## 2026-03-18 🐛 Bug fixes and column alias alignment in gwas2cojo.py and gwas2cojo-verify.py
 
 ### `gwas2cojo-verify.py` → `v1.0.1` — logic errors in allele-comparison helpers
