@@ -3,6 +3,7 @@
 # Ignore all archived and claude files, which are not relevant to the project and may contain sensitive information
 _archived/*
 .claude/*
+_drafts/*
 
 # Ignore all data files, but not the scripts that generate them
 data/*
