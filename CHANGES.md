@@ -2,6 +2,14 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-18 🧰 Added gwaslab.process.check.py — pipeline run-status checker (check.py v1.0.0 / gwaslab.process.py v1.4.8)
+- **New tool** `gwaslab.process.check.py` (v1.0.0): standalone Python script that parses `*.out` / `*.err` log files produced by the staged gwaslab pipeline and prints a per-stage summary table with key QC metrics, warning/error counts, and overall pass/fail status.
+- Supports checking a single study (`python gwaslab.process.check.py GWAS_ID [log_dir]`), all studies in a directory (`--all`), or only studies with problems (`--errors-only`).
+- Parses: variant counts from preprocess/normalize, liftover status, chr-split count, checkref match rate + flipped/unmatched variant totals aggregated across chromosomes, and merge combined/QC-pass/COJO variant counts.
+- Distinguishes real errors (Traceback, `*Error:`, `Illegal instruction`, `[ERROR]`) from known-benign upstream warnings (gwaslab FutureWarning/UserWarning/SettingWithCopyWarning, matplotlib, htslib `[W::]`).
+- 📝**Updated**: `README.md` — added `gwaslab.process.check.py` to the HPC files table and added a dedicated `🩺 Check run status` section with usage examples and sample output.
+- 🛠️**Updated**: Bumped `gwaslab.process.py` to v1.4.8 (`2026-03-18`) to mark this as a versioned release.
+
 ## 2026-03-18 🔇 Suppress FutureWarning in run_merge pd.concat (v1.4.7)
 - **Warning**: `FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated` was emitted from line 903 during the merge stage. Root cause: per-chromosome shards for continuous traits (no `N_cases`/`N_controls`) contain all-NA entries in those nullable integer columns. When `pd.concat` sees a mix of all-NA and populated shards it warns about dtype inference, even though the parquet-preserved `Int64` dtypes are already correct and consistent across all shards.
 - 🐛**Fixed** `gwaslab.process.py` — `run_merge()` now (1) filters out genuinely empty DataFrames before concat as a safety guard, and (2) wraps `pd.concat` in a `warnings.catch_warnings()` context that suppresses only this specific FutureWarning. The current concat behaviour is exactly correct for our use case; the suppression will be revisited if pandas changes its dtype inference in a way that affects results.

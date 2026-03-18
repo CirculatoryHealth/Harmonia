@@ -555,6 +555,7 @@ nano gwas2cojo.conf
 | `gwaslab.process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
 | `gwaslab.process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
 | `gwaslab.process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
+| `gwaslab.process.check.py` | Parse `*.out`/`*.err` log files and print a per-stage summary table with QC metrics and error/warning counts |
 | `gwaslab.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |
 
 ## Config file format (`gwas_list.txt`)
@@ -685,6 +686,49 @@ bash gwaslab.process.cleanup.sh --config gwas_list.txt --keep-raw-pkl
 # Also remove the QC pickle (default: kept)
 bash gwaslab.process.cleanup.sh --config gwas_list.txt --remove-qc-pkl
 ```
+
+---
+
+## 🩺 Check run status (`gwaslab.process.check.py`)
+
+After submitting jobs, use `gwaslab.process.check.py` to quickly verify whether a study completed correctly. It parses all `*.out` / `*.err` log files in the log directory and prints a per-stage summary with key QC metrics, warning counts, and a clear pass/fail status.
+
+```bash
+# Check one study in the current directory (where *.out/*.err files live)
+python gwaslab.process.check.py CAD_Aragam
+
+# Check one study in a specific log directory
+python gwaslab.process.check.py CAD_Aragam /hpc/data/gwas2cojo
+
+# Check every study found in the log directory
+python gwaslab.process.check.py --all /hpc/data/gwas2cojo
+
+# Morning triage — only print studies with errors or missing stages
+python gwaslab.process.check.py --all /hpc/data/gwas2cojo --errors-only
+```
+
+Example output for a healthy study:
+
+```
+════════════════════════════════════════════════════════════════════════════════════════════════════════
+  Study: CAD_Aragam  |  Population: EUR  |  Build: 19
+════════════════════════════════════════════════════════════════════════════════════════════════════════
+  Stage             Status            Key metric                                       Warn    Err
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+  preprocess        ✓ done            1,234,567 variants  |  build 19                     1      0
+  normalize         ✓ done            1,200,000 after dedup  |  liftover → hg38           1      0
+  split             ✓ done            22 chromosomes                                       0      0
+  checkref          ✓ 26/26 chr       match 99.8%  |  flipped 45,678                      8      0
+  inferstrand       ✓ 26/26 chr       26/26 complete                                      8      0
+  assignrsid        ✓ 26/26 chr       26/26 complete                                      8      0
+  checkaf           ✓ 26/26 chr       26/26 complete                                      8      0
+  merge             ✓ done            combined 1,180,000  |  QC-pass 1,100,000            2      0
+────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Overall: ✓ COMPLETE              Warnings (gwaslab upstream): 36   Errors: 0
+════════════════════════════════════════════════════════════════════════════════════════════════════════
+```
+
+Warnings from gwaslab/matplotlib/htslib internals (`FutureWarning`, `UserWarning`, `[W::vcf_parse_info]`, etc.) are counted but never treated as errors. Real failures (`Traceback`, `*Error:`, `Illegal instruction`, `[ERROR]`) are flagged in the **Err** column with a `◄ ERRORS` marker and the first matching snippet printed beneath the row.
 
 ---
 
