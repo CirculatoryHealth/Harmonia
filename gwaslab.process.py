@@ -60,7 +60,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.4"
+VERSION      = "1.4.5"
 VERSION_DATE = "2026-03-18"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -796,6 +796,24 @@ def make_sumstats_from_chrom_df(df: pd.DataFrame, reference: str) -> "gl.Sumstat
         gwas_obj.data["STATUS"] = status_backup.values
         logging.debug("STATUS column restored from parquet checkpoint (%d variants).",
                       len(status_backup))
+
+    # gwaslab's __init__ calls basic_check() which re-encodes EA/NEA as
+    # pd.Categorical for memory efficiency.  A per-chromosome shard only
+    # contains allele values present on that chromosome, so the category set is
+    # incomplete.  When flip_allele_stats() later tries to swap EA↔NEA for
+    # variants whose allele (e.g. a long indel) exists in EA's categories but
+    # not NEA's, pandas raises:
+    #   "TypeError: Cannot setitem on a Categorical with a new category"
+    # Converting every Categorical column back to plain object dtype here —
+    # after __init__ is done — permanently prevents this in all downstream
+    # per-chromosome processing steps (check_ref, infer_strand, assign_rsid,
+    # check_af).  The conversion is cheap and correctness is unaffected.
+    cat_cols = gwas_obj.data.select_dtypes(include="category").columns.tolist()
+    if cat_cols:
+        gwas_obj.data[cat_cols] = gwas_obj.data[cat_cols].astype(object)
+        logging.debug("Converted %d Categorical column(s) to object post-init: %s",
+                      len(cat_cols), cat_cols)
+
     return gwas_obj
 
 
