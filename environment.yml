@@ -20,7 +20,7 @@ dependencies:
       - "seaborn>=0.12"
       - "h5py>=3.10.0"
       - pyarrow
-      - "polars>=1.27.0"
+      - "polars-lts-cpu>=1.27.0"   # CPU-compat build (SSE4/no AVX2); prevents SIGILL on older HPC nodes
       - "sumstats-liftover==1.1.0"
       - "jupyter==1.0.0"
       - gwaslab
