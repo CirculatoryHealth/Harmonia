@@ -12,8 +12,8 @@ Result = collections.namedtuple('Result', 'ref oth freq beta act')
 acts = 'NOP SKIP FLIP REM REPORT_FREQ INDEL_SKIP'.split()
 tr = {'A':'T', 'T':'A', 'C':'G', 'G':'C'}
 
-def equal_alleles(a, b): return a.ref == b.ref and a.ref == b.ref
-def switched_alleles(a, b): return gen.ref == gwas.oth and gen.oth == gwas.ref
+def equal_alleles(a, b): return a.ref == b.ref and a.oth == b.oth
+def switched_alleles(a, b): return a.ref == b.oth and a.oth == b.ref
 def translated_equal_alleles(a, b): return a.ref == tr[b.ref] and a.oth == tr[b.oth]
 def translated_switched_alleles(a, b): return a.ref == tr[b.oth] and a.oth == tr[b.ref]
 
@@ -67,9 +67,9 @@ def prolog():
     print('')
     print('* Written by         : Lennart Landsmeer | lennart[at]landsmeer[dot]email')
     print('* Suggested for by   : Sander W. van der Laan | s.w.vanderlaan[at]gmail[dot]com')
-    print('* Last update        : 2019-11-21')
+    print('* Last update        : 2026-03-18')
     print('* Name               : gwas2cojo-verify')
-    print('* Version            : v1.0.0')
+    print('* Version            : v1.0.1')
     print('')
     print('* Description        : When gwas2cojo was written, it was not checked for errors (just visual inspection)')
     print('                       This script takes the report file or a gwas2cojo with the -rr/--report-ok option')
@@ -81,7 +81,7 @@ def prolog():
 def epilog():
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
     print('+ The MIT License (MIT)                                                                                 +')
-    print('+ Copyright (c) 1979-2024 Lennart P.L. Landsmeer & Sander W. van der Laan                               +')
+    print('+ Copyright (c) 1979-2026 Lennart P.L. Landsmeer & Sander W. van der Laan                               +')
     print('+                                                                                                       +')
     print('+ Permission is hereby granted, free of charge, to any person obtaining a copy of this software and     +')
     print('+ associated documentation files (the \'Software\'), to deal in the Software without restriction,         +')

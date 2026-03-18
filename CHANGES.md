@@ -2,6 +2,22 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-18 🐛 Bug fixes and column alias alignment in gwas2cojo.py and gwas2cojo-verify.py
+
+### `gwas2cojo-verify.py` → `v1.0.1` — logic errors in allele-comparison helpers
+- 🐛**Fixed** `equal_alleles(a, b)` — the second comparison was `a.ref == b.ref` (duplicate of the first), meaning the *other* allele (`oth`) was never checked. Corrected to `a.oth == b.oth`.
+- 🐛**Fixed** `switched_alleles(a, b)` — the body referenced free variables `gen` and `gwas` (local names inside the caller `verify()`) instead of the function parameters `a` and `b`. As a module-level function, Python resolves free variables in the global scope, so any call that reached a FLIP assertion would raise `NameError: name 'gen' is not defined`. Corrected to `a.ref == b.oth and a.oth == b.ref`.
+- 🛠️**Updated** `Last update` date to `2026-03-18`.
+
+### `gwas2cojo.py` → `v1.4.4` — four bug fixes and column alias improvements
+- 🐛**Fixed** `select()` inside `read_gwas()` — `except IndexError` was catching the wrong exception type: `list.index()` raises `ValueError`, not `IndexError`. A bad user-supplied `--gwas:<col>` value therefore propagated as an uncaught `ValueError` instead of printing the helpful "not found" diagnostic. Corrected to `except ValueError`.
+- 🐛**Fixed** `GWAS_H_NCONTROL_OPTIONS` / `GWAS_H_NCASE_OPTIONS` — the entries `'TotalCases'` and `'TotalSampleSize'` were in the *wrong lists* (swapped). `TotalCases` belongs in the case count list; `TotalSampleSize` belongs in the total-N list. Corrected: `GWAS_H_NCONTROL_OPTIONS` now contains `'TotalControls'`/`'n_controls'`; `GWAS_H_NCASE_OPTIONS` now contains `'TotalCases'`/`'n_cases'`.
+- 🐛**Fixed** `gwas_header_auto(gwas_filename)` — function body used the undefined name `filename` instead of the parameter `gwas_filename`, and called `fopen(filename, 'rt')` with two arguments while `fopen()` only accepts one. Also used the undefined name `headers` instead of `header`. Corrected to `fopen(gwas_filename)` and `len(header)`.
+- 🆕**Added** column aliases for widely-used GWAS tool outputs:
+  - `GWAS_H_FREQ_OPTIONS`: `'A1FREQ'` (PLINK2 `.afreq`/`.linear`/`.logistic`), `'FRQ'` (PLINK 1.9 `.frq`)
+  - `GWAS_H_NTOTAL_OPTIONS`: `'OBS_CT'` (PLINK2 observation count), `'n_total'`
+- 🛠️**Updated** `Last update` date to `2026-03-18`.
+
 ## 2026-03-18 🐛 gwas2cojo.conf not found when running as SLURM job
 - 🛠️**Updated**: Bumped version to `1.4.4` (`2026-03-18`).
 - **Bug**: After the `gwas2cojo.conf` introduction, SLURM jobs immediately failed with `ERROR: /var/spool/slurmd/job<ID>/gwas2cojo.conf not found`. SLURM copies the worker script (`array_for_submit.sh`) to its own temporary spool directory before executing it on the compute node, so `BASH_SOURCE[0]` inside the job resolves to the spool path rather than the original script location. The conf-file lookup `"${SCRIPT_DIR}/gwas2cojo.conf"` therefore searched in `/var/spool/slurmd/job<ID>/` where no conf file exists.

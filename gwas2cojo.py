@@ -90,13 +90,13 @@ GWAS_H_CHR_OPTIONS =             ['chr', 'chromosome', 'Chromosome', 'CHR', 'Chr
 GWAS_H_BP_OPTIONS =              ['bp_hg18', 'bp_hg19', 'bp', 'pos', 'position', 'Position', 'BP', 'POS', 'Pos', 'Start(GCF1405.25)']
 GWAS_H_EFF_OPTIONS =             ['A1', 'Allele1', 'reference_allele', 'effect_allele', 'riskallele', 'CODEDALLELE', 'EA']
 GWAS_H_OTH_OPTIONS =             ['A2', 'Allele2', 'other_allele', 'noneffect_allele', 'nonriskallele', 'OTHERALLELE', 'NEA']
-GWAS_H_FREQ_OPTIONS =            ['ref_allele_frequency', 'effect_allele_freq', 'eaf', 'raf', 'CAF', 'EAF', 'Freq1', 'freq(A1)', 'Freq.A1.1000G.EUR']
+GWAS_H_FREQ_OPTIONS =            ['ref_allele_frequency', 'effect_allele_freq', 'eaf', 'raf', 'CAF', 'EAF', 'Freq1', 'freq(A1)', 'Freq.A1.1000G.EUR', 'A1FREQ', 'FRQ']
 GWAS_H_BETA_OPTIONS =            ['log_odds', 'logOR', 'beta', 'effect', 'BETA_FIXED', 'BETA', 'Beta', 'b', 'Effect']
 GWAS_H_SE_OPTIONS =              ['log_odds_se', 'se_gc', 'se', 'stderr', 'SE_FIXED', 'SE']
 GWAS_H_PVALUE_OPTIONS =          ['pvalue', 'p-value_gc', 'p-value', 'p.value', 'pval', 'p', 'P_FIXED', 'P', 'Pvalue', 'P-value']
-GWAS_H_NTOTAL_OPTIONS =          ['n_samples', 'TotalSampleSize', 'n_eff', 'N_EFF', 'N', 'neff', 'Neff']
-GWAS_H_NCONTROL_OPTIONS =        ['N_control', 'N_controls', 'controls', 'TotalCases']
-GWAS_H_NCASE_OPTIONS =           ['N_case', 'N_cases', 'cases', 'TotalSampleSize']
+GWAS_H_NTOTAL_OPTIONS =          ['n_samples', 'TotalSampleSize', 'n_eff', 'N_EFF', 'N', 'neff', 'Neff', 'OBS_CT', 'n_total']
+GWAS_H_NCONTROL_OPTIONS =        ['N_control', 'N_controls', 'controls', 'TotalControls', 'n_controls']
+GWAS_H_NCASE_OPTIONS =           ['N_case', 'N_cases', 'cases', 'TotalCases', 'n_cases']
 GWAS_HG18_HINTS =                ['hg18', 'b36']
 GWAS_HG19_HINTS =                ['hg19', 'b37', 'GCF1405.25']
 
@@ -324,7 +324,7 @@ def read_gwas(args, filename, report=None):
         if name in desc:
             try:
                 return header.index(desc[name])
-            except IndexError:
+            except ValueError:
                 print('Specified header (--gwas:'+name, args[option_name] + ') not found.')
                 exit(1)
         for option in options:
@@ -672,12 +672,12 @@ def update_read_stats(args, gwas, stats_filename, output=None, report=None):
 
 
 def gwas_header_auto(gwas_filename):
-    with fopen(filename, 'rt') as f:
+    with fopen(gwas_filename) as f:
         for lineno, line in enumerate(f, 1):
             parts = line.split()
             if lineno == 1:
                 header = parts
-                cols = [[] for _col in range(len(headers))]
+                cols = [[] for _col in range(len(header))]
                 continue
             for col_idx, part in enumerate(parts):
                 cols[col_idx].append(part)
@@ -747,9 +747,9 @@ def prolog():
     print('')
     print('* Written by         : Lennart Landsmeer | lennart[at]landsmeer[dot]email')
     print('* Suggested for by   : Sander W. van der Laan | s.w.vanderlaan[at]gmail[dot]com')
-    print('* Last update        : 2024-04-20')
+    print('* Last update        : 2026-03-18')
     print('* Name               : gwas2cojo')
-    print('* Version            : v1.4.3')
+    print('* Version            : v1.4.4')
     print('')
     print('* Description        : Converts a given set of summary statistics from genome-wide association studies  ')
     print('                       (GWAS) to the GWAS-COJO format used by Summarized-data Mendelian Randomization ')
@@ -763,7 +763,7 @@ def prolog():
 def epilog():
     print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
     print('+ The MIT License (MIT)                                                                                 +')
-    print('+ Copyright (c) 1979-2023 Lennart P.L. Landsmeer & Sander W. van der Laan                               +')
+    print('+ Copyright (c) 1979-2026 Lennart P.L. Landsmeer & Sander W. van der Laan                               +')
     print('+                                                                                                       +')
     print('+ Permission is hereby granted, free of charge, to any person obtaining a copy of this software and     +')
     print('+ associated documentation files (the \'Software\'), to deal in the Software without restriction,         +')
