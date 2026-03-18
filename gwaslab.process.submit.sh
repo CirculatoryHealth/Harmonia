@@ -22,6 +22,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
 LOG_BASE="/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo"
 
+# ── SLURM job settings ────────────────────────────────────────────────────────
+NODES=1
+CPUS=8
+EMAIL="s.w.vanderlaan[at]gmail[dot]com"
+MAIL_TYPE="FAIL"   # NONE | BEGIN | END | FAIL | ALL
+
 # ── Arguments ─────────────────────────────────────────────────────────────────
 CONFIG="${1:?Usage: bash gwaslab.process.submit.sh <config.txt> [extra sbatch args]}"
 shift   # remaining args forwarded to every sbatch call
@@ -70,8 +76,10 @@ for LINE in "${LINES[@]}"; do
 
     JOB_ID=$(sbatch \
         --job-name="gwaslab_${GWAS_NAME}" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${MEM}" \
         --time="${TIME}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_%j.err" \
         "$@" \

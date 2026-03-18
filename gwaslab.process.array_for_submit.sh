@@ -15,9 +15,9 @@
 # ── SLURM directives (fixed across all jobs) ─────────────────────────────────
 #SBATCH --ntasks=1              # One Python process per job
 #SBATCH --cpus-per-task=8       # CPU cores — keep in sync with --threads below
-#SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=s.w.vanderlaan[at]gmail[dot]com
-# --job-name, --mem, --time, --output, --error are set by gwaslab.process.submit.sh
+# --job-name, --mem, --time, --output, --error, --mail-type, --mail-user
+# are all set by the calling submit script (submit.sh or submit_staged.sh)
+# via the sbatch command line.
 
 set -euo pipefail
 

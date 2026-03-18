@@ -2,8 +2,109 @@
 ============
 [![Languages](https://skillicons.dev/icons?i=bash,py)](https://skillicons.dev) 
 
+
+# 📑 Introduction
+This suite of scripts offers two standalone pipelines to process genome-wide association study (GWAS) summary statistics datasets relative to a reference and parse them into a standardised format for downstream analyses. 
+
+* The first script, `gwas2cojo.py`, is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. This relies on the 1000G phase 3 reference dataset for Europeans, but can be used with any reference dataset with the appropriate columns. It generates a [COJO]-compatible file that can be used for many post-GWAS analyses, including SMR. It is the recommended tool for legacy datasets using b37 and hundreds of thousands of variants (< ±7 million).
+
+* The second script, `gwaslab.process.py`, is a more recent and comprehensive pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It relies on the human reference, dbSNP, and 1000G phase 3 data. It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
+
+## ⚙️ Requirements
+
+* Python 3.12
+* Tested on Linux _Rocky Linux release 8.10 (Green Obsidian)_ and macOS _Tahoe (26.4 Beta (25E5233c))_
+* `bcftools` ≥1.17 (used by GWASLab VCF sweep steps; installed via bioconda)
+* See `environment.yml` for the full dependency list
+
+## 🧩 Installation
+
+We recommend using `mamba` (a faster drop-in replacement for `conda`).
+
+### Option A — from `environment.yml` *(recommended)*
+
+```bash
+mamba env create -f environment.yml
+mamba activate gwas2cojo
+```
+
+This installs Python 3.12, `bcftools` (bioconda), and all pip dependencies in one step.
+
+### Option B — manual create + pip install
+
+If you prefer to build the environment by hand:
+
+```bash
+mamba create --name gwas2cojo python=3.12
+mamba activate gwas2cojo
+pip install \
+    "numpy>=1.21.2,<2" pyliftover tqdm "adjusttext==0.8" \
+    "matplotlib>=3.8,<3.9" "pandas>=1.3,!=1.5" "pysam==0.22.1" \
+    "scikit-allel>=1.3.5" "scipy>=1.12" "seaborn>=0.12" \
+    "h5py>=3.10.0" pyarrow "polars>=1.27.0" \
+    "sumstats-liftover==1.1.0" "jupyter==1.0.0" \
+    gwaslab bcftools
+```
+
+> **Note:** `bcftools` is also available as a conda package from bioconda and is preferred over the pip wrapper on most HPC systems:
+> ```bash
+> mamba install -c bioconda bcftools
+> ```
+
+### 2️⃣ Verify installation
+
+Check that the core modules load correctly:
+
+```bash
+python -c "import numpy, gwaslab, pyliftover, polars; print('OK')"
+```
+
+If you see `OK`, the environment is ready.
+
+### 3️⃣ (Optional) Test the scripts
+
+Confirm that `gwas2cojo.py` runs:
+
+```bash
+python gwas2cojo.py --help
+```
+
+Confirm that `gwaslab.process.py` runs:
+
+```bash
+python gwaslab.process.py --help
+```
+
+For a minimal parsing test without running the full pipeline:
+
+```bash
+python gwas2cojo.py --header-only --gwas example_gwas.txt.gz
+```
+
+## 🔧 Troubleshooting
+
+### 🧱 Dependency conflicts
+
+If `pip install` reports conflicts, try installing inside the activated conda environment and letting conda resolve system libraries first:
+
+```bash
+mamba install -c conda-forge -c bioconda bcftools pysam h5py
+pip install "numpy>=1.21.2,<2" gwaslab "polars>=1.27.0" ...
+```
+
+### 🐍 Prefer `conda` instead of `mamba`?
+
+```bash
+conda env create -f environment.yml
+conda activate gwas2cojo
+```
+
+---
+
+# 🔭 gwas2cojo.py — Aligns GWAS to cojo-format
+
 `gwas2cojo.py` is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. Among others, it tries to deal with different dataformats and different genome builds.
-Most importantly, it aligns the variant notation such that swapped, translated, wrong or ambiguous ambivalent allels are corrected or removed.
+Most importantly, it aligns the variant notation such that swapped, translated, wrong or ambiguous ambivalent alleles are corrected or removed.
 
 ## 🧩 Output format
 
@@ -128,100 +229,11 @@ See also [this link] for more background and an additional explanation.
 
 You will need a reference to map the data to. You can create your own, or use the one we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
 
-## ⚙️ Requirements
-
-* Python 3.12
-* Tested on Linux and macOS
-* `bcftools` ≥1.17 (used by GWASLab VCF sweep steps; installed via bioconda)
-* See `environment.yml` for the full dependency list
-
-## 🧩 Installation
-
-We recommend using `mamba` (a faster drop-in replacement for `conda`).
-
-### Option A — from `environment.yml` *(recommended)*
-
-```bash
-mamba env create -f environment.yml
-mamba activate gwas2cojo
-```
-
-This installs Python 3.12, `bcftools` (bioconda), and all pip dependencies in one step.
-
-### Option B — manual create + pip install
-
-If you prefer to build the environment by hand:
-
-```bash
-mamba create --name gwas2cojo python=3.12
-mamba activate gwas2cojo
-pip install \
-    "numpy>=1.21.2,<2" pyliftover tqdm "adjusttext==0.8" \
-    "matplotlib>=3.8,<3.9" "pandas>=1.3,!=1.5" "pysam==0.22.1" \
-    "scikit-allel>=1.3.5" "scipy>=1.12" "seaborn>=0.12" \
-    "h5py>=3.10.0" pyarrow "polars>=1.27.0" \
-    "sumstats-liftover==1.1.0" "jupyter==1.0.0" \
-    gwaslab bcftools
-```
-
-> **Note:** `bcftools` is also available as a conda package from bioconda and is preferred over the pip wrapper on most HPC systems:
-> ```bash
-> mamba install -c bioconda bcftools
-> ```
-
-### 2️⃣ Verify installation
-
-Check that the core modules load correctly:
-
-```bash
-python -c "import numpy, gwaslab, pyliftover, polars; print('OK')"
-```
-
-If you see `OK`, the environment is ready.
-
-### 3️⃣ (Optional) Test the scripts
-
-Confirm that `gwas2cojo.py` runs:
-
-```bash
-python gwas2cojo.py --help
-```
-
-Confirm that `gwaslab.process.py` runs:
-
-```bash
-python gwaslab.process.py --help
-```
-
-For a minimal parsing test without running the full pipeline:
-
-```bash
-python gwas2cojo.py --header-only --gwas example_gwas.txt.gz
-```
-
-## 🔧 Troubleshooting
-
-### 🧱 Dependency conflicts
-
-If `pip install` reports conflicts, try installing inside the activated conda environment and letting conda resolve system libraries first:
-
-```bash
-mamba install -c conda-forge -c bioconda bcftools pysam h5py
-pip install "numpy>=1.21.2,<2" gwaslab "polars>=1.27.0" ...
-```
-
-### 🐍 Prefer `conda` instead of `mamba`?
-
-```bash
-conda env create -f environment.yml
-conda activate gwas2cojo
-```
-
----
 
 # 🔬 gwaslab.process.py — GWASLab Processing Pipeline
 
 `gwaslab.process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
+
 
 ## 🗺️ Pipeline overview
 

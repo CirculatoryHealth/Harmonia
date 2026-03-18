@@ -60,7 +60,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.1"
+VERSION      = "1.4.2"
 VERSION_DATE = "2026-03-18"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -750,6 +750,21 @@ def load_chrom_parquet(stem: str, output_loc: str, task_id: int,
         )
         sys.exit(0)
     df = pq.read_table(path).to_pandas()
+
+    # gwaslab encodes EA/NEA/SNPID as pd.Categorical after basic_check() for
+    # memory efficiency.  Parquet round-trips preserve Categorical dtype, but a
+    # per-chromosome shard's category set only contains alleles present on that
+    # chromosome.  When flip_allele_stats tries to swap EA↔NEA for a variant
+    # whose allele (e.g. a long indel) exists in EA's categories but not NEA's,
+    # pandas raises "Cannot setitem on a Categorical with a new category".
+    # Converting back to plain object dtype lets gwaslab manage dtypes from
+    # scratch when it recreates the Sumstats object.
+    cat_cols = df.select_dtypes(include="category").columns.tolist()
+    if cat_cols:
+        df[cat_cols] = df[cat_cols].astype(object)
+        logging.info("[chr%d] Converted %d Categorical column(s) to object: %s",
+                     task_id, len(cat_cols), cat_cols)
+
     logging.info("[chr%d] Loaded %s variants from %s", task_id, f"{len(df):,}", path)
     return df
 
@@ -1658,11 +1673,17 @@ def plot_full_dataset(gwas_obj, phenotype: str, reference: str,
     """Generate Manhattan, QQ, and DAF plots for the full (pre-QC) dataset."""
     logging.info("\n===== Generating plots for the full (pre-QC) dataset =====")
     daf_thr = daf_max if daf_max > 0 else 0.12
-    gwas_obj.plot_daf(
-        threshold=daf_thr,
-        save=os.path.join(plots_loc, f"{stem}.EAF.png"),
-        save_kwargs={"dpi": 300},
-    )
+    try:
+        gwas_obj.plot_daf(
+            threshold=daf_thr,
+            save=os.path.join(plots_loc, f"{stem}.EAF.png"),
+            save_kwargs={"dpi": 300},
+        )
+    except ZeroDivisionError:
+        logging.warning(
+            "plot_daf skipped (ZeroDivisionError — no variants with a valid DAF "
+            "value; study may have too few variants or EAF is entirely missing)."
+        )
     for mode, suffix in [("m", "manhattan"), ("qq", "qq")]:
         # anno="GENENAME" triggers gwaslab's to_annotate code path, which is
         # only initialised inside the Manhattan/regional block.  Passing anno
@@ -1757,11 +1778,17 @@ def plot_qc_dataset(gwas_obj_qc, phenotype: str, reference: str,
     """Generate Manhattan, QQ, and DAF plots for the QC-filtered dataset."""
     logging.info("\n===== Generating plots for the QC-filtered dataset =====")
     daf_thr = daf_max if daf_max > 0 else 0.12
-    gwas_obj_qc.plot_daf(
-        threshold=daf_thr,
-        save=os.path.join(plots_loc, f"{stem}.EAF.qc.png"),
-        save_kwargs={"dpi": 300},
-    )
+    try:
+        gwas_obj_qc.plot_daf(
+            threshold=daf_thr,
+            save=os.path.join(plots_loc, f"{stem}.EAF.qc.png"),
+            save_kwargs={"dpi": 300},
+        )
+    except ZeroDivisionError:
+        logging.warning(
+            "plot_daf (QC) skipped (ZeroDivisionError — no variants with a valid "
+            "DAF value after QC filtering)."
+        )
     for mode, suffix in [("m", "manhattan"), ("qq", "qq")]:
         is_manhattan = mode == "m"
         gwas_obj_qc.plot_mqq(
