@@ -73,6 +73,9 @@ fi
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 LOG_BASE="${OUT_BASE}"   # submit_staged.sh uses LOG_BASE for SLURM output paths
+# Export the absolute conf path so the SLURM worker (array_for_submit.sh) can
+# find it even after SLURM copies the script to its own spool directory.
+export GWAS2COJO_CONF="${CONF}"
 
 # ── Submission log (tee stdout+stderr to a timestamped file) ──────────────────
 SUBMIT_LOG="${LOG_BASE}/gwaslab.process.submit_staged_$(date +%Y%m%d_%H%M%S).log"

@@ -35,6 +35,9 @@ fi
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 LOG_BASE="${OUT_BASE}"   # submit.sh uses LOG_BASE for SLURM output paths
+# Export the absolute conf path so the SLURM worker (array_for_submit.sh) can
+# find it even after SLURM copies the script to its own spool directory.
+export GWAS2COJO_CONF="${CONF}"
 
 # ── SLURM job settings ────────────────────────────────────────────────────────
 NODES=1

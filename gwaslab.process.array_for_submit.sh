@@ -22,14 +22,26 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Site configuration — loaded from gwas2cojo.conf (next to this script).
+# Site configuration — loaded from gwas2cojo.conf.
 # Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
+#
+# When running as a SLURM job the submit script exports GWAS2COJO_CONF with
+# the absolute path to gwas2cojo.conf.  SLURM copies this script to its own
+# spool directory before execution, so BASH_SOURCE[0] points there rather
+# than to the original script location — making a BASH_SOURCE-relative lookup
+# unreliable.  GWAS2COJO_CONF is therefore the preferred source.
 # ─────────────────────────────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+if [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
+    CONF="${GWAS2COJO_CONF}"          # path exported by the submit script
+else
+    # Fallback: look next to this script (works for direct/local invocation)
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+fi
 if [[ ! -f "${CONF}" ]]; then
-    echo "ERROR: ${CONF} not found." >&2
+    echo "ERROR: gwas2cojo.conf not found (tried: ${CONF})." >&2
     echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    echo "       When submitting via SLURM make sure the submit script exports GWAS2COJO_CONF." >&2
     exit 1
 fi
 # shellcheck source=gwas2cojo.conf.example

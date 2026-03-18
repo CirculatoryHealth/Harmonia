@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-18 🐛 gwas2cojo.conf not found when running as SLURM job
+- 🛠️**Updated**: Bumped version to `1.4.4` (`2026-03-18`).
+- **Bug**: After the `gwas2cojo.conf` introduction, SLURM jobs immediately failed with `ERROR: /var/spool/slurmd/job<ID>/gwas2cojo.conf not found`. SLURM copies the worker script (`array_for_submit.sh`) to its own temporary spool directory before executing it on the compute node, so `BASH_SOURCE[0]` inside the job resolves to the spool path rather than the original script location. The conf-file lookup `"${SCRIPT_DIR}/gwas2cojo.conf"` therefore searched in `/var/spool/slurmd/job<ID>/` where no conf file exists.
+- 🐛**Fixed** `gwaslab.process.array_for_submit.sh` — the conf-loading stanza now checks the environment variable `GWAS2COJO_CONF` first (exported by the submit scripts, which run on the login node and always have the correct absolute path). The `BASH_SOURCE`-relative lookup is retained as a fallback for direct local invocation only. An improved error message names all three possible causes when the conf is still not found.
+- 🛠️**Updated** `gwaslab.process.submit_staged.sh`, `gwaslab.process.submit.sh` — both scripts now `export GWAS2COJO_CONF="${CONF}"` immediately after sourcing the conf. SLURM propagates all exported environment variables to job environments by default (`--export=ALL`), so the absolute path is reliably available inside every job regardless of which spool directory SLURM uses.
+
 ## 2026-03-18 🔒 Removed hardcoded site-specific paths; added gwas2cojo.conf
 - 🛠️**Updated**: Bumped version to `1.4.3` (`2026-03-18`).
 - 🔒**Removed** all hardcoded HPC-specific paths and institutional email addresses (`@umcutrecht.nl`) from every tracked file in the repository so the codebase is clean for public use.
