@@ -74,6 +74,12 @@ echo "Submission log: ${SUBMIT_LOG}"
 # --dbsnp controls whether process-assign-rsid is submitted.
 WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --cojo-id rsid --leads --fill-eaf"
 
+# ── SLURM job settings ────────────────────────────────────────────────────────
+NODES=1          # nodes per job (all stages are single-node)
+CPUS=8           # CPUs per job — must match --threads N in WORKER_FLAGS above
+EMAIL="s.w.vanderlaan[at]gmail[dot]com"
+MAIL_TYPE="FAIL" # NONE | BEGIN | END | FAIL | ALL
+
 # ── Fixed (trivial) stage resources — not per-study configurable ──────────────
 MEM_PREPROCESS="32G";  TIME_PREPROCESS="00:30:00"  # CSV load + standardise only
 MEM_SPLIT="16G";       TIME_SPLIT="00:30:00"        # parquet split only
@@ -159,7 +165,9 @@ for LINE in "${LINES[@]}"; do
     # ── 1. preprocess — fixed resources (CSV load + column standardisation) ───
     JID_PRE=$(sbatch \
         --job-name="gl_${GWAS_NAME}_preprocess" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${MEM_PREPROCESS}" --time="${TIME_PREPROCESS}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_1_preprocess_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_1_preprocess_%j.err" \
         "$@" \
@@ -169,7 +177,9 @@ for LINE in "${LINES[@]}"; do
     # ── 2. process-normalize — LIGHT tier ─────────────────────────────────────
     JID_NRM=$(sbatch \
         --job-name="gl_${GWAS_NAME}_normalize" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_2_normalize_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_2_normalize_%j.err" \
         --dependency="afterok:${JID_PRE}" \
@@ -180,7 +190,9 @@ for LINE in "${LINES[@]}"; do
     # ── 3. process-split — fixed (trivial: parquet split) ─────────────────────
     JID_SPL=$(sbatch \
         --job-name="gl_${GWAS_NAME}_split" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${MEM_SPLIT}" --time="${TIME_SPLIT}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_3_split_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_3_split_%j.err" \
         --dependency="afterok:${JID_NRM}" \
@@ -192,7 +204,9 @@ for LINE in "${LINES[@]}"; do
     JID_CHR=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkref" \
         --array="1-26" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_4_checkref_%A_%a.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_4_checkref_%A_%a.err" \
         --dependency="afterok:${JID_SPL}" \
@@ -204,7 +218,9 @@ for LINE in "${LINES[@]}"; do
     JID_IST=$(sbatch \
         --job-name="gl_${GWAS_NAME}_inferstrand" \
         --array="1-26" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_5_inferstrand_%A_%a.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_5_inferstrand_%A_%a.err" \
         --dependency="afterok:${JID_CHR}" \
@@ -217,7 +233,9 @@ for LINE in "${LINES[@]}"; do
         JID_RSI=$(sbatch \
             --job-name="gl_${GWAS_NAME}_assignrsid" \
             --array="1-26" \
+            --nodes="${NODES}" --cpus-per-task="${CPUS}" \
             --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
+            --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
             --output="${LOG_BASE}/${GWAS_NAME}_6_assignrsid_%A_%a.out" \
             --error="${LOG_BASE}/${GWAS_NAME}_6_assignrsid_%A_%a.err" \
             --dependency="afterok:${JID_IST}" \
@@ -234,7 +252,9 @@ for LINE in "${LINES[@]}"; do
     JID_CAF=$(sbatch \
         --job-name="gl_${GWAS_NAME}_checkaf" \
         --array="1-26" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${_MEM_HEAVY}" --time="${_TIME_HEAVY}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_7_checkaf_%A_%a.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_7_checkaf_%A_%a.err" \
         --dependency="afterok:${JID_PREV_CHECKAF}" \
@@ -246,7 +266,9 @@ for LINE in "${LINES[@]}"; do
     # afterok on an array job ID waits for ALL 26 tasks to succeed.
     JID_MRG=$(sbatch \
         --job-name="gl_${GWAS_NAME}_merge" \
+        --nodes="${NODES}" --cpus-per-task="${CPUS}" \
         --mem="${_MEM_LIGHT}" --time="${_TIME_LIGHT}" \
+        --mail-type="${MAIL_TYPE}" --mail-user="${EMAIL}" \
         --output="${LOG_BASE}/${GWAS_NAME}_8_merge_%j.out" \
         --error="${LOG_BASE}/${GWAS_NAME}_8_merge_%j.err" \
         --dependency="afterok:${JID_CAF}" \
