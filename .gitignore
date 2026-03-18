@@ -1,7 +1,12 @@
 # The following files will be ignored by git.  See .gitignore for details.
 
+# Ignore all archived and claude files, which are not relevant to the project and may contain sensitive information
 _archived/*
 .claude/*
+
+# Ignore all data files, but not the scripts that generate them
 data/*
+
+# Ignore the local configuration and study list files, which should never be committed with real paths
 gwas2cojo.conf
 gwas_list.txt
