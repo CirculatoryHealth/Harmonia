@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 ✨ gwaslab.download_refs.py — conf-file integration, --build and --ancestry arguments
+- **Feature**: reference directory now defaults to `REF_DIR` from `gwas2cojo.conf` (parsed next to the script) instead of a hardcoded placeholder. A warning is printed if the conf is absent or `REF_DIR` is unset.
+- **Feature**: new `--build` argument (`all` / `hg19` / `hg38`, default: `all`) filters downloads to the requested genome build(s).
+- **Feature**: new `--ancestry` argument (`EUR` / `PAN` / `AFR` / `EAS` / `AMR` / `SAS` / `all`, default: `EUR`) selects which 1KG population VCF(s) to download. Default is `EUR` to avoid accidentally triggering all 12 large VCF downloads.
+- **Change**: the flat `TO_DOWNLOAD` list replaced by structured `_ANCESTRY_VCFS` and `_BUILD_FILES` dictionaries; `build_download_list()` assembles the final keyword list at runtime based on the selected builds and ancestries. Non-ancestry-specific files (dbSNP, FASTA, recombination maps, GTFs, HapMap3 EAF, SNPID→rsID tables) are always included for the requested build(s).
+- **Files**: `gwaslab.download_refs.py`, `README.md`.
+
 ## 2026-03-19 ✨ gwaslab.process.py — detect OR column mislabelled as BETA and auto-rename (v1.4.13)
 - **Feature**: new `check_or_vs_beta()` function called during preprocess (after `standardise_columns`). If the standardised `OR` column contains any negative values it cannot be a true odds ratio — the source file has mislabelled a BETA/log-odds column as `OR`. The function renames `OR` → `BETA` with a warning log line showing the count and percentage of negative values, and processing continues normally. If both `OR` and `BETA` are already present the check is skipped.
 - **Example**: `tag.logonset.tbl.withN.txt.gz` has a column named `OR` containing effect sizes like `-0.0054`, `-0.0049`, which are clearly log-odds / BETA values. Without this fix the mislabelled column passed through to `run_check_ref` where `flip_allele_stats` tried to compute `1 / OR` and either hit `FloatingPointError` (OR = 0) or silently produced nonsensical results.

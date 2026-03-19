@@ -491,39 +491,62 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 
 # 📥 Reference file management
 
-`gwaslab.download_refs.py` is a complete inventory of all gwaslab reference files. It uses gwaslab's built-in `gl.download_ref()` function; `.tbi` index files are fetched automatically alongside VCFs. Files already present are listed as comments — only the missing 1KG population VCFs (AFR, EAS, AMR, SAS) are active by default. Uncomment any entry to (re-)download it.
-
-## Reference file inventory
-
-| Keyword | File | Default |
-|---------|------|---------|
-| `1kg_eur_hg19` / `_hg38` | `EUR.ALL.split_norm_af.*` | commented — already present |
-| `1kg_pan_hg19` / `_hg38` | `PAN.ALL.split_norm_af.*` | commented — already present |
-| `1kg_afr_hg19` / `_hg38` | `AFR.ALL.split_norm_af.*` | **downloaded** |
-| `1kg_eas_hg19` / `_hg38` | `EAS.ALL.split_norm_af.*` | **downloaded** |
-| `1kg_amr_hg19` / `_hg38` | `AMR.ALL.split_norm_af.*` | **downloaded** |
-| `1kg_sas_hg19` / `_hg38` | `SAS.ALL.split_norm_af.*` | **downloaded** |
-| `1kg_hm3_hg19_eaf` / `_hg38_eaf` | `PAN.hapmap3.hg{19,38}.EAF.tsv.gz` | commented — already present |
-| `1kg_dbsnp151_hg19_auto` / `_hg38_auto` | `1kg_dbsnp151_hg{19,38}_auto.txt.gz` | commented — already present |
-| `dbsnp_v151_hg19` / `_hg38` | `00-All.vcf.gz` (very large, NCBI FTP) | commented — already present |
-| `dbsnp_v157_hg19` / `_hg38` | `GCF_000001405.{25,40}.gz` (very large, NCBI FTP) | commented — already present |
-| `ucsc_genome_hg19` / `_hg38` | `hg{19,38}.fa.gz` (large, UCSC) | commented — already present |
-| `recombination_hg19` / `_hg38` | `recombination_hg{19,38}.tar.gz` | commented — already present |
-| `ensembl_hg19_gtf` / `_hg38_gtf` | `Homo_sapiens.GRCh3{7,8}.*.gtf.gz` | commented — already present |
-| `refseq_hg19_gtf` / `_hg38_gtf` | `GRCh3{7,8}_latest_genomic.gtf.gz` | commented — already present |
-
-> **Note:** recombination maps and GTF files are auto-downloaded by gwaslab at runtime when needed. Pre-downloading them is optional but useful on HPC nodes without outbound internet during jobs.
+`gwaslab.download_refs.py` downloads gwaslab reference files using gwaslab's built-in `gl.download_ref()` function. `.tbi` index files are fetched automatically alongside VCFs. The target directory and the set of files to download are controlled by arguments and `gwas2cojo.conf`.
 
 ## Usage
 
 ```bash
 conda activate gwas2cojo
+
+# EUR VCFs for both builds — most common case (default)
 python gwaslab.download_refs.py
-# or with a custom path:
+
+# EUR VCFs for hg38 only
+python gwaslab.download_refs.py --build hg38
+
+# AFR VCFs for both builds
+python gwaslab.download_refs.py --ancestry AFR
+
+# All ancestry VCFs, hg19 only
+python gwaslab.download_refs.py --build hg19 --ancestry all
+
+# Everything for all ancestries and both builds
+python gwaslab.download_refs.py --build all --ancestry all
+
+# Override the reference directory
 python gwaslab.download_refs.py --ref-dir /path/to/references/gwaslab/
 ```
 
-The default target directory is `/path/to/references/gwaslab/`. Pass `--ref-dir` to override. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
+| Argument | Default | Choices | Description |
+|----------|---------|---------|-------------|
+| `--ref-dir` | from `gwas2cojo.conf` | any path | Target directory for downloaded files |
+| `--build` | `all` | `all`, `hg19`, `hg38` | Genome build(s) to download |
+| `--ancestry` | `EUR` | `EUR`, `PAN`, `AFR`, `EAS`, `AMR`, `SAS`, `all` | 1KG population VCF(s) to download |
+
+The default ancestry is `EUR` to avoid accidentally downloading all 12 large population VCFs. Non-ancestry-specific files (dbSNP VCFs, FASTA, recombination maps, GTFs, HapMap3 EAF, SNPID→rsID tables) are always included for the requested build(s).
+
+The reference directory defaults to `REF_DIR` from `gwas2cojo.conf`. If the conf is absent or `REF_DIR` is not set, a warning is printed and a placeholder path is used. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
+
+## Reference file inventory
+
+| Keyword | File | Ancestry-specific |
+|---------|------|:-----------------:|
+| `1kg_eur_hg19` / `_hg38` | `EUR.ALL.split_norm_af.*` | EUR |
+| `1kg_pan_hg19` / `_hg38` | `PAN.ALL.split_norm_af.*` | PAN |
+| `1kg_afr_hg19` / `_hg38` | `AFR.ALL.split_norm_af.*` | AFR |
+| `1kg_eas_hg19` / `_hg38` | `EAS.ALL.split_norm_af.*` | EAS |
+| `1kg_amr_hg19` / `_hg38` | `AMR.ALL.split_norm_af.*` | AMR |
+| `1kg_sas_hg19` / `_hg38` | `SAS.ALL.split_norm_af.*` | SAS |
+| `1kg_hm3_hg19_eaf` / `_hg38_eaf` | `PAN.hapmap3.hg{19,38}.EAF.tsv.gz` | — |
+| `1kg_dbsnp151_hg19_auto` / `_hg38_auto` | `1kg_dbsnp151_hg{19,38}_auto.txt.gz` | — |
+| `dbsnp_v151_hg19` / `_hg38` | `00-All.vcf.gz` (very large, NCBI FTP) | — |
+| `dbsnp_v157_hg19` / `_hg38` | `GCF_000001405.{25,40}.gz` (very large, NCBI FTP) | — |
+| `ucsc_genome_hg19` / `_hg38` | `hg{19,38}.fa.gz` (large, UCSC) | — |
+| `recombination_hg19` / `_hg38` | `recombination_hg{19,38}.tar.gz` | — |
+| `ensembl_hg19_gtf` / `_hg38_gtf` | `Homo_sapiens.GRCh3{7,8}.*.gtf.gz` | — |
+| `refseq_hg19_gtf` / `_hg38_gtf` | `GRCh3{7,8}_latest_genomic.gtf.gz` | — |
+
+> **Note:** recombination maps and GTF files are auto-downloaded by gwaslab at runtime when needed. Pre-downloading them is optional but useful on HPC nodes without outbound internet during jobs.
 
 > **Note:** Files are hosted on Dropbox and may not be accessible from all HPC networks. Run from a login node with outbound internet access, or use a node with proxy configured.
 
@@ -742,22 +765,22 @@ python gwaslab.process.check.py --all /hpc/data/gwas2cojo --errors-only
 Example output for a healthy study:
 
 ```
-════════════════════════════════════════════════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════
   Study: CAD_Aragam  |  Population: EUR  |  Build: 19
-════════════════════════════════════════════════════════════════════════════════════════════════════════
-  Stage             Status            Key metric                                       Warn    Err
-────────────────────────────────────────────────────────────────────────────────────────────────────────
-  preprocess        ✓ done            1,234,567 variants  |  build 19                     1      0
-  normalize         ✓ done            1,200,000 after dedup  |  liftover → hg38           1      0
-  split             ✓ done            22 chromosomes                                       0      0
-  checkref          ✓ 26/26 chr       match 99.8%  |  flipped 45,678                      8      0
-  inferstrand       ✓ 26/26 chr       26/26 complete                                      8      0
-  assignrsid        ✓ 26/26 chr       26/26 complete                                      8      0
-  checkaf           ✓ 26/26 chr       26/26 complete                                      8      0
-  merge             ✓ done            combined 1,180,000  |  QC-pass 1,100,000            2      0
-────────────────────────────────────────────────────────────────────────────────────────────────────────
-  Overall: ✓ COMPLETE              Warnings (gwaslab upstream): 36   Errors: 0
-════════════════════════════════════════════════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+  Stage             Status            Key metric                                                   Warn   Err
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  preprocess        ✓ done            20,073,070 variants  |  build 19                                0     0
+  normalize         ✓ done            20,073,068 after dedup  |  liftover → 38                        0     0
+  split             ✓ done            22 chromosomes, no non-autosomal                                0     0
+  checkref          ✓ done            match 93.1%  |  flipped 8,047,687  |  unmatched 38              0     0
+  inferstrand       ✓ done            22 autosomes complete                                           0     0
+  assignrsid        ✓ done            22 autosomes complete                                           2     0
+  checkaf           ✓ done            22 autosomes complete                                           0     0
+  merge             ✓ done            combined 20,027,283  |  COJO 20,027,283                         2     0
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Overall: ✓ COMPLETE            Warnings (gwaslab upstream): 4   Errors: 0
+════════════════════════════════════════════════════════════════════════════════════════════════════════════════
 ```
 
 Warnings from gwaslab/matplotlib/htslib internals (`FutureWarning`, `UserWarning`, `[W::vcf_parse_info]`, etc.) are counted but never treated as errors. Real failures (`Traceback`, `*Error:`, `Illegal instruction`, `[ERROR]`) are flagged in the **Err** column with a `◄ ERRORS` marker and the first matching snippet printed beneath the row.
