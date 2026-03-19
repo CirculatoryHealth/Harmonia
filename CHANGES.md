@@ -2,6 +2,21 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 ✨ gwaslab.process.py — detect OR column mislabelled as BETA and auto-rename (v1.4.13)
+- **Feature**: new `check_or_vs_beta()` function called during preprocess (after `standardise_columns`). If the standardised `OR` column contains any negative values it cannot be a true odds ratio — the source file has mislabelled a BETA/log-odds column as `OR`. The function renames `OR` → `BETA` with a warning log line showing the count and percentage of negative values, and processing continues normally. If both `OR` and `BETA` are already present the check is skipped.
+- **Example**: `tag.logonset.tbl.withN.txt.gz` has a column named `OR` containing effect sizes like `-0.0054`, `-0.0049`, which are clearly log-odds / BETA values. Without this fix the mislabelled column passed through to `run_check_ref` where `flip_allele_stats` tried to compute `1 / OR` and either hit `FloatingPointError` (OR = 0) or silently produced nonsensical results.
+- **Files**: `gwaslab.process.py` (v1.4.12 → v1.4.13).
+
+## 2026-03-19 🐛 gwaslab.process.py — FloatingPointError in flip_allele_stats when OR = 0 (v1.4.12)
+- **Bug**: `run_check_ref` crashed with `FloatingPointError: divide by zero encountered in divide` inside gwaslab's `flip_by_inverse` when flipping OR-based studies (e.g. TAG_LogOnset). gwaslab computes `OR = 1 / OR` for flipped variants; if any OR value is 0 (missing data stored as zero rather than NaN), this raises a `FloatingPointError`. The error affected all 22 chromosomes (44 total errors = 2 per chromosome).
+- 🐛**Fixed** `gwaslab.process.py` — `run_check_ref` now checks for an `OR` column before calling `flip_allele_stats`. Any rows where `OR = 0` are dropped with a warning log line before the flip, preventing the divide-by-zero. OR = 0 is not a biologically valid value; these are treated as missing data.
+- **Files**: `gwaslab.process.py` (v1.4.11 → v1.4.12).
+
+## 2026-03-19 🐛 gwaslab.process.py — plot_mqq crashes with TypeError when EAF is entirely missing (v1.4.11)
+- **Bug**: `run_merge` → `plot_full_dataset` crashed with `TypeError: cannot unpack non-iterable NoneType object` when the dataset had no valid EAF values (e.g. DIAMANTE-TA PAN file has no EAF column). gwaslab's `_mqqplot` returns `None` instead of `(plot, log)` when it finds no plottable data, and the call site did not guard against this. The `plot_daf` call already had a `try/except`, but `plot_mqq` (both pre-QC and QC) did not.
+- 🐛**Fixed** `gwaslab.process.py` — both `plot_mqq` loops (pre-QC in `plot_full_dataset` and QC in `plot_qc_dataset`) are now wrapped in `try/except TypeError` that logs a warning and skips the plot rather than crashing the pipeline. All other outputs (parquet, TSV.GZ, COJO, leads) are unaffected.
+- **Files**: `gwaslab.process.py` (v1.4.10 → v1.4.11).
+
 ## 2026-03-19 🐛 gwaslab.process.check.py — normalize "after dedup" count not shown for default mode (v1.2.2)
 - **Bug**: the normalize metric showed `liftover → 38` only (no variant count) for studies run with the default `mode="md"`. Root cause: `gwaslab.process.py` v1.4.9 changed the log message from `"After duplicate removal"` to `"After multi-allelic and duplicate variant removal"`, but the regex in `_metrics_normalize` still matched only the old wording. Studies run with `--keep-multiallelic` (`mode="d"`) still wrote the old message, so they showed the count while default-mode studies did not.
 - 🐛**Fixed** `gwaslab.process.check.py` — `_metrics_normalize()` regex broadened to `After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:` to match both message variants.

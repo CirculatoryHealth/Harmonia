@@ -60,7 +60,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.10"
+VERSION      = "1.4.13"
 VERSION_DATE = "2026-03-19"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -1061,6 +1061,18 @@ def run_check_ref(gwas_obj, reference: str, ref_loc: str) -> object:
     if os.path.isfile(fasta):
         logging.info("Running check_ref with %s …", fasta)
         gwas_obj.check_ref(ref_seq=fasta)
+        # Guard against OR = 0 causing FloatingPointError in flip_allele_stats.
+        # OR = 0 is not a valid value; treat as missing and drop before flipping.
+        if "OR" in gwas_obj.data.columns:
+            n_before = len(gwas_obj.data)
+            gwas_obj.data = gwas_obj.data[gwas_obj.data["OR"].isna() | (gwas_obj.data["OR"] > 0)]
+            n_dropped = n_before - len(gwas_obj.data)
+            if n_dropped:
+                logging.warning(
+                    "Dropped %d variant(s) with OR = 0 before flip_allele_stats "
+                    "(OR = 0 is invalid and causes divide-by-zero when flipping).",
+                    n_dropped,
+                )
         gwas_obj.flip_allele_stats()
     else:
         logging.warning("FASTA not found at '%s' — skipping check_ref.", fasta)
@@ -1499,6 +1511,42 @@ def standardise_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     return gwas_data
 
 
+def check_or_vs_beta(gwas_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Detect OR columns that are actually BETA (effect size) values.
+
+    ORs must be strictly positive.  If the standardised OR column contains any
+    negative values it cannot be a true odds ratio — the source file mislabels
+    a BETA/log-odds column as OR.  In that case the column is renamed to BETA
+    and a warning is logged so the user knows a correction was applied.
+    If both OR and BETA are already present the check is skipped.
+    """
+    if "OR" not in gwas_data.columns:
+        return gwas_data
+    if "BETA" in gwas_data.columns:
+        logging.debug("Both OR and BETA columns present — skipping OR-vs-BETA check.")
+        return gwas_data
+
+    or_vals = pd.to_numeric(gwas_data["OR"], errors="coerce")
+    n_negative = int((or_vals < 0).sum())
+    n_valid    = int(or_vals.notna().sum())
+
+    if n_negative > 0:
+        pct = 100 * n_negative / n_valid if n_valid else 0
+        logging.warning(
+            "OR column contains %d negative value(s) (%.1f%% of non-missing). "
+            "ORs must be strictly positive — this column is almost certainly a "
+            "BETA (log-odds / effect size) that was mislabelled 'OR' in the source "
+            "file.  Renaming OR → BETA and continuing.",
+            n_negative, pct,
+        )
+        gwas_data = gwas_data.rename(columns={"OR": "BETA"})
+    else:
+        logging.info("OR column looks valid (all non-missing values > 0).")
+
+    return gwas_data
+
+
 def plot_raw_histograms(gwas_data: pd.DataFrame, stem: str,
                         plots_loc: str) -> None:
     """Generate pre-processing histograms for key columns."""
@@ -1762,21 +1810,27 @@ def plot_full_dataset(gwas_obj, phenotype: str, reference: str,
         # only initialised inside the Manhattan/regional block.  Passing anno
         # on a pure QQ call causes UnboundLocalError in gwaslab ≤0.4.x.
         is_manhattan = mode == "m"
-        gwas_obj.plot_mqq(
-            skip=2, cut=10, mode=mode,
-            sig_line=True, sig_level=5e-8,
-            anno="GENENAME" if is_manhattan else None,
-            anno_style="right" if is_manhattan else None,
-            windowsizekb=500 if is_manhattan else None,
-            arm_offset=2 if is_manhattan else None,
-            repel_force=0.02 if is_manhattan else None,
-            use_rank=True, build=reference,
-            stratified=True, drop_chr_start=True,
-            title=phenotype,
-            save=os.path.join(plots_loc, f"{stem}.{suffix}.500kb.300dpi.png"),
-            save_kwargs={"dpi": 300},
-            verbose=True,
-        )
+        try:
+            gwas_obj.plot_mqq(
+                skip=2, cut=10, mode=mode,
+                sig_line=True, sig_level=5e-8,
+                anno="GENENAME" if is_manhattan else None,
+                anno_style="right" if is_manhattan else None,
+                windowsizekb=500 if is_manhattan else None,
+                arm_offset=2 if is_manhattan else None,
+                repel_force=0.02 if is_manhattan else None,
+                use_rank=True, build=reference,
+                stratified=True, drop_chr_start=True,
+                title=phenotype,
+                save=os.path.join(plots_loc, f"{stem}.{suffix}.500kb.300dpi.png"),
+                save_kwargs={"dpi": 300},
+                verbose=True,
+            )
+        except TypeError:
+            logging.warning(
+                f"plot_mqq ({suffix}) skipped (TypeError — gwaslab returned None, "
+                "likely because EAF is entirely missing or all P-values are NaN)."
+            )
 
 
 def apply_qc(gwas_obj, eaf_min: float, beta_max: float, se_max: float,
@@ -1864,21 +1918,27 @@ def plot_qc_dataset(gwas_obj_qc, phenotype: str, reference: str,
         )
     for mode, suffix in [("m", "manhattan"), ("qq", "qq")]:
         is_manhattan = mode == "m"
-        gwas_obj_qc.plot_mqq(
-            skip=2, cut=10, mode=mode,
-            sig_line=True, sig_level=5e-8,
-            anno="GENENAME" if is_manhattan else None,
-            anno_style="right" if is_manhattan else None,
-            windowsizekb=500 if is_manhattan else None,
-            arm_offset=2 if is_manhattan else None,
-            repel_force=0.02 if is_manhattan else None,
-            use_rank=True, build=reference,
-            stratified=True, drop_chr_start=True,
-            title=f"{phenotype} (QC)",
-            save=os.path.join(plots_loc, f"{stem}.{suffix}.500kb.300dpi.qc.png"),
-            save_kwargs={"dpi": 300},
-            verbose=True,
-        )
+        try:
+            gwas_obj_qc.plot_mqq(
+                skip=2, cut=10, mode=mode,
+                sig_line=True, sig_level=5e-8,
+                anno="GENENAME" if is_manhattan else None,
+                anno_style="right" if is_manhattan else None,
+                windowsizekb=500 if is_manhattan else None,
+                arm_offset=2 if is_manhattan else None,
+                repel_force=0.02 if is_manhattan else None,
+                use_rank=True, build=reference,
+                stratified=True, drop_chr_start=True,
+                title=f"{phenotype} (QC)",
+                save=os.path.join(plots_loc, f"{stem}.{suffix}.500kb.300dpi.qc.png"),
+                save_kwargs={"dpi": 300},
+                verbose=True,
+            )
+        except TypeError:
+            logging.warning(
+                f"plot_mqq QC ({suffix}) skipped (TypeError — gwaslab returned None, "
+                "likely because EAF is entirely missing or all P-values are NaN after QC)."
+            )
 
 # This function extracts the genome-wide significant lead variants from the 
 # (QC-filtered) dataset and saves them as TSV.
@@ -2110,6 +2170,7 @@ def main() -> None:
 
         gwas_data = correct_columns(gwas_data)
         gwas_data = standardise_columns(gwas_data)
+        gwas_data = check_or_vs_beta(gwas_data)
 
         if args.figures:
             raw_stem = file_tag(args.gwas, args.population,
