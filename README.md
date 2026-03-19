@@ -668,23 +668,48 @@ sacct -j 1004 --format=JobID,State,Elapsed,MaxRSS        # check completed stage
 
 ## Cleanup intermediate checkpoints (`gwaslab.process.cleanup.sh`)
 
-After a successful run the intermediate pickle checkpoints (`.normalize.pkl`, `.checkref.pkl`, `.inferstrand.pkl`, `.assignrsid.pkl`, `.preprocess.parquet`, `.preprocess.json`) can be safely removed. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `PLOTS/`) are **never** touched.
+After a successful run, intermediate files can be safely removed. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `PLOTS/`, `*.log`) are **never** touched.
+
+**What is removed by default:**
+
+| File pattern | Stage |
+|---|---|
+| `*.preprocess.parquet` / `*.preprocess.json` | preprocess → normalize handoff |
+| `*.normalize.pkl` | normalize → check-ref handoff |
+| `*.checkref.pkl` / `*.inferstrand.pkl` / `*.assignrsid.pkl` | per-stage pickles |
+| `*.chr*.normalize.parquet` … `*.chr*.checkaf.parquet` | per-chromosome intermediate parquets (26 × 5 files) |
+| `*.pkl` (raw, non-QC, non-normalize) | check-af → merge handoff |
+| `*.qc.pkl` | QC-filtered pickle (data identical to `.qc.parquet`) |
+
+**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `gwaslab.process.check.py`.
 
 ```bash
-# Remove checkpoints for a single study
+# Always dry-run first to see what will be removed / archived
+bash gwaslab.process.cleanup.sh --study CAD_Aragam --dry-run
+
+# Clean a single study
 bash gwaslab.process.cleanup.sh --study CAD_Aragam
 
-# Remove checkpoints for all studies in a config file
+# Clean all studies under OUT_BASE
+bash gwaslab.process.cleanup.sh --all
+
+# Clean studies listed in a config file
 bash gwaslab.process.cleanup.sh --config gwas_list.txt
 
-# Preview what would be deleted (no files are removed)
-bash gwaslab.process.cleanup.sh --config gwas_list.txt --dry-run
+# Retain specific pickles
+bash gwaslab.process.cleanup.sh --all --keep-normalize-pkl  # keep *.normalize.pkl
+bash gwaslab.process.cleanup.sh --all --keep-raw-pkl        # keep final raw *.pkl
+bash gwaslab.process.cleanup.sh --all --keep-qc-pkl         # keep *.qc.pkl
 
-# Also keep the final raw pickle (default: removed)
-bash gwaslab.process.cleanup.sh --config gwas_list.txt --keep-raw-pkl
+# Skip log archiving, or specify a different log source directory
+bash gwaslab.process.cleanup.sh --all --no-archive-logs
+bash gwaslab.process.cleanup.sh --all --log-dir /path/to/slurm/logs
+```
 
-# Also remove the QC pickle (default: kept)
-bash gwaslab.process.cleanup.sh --config gwas_list.txt --remove-qc-pkl
+After cleanup, check the archived logs with:
+
+```bash
+python gwaslab.process.check.py CAD_Aragam ${OUT_BASE}/CAD_Aragam/logs/
 ```
 
 ---
