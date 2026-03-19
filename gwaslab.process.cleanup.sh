@@ -11,6 +11,11 @@
 #   *.inferstrand.pkl         handoff: process-infer-strand → process-assign-rsid
 #   *.assignrsid.pkl          handoff: process-assign-rsid → process-check-af
 #   *.pkl      (raw, no .qc.) handoff: process-check-af → qc  (final raw pickle)
+#   *.chr*.normalize.parquet  per-chromosome handoff: split → process-check-ref
+#   *.chr*.checkref.parquet   per-chromosome handoff: process-check-ref → process-infer-strand
+#   *.chr*.inferstrand.parquet per-chromosome handoff: process-infer-strand → process-assign-rsid
+#   *.chr*.assignrsid.parquet per-chromosome handoff: process-assign-rsid → process-check-af
+#   *.chr*.checkaf.parquet    per-chromosome handoff: process-check-af → merge
 #
 # What is NEVER removed:
 #   *.qc.pkl                  needed by --stage cojo; also useful for quick reruns
@@ -114,12 +119,19 @@ cleanup_study() {
 
     # Build list of glob patterns to remove
     local patterns=(
+        # Whole-genome checkpoints
         "${study_dir}/"*.preprocess.parquet
         "${study_dir}/"*.preprocess.json
         "${study_dir}/"*.normalize.pkl
         "${study_dir}/"*.checkref.pkl
         "${study_dir}/"*.inferstrand.pkl
         "${study_dir}/"*.assignrsid.pkl
+        # Per-chromosome intermediate parquets (one per stage per chromosome)
+        "${study_dir}/"*.chr*.normalize.parquet
+        "${study_dir}/"*.chr*.checkref.parquet
+        "${study_dir}/"*.chr*.inferstrand.parquet
+        "${study_dir}/"*.chr*.assignrsid.parquet
+        "${study_dir}/"*.chr*.checkaf.parquet
     )
 
     # *.pkl that is NOT *.qc.pkl — the final raw pickle from process-check-af

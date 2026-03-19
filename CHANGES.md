@@ -2,6 +2,10 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 🐛 gwaslab.process.cleanup.sh — per-chromosome intermediate parquets not removed (cleanup.sh)
+- **Bug**: per-chromosome intermediate parquets (`*.chr*.normalize.parquet`, `*.chr*.checkref.parquet`, `*.chr*.inferstrand.parquet`, `*.chr*.assignrsid.parquet`, `*.chr*.checkaf.parquet`) were not included in the cleanup patterns. These files are the stage-to-stage handoffs written by `save_chrom_parquet()` for each of the 26 chromosome array tasks, and collectively represent the largest share of intermediate disk usage (e.g. 26 × 5 stages × ~28 MB = ~3.6 GB per study for a large GWAS).
+- 🐛**Fixed** `gwaslab.process.cleanup.sh` — added all five `*.chr*.{stage}.parquet` glob patterns to the `patterns` array in `cleanup_study()`. Updated the header comment to document them.
+
 ## 2026-03-19 ✨ gwaslab.process.cleanup.sh — archive SLURM log files into study/logs/ (cleanup.sh)
 - **Feature**: after removing intermediate checkpoints, the cleanup script now moves all SLURM `*.out` / `*.err` files belonging to the study from `LOG_DIR` (default: `OUT_BASE`) into `${OUT_BASE}/<STUDY>/logs/`. This keeps the submit directory tidy and preserves logs in a study-specific location for future use with `gwaslab.process.check.py`.
 - New flags: `--no-archive-logs` (skip archiving), `--log-dir PATH` (override source directory when SLURM logs land elsewhere).
