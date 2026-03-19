@@ -43,10 +43,16 @@ pip install \
     "scikit-allel>=1.3.5" "scipy>=1.12" "seaborn>=0.12" \
     "h5py>=3.10.0" pyarrow "polars>=1.27.0" \
     "sumstats-liftover==1.1.0" "jupyter==1.0.0" \
-    gwaslab bcftools
+    gwaslab
 ```
 
-> **Note:** `bcftools` is also available as a conda package from bioconda and is preferred over the pip wrapper on most HPC systems:
+Next, install `bcftools`. `bcftools` is used by some functions of `gwaslab` to manipulate VCF files. The `pip` wrapper is available but not recommended for HPC and macOS systems due to potential issues with system libraries. If you choose to use the `pip` wrapper, install it with:
+
+```bash
+pip install bcftools
+```
+
+> **Note:** `bcftools` is also available as a conda package from bioconda and is preferred over the `pip` wrapper on most HPC systems:
 > ```bash
 > mamba install -c bioconda bcftools
 > ```
@@ -227,8 +233,9 @@ See also [this link] for more background and an additional explanation.
 
 ## 🧠 Reference datasets
 
-You will need a reference to map the data to. You can create your own, or use the one we created [one based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
+You will need a reference to map the data to. You can create your own, or use the [one we created based](https://blog.llandsmeer.com/1kGp3.ref.1maf.nonbia.sumstats.gz) on the 1000G phase 3 data for Europeans. This is filtered based on MAF>1% and excludes non-bi-allelic and duplicate variants.
 
+---
 
 # 🔬 gwaslab.process.py — GWASLab Processing Pipeline
 

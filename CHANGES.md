@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 ✨ gwaslab.process.check.py — wider metric column, full "unmatched" display, and autosome-only detection (v1.1.0)
+- **Fix**: metric column widened from 46 to 58 characters (table width 100 → 112) so the full `unmatched N,NNN,NNN` value is no longer truncated to `unmat…` in the checkref row.
+- **Feature**: array stages (checkref, inferstrand, assignrsid, checkaf) now distinguish between truly incomplete runs and datasets that contain only the 22 autosomes. When all 22 autosomal chromosomes completed and no non-autosomal files exist, the status is `✓ done` instead of the misleading `⚠ 22/26 chr`, and `any_error` is no longer set — making real failures much easier to spot.
+- **Feature**: inferstrand / assignrsid / checkaf metric in autosome-only mode shows `22 autosomes complete` instead of `22/22 complete`.
+- **Feature**: split metric now appends `, no non-autosomal` when exactly 22 chromosomes are present.
+- **Files**: `gwaslab.process.check.py` (v1.0.0 → v1.1.0).
+
 ## 2026-03-19 ✨ Per-study extra flags via COL12 in gwas_list.txt
 - **Feature**: `gwas_list.txt` now supports an optional 12th semicolon-delimited field (`EXTRA_FLAGS`) for per-study flags passed verbatim to `gwaslab.process.py`. Use `.` as a no-op placeholder. Multiple flags are space-separated within the field.
 - **Example**: append `;--keep-multiallelic` to a study line to retain multi-allelic variants for that study only, while all other studies use the default `mode="md"` removal.

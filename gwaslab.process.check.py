@@ -24,8 +24,8 @@
 #
 # ============================================================
 VERSION_NAME = "gwaslab_process_check"
-VERSION      = "1.0.0"
-VERSION_DATE = "2026-03-18"
+VERSION      = "1.1.0"
+VERSION_DATE = "2026-03-19"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -73,6 +73,7 @@ STAGES = [
 
 ARRAY_STAGES = {"checkref", "inferstrand", "assignrsid", "checkaf"}
 N_CHR_EXPECTED = 26   # 1-22 + X + Y + MT + PAR
+N_AUTOSOMAL    = 22   # chromosomes 1-22
 
 # ---------------------------------------------------------------------------
 # Warning patterns that are known-benign gwaslab/matplotlib/htslib upstream
@@ -232,10 +233,14 @@ def _metrics_split(text):
     """Extract key metrics from the split stage .out text."""
     n_chr = _int(text, r"\[SAVE\] Chr-split manifest.*?\((\d+) chromosomes\)")
     if n_chr:
-        return f"{n_chr} chromosomes"
+        suffix = ", no non-autosomal" if n_chr == N_AUTOSOMAL else ""
+        return f"{n_chr} chromosomes{suffix}"
     # Fallback: count individual [chrN] Saved lines
     saved = len(re.findall(r"\[chr\d+\] Saved", text))
-    return f"{saved} chromosomes" if saved else ""
+    if saved:
+        suffix = ", no non-autosomal" if saved == N_AUTOSOMAL else ""
+        return f"{saved} chromosomes{suffix}"
+    return ""
 
 
 def _metrics_checkref_agg(chr_texts):
@@ -307,12 +312,14 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
         is_array = stage in ARRAY_STAGES
 
         if is_array:
-            n_total  = len(chroms)
-            n_done   = 0
-            tot_warn = 0
-            tot_err  = 0
-            snips    = []
-            chr_texts = []
+            n_total    = len(chroms)
+            n_auto     = sum(1 for c in chroms if c is not None and 1 <= c <= N_AUTOSOMAL)
+            n_non_auto = sum(1 for c in chroms if c is not None and c > N_AUTOSOMAL)
+            n_done     = 0
+            tot_warn   = 0
+            tot_err    = 0
+            snips      = []
+            chr_texts  = []
 
             for chrom in chroms:
                 out_text  = _read(files[stage][chrom].get("out", ""))
@@ -324,7 +331,12 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
                     n_done += 1
                 chr_texts.append(out_text)
 
-            if n_done == n_total:
+            # All-autosomal-only: no non-autosomal chromosomes and all 22 are done
+            autosome_only = (n_non_auto == 0 and n_auto == N_AUTOSOMAL)
+
+            if autosome_only and n_done == n_total:
+                status = "✓ done"
+            elif n_done == n_total:
                 status = f"✓ {n_done}/{n_total} chr"
             elif n_done == 0:
                 status = f"✗ 0/{n_total} chr"
@@ -335,6 +347,8 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
 
             if stage == "checkref":
                 metric = _metrics_checkref_agg(chr_texts)
+            elif autosome_only:
+                metric = f"{N_AUTOSOMAL} autosomes complete"
             else:
                 metric = f"{n_done}/{n_total} complete"
 
@@ -377,18 +391,18 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
     if errors_only and not any_error:
         return
 
-    W = 100
+    W = 112
     print("═" * W)
     print(f"  Study: {gwas}  |  Population: {pop}  |  Build: {build}")
     print("═" * W)
-    print(f"  {'Stage':<16}  {'Status':<16}  {'Key metric':<46}  {'Warn':>5}  {'Err':>4}")
+    print(f"  {'Stage':<16}  {'Status':<16}  {'Key metric':<58}  {'Warn':>5}  {'Err':>4}")
     print("─" * W)
 
     total_warn = total_err = 0
     for stage, status, metric, nw, ne, snips in rows:
         flag = "  ◄ ERRORS" if ne else ""
-        metric_str = (metric[:44] + "…") if len(metric) > 45 else metric
-        print(f"  {stage:<16}  {status:<16}  {metric_str:<46}  {nw:>5}  {ne:>4}{flag}")
+        metric_str = (metric[:57] + "…") if len(metric) > 58 else metric
+        print(f"  {stage:<16}  {status:<16}  {metric_str:<58}  {nw:>5}  {ne:>4}{flag}")
         for snip in snips:
             print(f"      ⚠  {snip[:88]}")
         total_warn += nw
