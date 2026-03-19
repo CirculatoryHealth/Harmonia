@@ -24,7 +24,7 @@
 #
 # ============================================================
 VERSION_NAME = "gwaslab_process_check"
-VERSION      = "1.2.0"
+VERSION      = "1.2.2"
 VERSION_DATE = "2026-03-19"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -218,8 +218,12 @@ def _metrics_preprocess(text):
 def _metrics_normalize(text):
     """Extract key metrics from the normalize stage .out text."""
     parts = []
-    n = _first(text, r"After duplicate removal:\s*([\d,]+)\s+variants remain")
+    n = _first(text, r"After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:\s*([\d,]+)\s+variants? remain")
     if n:
+        try:
+            n = f"{int(n.replace(',', '')):,}"
+        except ValueError:
+            pass
         parts.append(f"{n} after dedup")
     if "Liftover skipped" in text:
         parts.append("liftover: skipped")

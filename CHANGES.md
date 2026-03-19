@@ -2,6 +2,16 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 🐛 gwaslab.process.check.py — normalize "after dedup" count not shown for default mode (v1.2.2)
+- **Bug**: the normalize metric showed `liftover → 38` only (no variant count) for studies run with the default `mode="md"`. Root cause: `gwaslab.process.py` v1.4.9 changed the log message from `"After duplicate removal"` to `"After multi-allelic and duplicate variant removal"`, but the regex in `_metrics_normalize` still matched only the old wording. Studies run with `--keep-multiallelic` (`mode="d"`) still wrote the old message, so they showed the count while default-mode studies did not.
+- 🐛**Fixed** `gwaslab.process.check.py` — `_metrics_normalize()` regex broadened to `After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:` to match both message variants.
+- **Files**: `gwaslab.process.check.py` (v1.2.1 → v1.2.2).
+
+## 2026-03-19 🐛 gwaslab.process.check.py — "after dedup" variant count missing thousands separator (v1.2.1)
+- **Bug**: the normalize metric displayed the post-dedup variant count without comma separators (e.g. `20073068 after dedup`) because `_first()` returns the raw matched string and the log line itself omits commas.
+- 🐛**Fixed** `gwaslab.process.check.py` — `_metrics_normalize()` now converts the matched string to `int` and reformats it with `{:,}` before appending to the metric string, yielding `20,073,068 after dedup`.
+- **Files**: `gwaslab.process.check.py` (v1.2.0 → v1.2.1).
+
 ## 2026-03-19 🐛 gwaslab.process.check.py — false ⚠ 22/26 chr when submit script arrays over 26 but split only produced 22 (v1.2.0)
 - **Bug**: array stages (checkref, inferstrand, assignrsid, checkaf) reported `⚠ 22/26 chr` and set `any_error = True` for autosome-only datasets. The submit script always arrays over all 26 chromosomes; for non-autosomal chromosomes the job finds no input data and finishes without writing a `[SAVE]` marker, so `_is_done()` returned `False` for those 4 jobs. The code then saw `n_done=22, n_total=26` and flagged a warning even though every autosomal chromosome completed successfully.
 - 🐛**Fixed** `gwaslab.process.check.py`:
