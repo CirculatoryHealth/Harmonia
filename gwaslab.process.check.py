@@ -417,6 +417,7 @@ Examples:
   python gwaslab.process.check.py CAD_Aragam /path/to/logs
   python gwaslab.process.check.py --all
   python gwaslab.process.check.py --all /path/to/logs --errors-only
+  python gwaslab.process.check.py --all | tee gwaslab.process.check_$(date +%Y%m%d_%H%M%S).log
 """,
     )
     ap.add_argument("gwas",    nargs="?",
