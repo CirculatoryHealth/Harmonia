@@ -18,7 +18,6 @@
 #   *.chr*.checkaf.parquet    per-chromosome handoff: process-check-af → merge
 #
 # What is NEVER removed:
-#   *.qc.pkl                  needed by --stage cojo; also useful for quick reruns
 #   *.parquet                 final output
 #   *.tsv.gz                  final output
 #   *.qc.parquet              final QC output
@@ -38,7 +37,9 @@
 #   bash gwaslab.process.cleanup.sh --study CAD_Aragam
 #   bash gwaslab.process.cleanup.sh --all
 #   bash gwaslab.process.cleanup.sh --all --dry-run
+#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-normalize-pkl
 #   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-raw-pkl
+#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-qc-pkl
 #   bash gwaslab.process.cleanup.sh --config gwas_list.txt
 #   bash gwaslab.process.cleanup.sh --study CAD_Aragam --no-archive-logs
 #   bash gwaslab.process.cleanup.sh --all --log-dir /path/to/slurm/logs
@@ -66,8 +67,9 @@ source "${CONF}"
 # Defaults
 # ─────────────────────────────────────────────────────────────────────────────
 DRY_RUN=0
-KEEP_RAW_PKL=0     # set to 1 to preserve the final *.pkl (raw, non-QC) pickle
-KEEP_QC_PKL=1      # always kept unless --remove-qc-pkl is passed
+KEEP_NORMALIZE_PKL=0  # set to 1 via --keep-normalize-pkl to preserve *.normalize.pkl
+KEEP_RAW_PKL=0        # set to 1 via --keep-raw-pkl to preserve the final raw (non-QC) pickle
+KEEP_QC_PKL=0         # set to 1 via --keep-qc-pkl to preserve *.qc.pkl
 ARCHIVE_LOGS=1     # move SLURM *.out/*.err into <study_dir>/logs/ (disable: --no-archive-logs)
 LOG_DIR=""         # source dir for log archiving; defaults to OUT_BASE after conf is sourced
 MODE=""            # "study", "all", or "config"
@@ -87,10 +89,11 @@ while [[ $# -gt 0 ]]; do
         --study)         MODE="study"; STUDY_NAME="${2:?--study requires a name}"; shift 2 ;;
         --all)           MODE="all";   shift ;;
         --config)        MODE="config"; CONFIG_FILE="${2:?--config requires a path}"; shift 2 ;;
-        --dry-run)          DRY_RUN=1;       shift ;;
-        --keep-raw-pkl)     KEEP_RAW_PKL=1;  shift ;;
-        --remove-qc-pkl)    KEEP_QC_PKL=0;   shift ;;
-        --no-archive-logs)  ARCHIVE_LOGS=0;  shift ;;
+        --dry-run)             DRY_RUN=1;            shift ;;
+        --keep-normalize-pkl)  KEEP_NORMALIZE_PKL=1; shift ;;
+        --keep-raw-pkl)        KEEP_RAW_PKL=1;       shift ;;
+        --keep-qc-pkl)         KEEP_QC_PKL=1;        shift ;;
+        --no-archive-logs)     ARCHIVE_LOGS=0;       shift ;;
         --log-dir)          LOG_DIR="${2:?--log-dir requires a path}"; shift 2 ;;
         --help|-h)          usage ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -122,7 +125,6 @@ cleanup_study() {
         # Whole-genome checkpoints
         "${study_dir}/"*.preprocess.parquet
         "${study_dir}/"*.preprocess.json
-        "${study_dir}/"*.normalize.pkl
         "${study_dir}/"*.checkref.pkl
         "${study_dir}/"*.inferstrand.pkl
         "${study_dir}/"*.assignrsid.pkl
@@ -157,12 +159,29 @@ cleanup_study() {
         done
     done
 
-    # ── Remove raw *.pkl (non-QC) unless --keep-raw-pkl ───────────────────────
+    # ── Remove *.normalize.pkl unless --keep-normalize-pkl ────────────────────
+    if [[ "${KEEP_NORMALIZE_PKL}" -eq 0 ]]; then
+        for f in "${study_dir}/"*.normalize.pkl; do
+            [[ -f "${f}" ]] || continue
+            local sz
+            sz=$(du -sh "${f}" 2>/dev/null | cut -f1)
+            if [[ "${DRY_RUN}" -eq 1 ]]; then
+                echo "  [DRY-RUN] would remove normalize pickle: ${f}  (${sz})"
+            else
+                echo "  [REMOVE] normalize pickle: ${f}  (${sz})"
+                rm -f "${f}"
+            fi
+            (( total_removed++ )) || true
+        done
+    fi
+
+    # ── Remove raw *.pkl (non-QC, non-normalize) unless --keep-raw-pkl ────────
     if [[ "${KEEP_RAW_PKL}" -eq 0 ]]; then
         for f in ${raw_pkl_pattern}; do
             [[ -f "${f}" ]] || continue
-            # Skip *.qc.pkl files — those are the QC-filtered pickles
-            [[ "${f}" == *.qc.pkl ]] && continue
+            # Skip *.qc.pkl and *.normalize.pkl — handled separately above
+            [[ "${f}" == *.qc.pkl       ]] && continue
+            [[ "${f}" == *.normalize.pkl ]] && continue
             local sz
             sz=$(du -sh "${f}" 2>/dev/null | cut -f1)
             if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -175,7 +194,7 @@ cleanup_study() {
         done
     fi
 
-    # ── Optionally remove *.qc.pkl ─────────────────────────────────────────────
+    # ── Remove *.qc.pkl unless --keep-qc-pkl ──────────────────────────────────
     if [[ "${KEEP_QC_PKL}" -eq 0 ]]; then
         for f in "${study_dir}/"*.qc.pkl; do
             [[ -f "${f}" ]] || continue

@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 ✨ gwaslab.process.cleanup.sh — granular pickle retention flags; remove qc.pkl by default (cleanup.sh)
+- **Change**: `KEEP_QC_PKL` default flipped from `1` → `0`. The `*.qc.pkl` contains only `self.data` (identical to `.qc.parquet`), `self.log` (redundant with archived SLURM logs), and gwaslab internal state flags — nothing needed for downstream analysis. Pass `--keep-qc-pkl` to retain it.
+- **Feature**: `*.normalize.pkl` moved out of the unconditional removal list and into its own conditional block, controlled by `--keep-normalize-pkl` (default: remove). Useful if you want to reload the normalized Sumstats object without re-running preprocess + normalize.
+- **Change**: `--remove-qc-pkl` flag removed (now the default); replaced by `--keep-qc-pkl` to opt in to retention.
+- **Change**: raw pkl loop now also skips `*.normalize.pkl` (handled by its own block) in addition to `*.qc.pkl`.
+- 🛠️**Updated**: header comment and usage examples updated accordingly.
+
 ## 2026-03-19 🐛 gwaslab.process.cleanup.sh — per-chromosome intermediate parquets not removed (cleanup.sh)
 - **Bug**: per-chromosome intermediate parquets (`*.chr*.normalize.parquet`, `*.chr*.checkref.parquet`, `*.chr*.inferstrand.parquet`, `*.chr*.assignrsid.parquet`, `*.chr*.checkaf.parquet`) were not included in the cleanup patterns. These files are the stage-to-stage handoffs written by `save_chrom_parquet()` for each of the 26 chromosome array tasks, and collectively represent the largest share of intermediate disk usage (e.g. 26 × 5 stages × ~28 MB = ~3.6 GB per study for a large GWAS).
 - 🐛**Fixed** `gwaslab.process.cleanup.sh` — added all five `*.chr*.{stage}.parquet` glob patterns to the `patterns` array in `cleanup_study()`. Updated the header comment to document them.
