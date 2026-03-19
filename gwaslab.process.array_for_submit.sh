@@ -76,7 +76,7 @@ if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
     CHROM_ARG=(--chrom "${SLURM_ARRAY_TASK_ID}")
 fi
 
-IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME _ _ \
+IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS MEM TIME _ _ EXTRA_FLAGS \
     <<< "${LINE}"
 
 # Derive --directory and --input from the full path
@@ -119,6 +119,15 @@ if [[ "${N_SET}" -eq 1 && "${NCASES_SET}" -eq 1 && "${NCONTROLS_SET}" -eq 1 ]]; 
     CMD+=(--force-n)
 fi
 
+# ── Optional per-study extra flags (COL12 in gwas_list.txt) ──────────────────
+# Use '.' as a no-op placeholder.  Multiple flags are space-separated, e.g.:
+#   --keep-multiallelic
+#   --keep-multiallelic --no-figures
+if [[ -n "${EXTRA_FLAGS:-}" && "${EXTRA_FLAGS}" != "." ]]; then
+    read -ra _extra <<< "${EXTRA_FLAGS}"
+    CMD+=("${_extra[@]}")
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Log and run
 # ─────────────────────────────────────────────────────────────────────────────
@@ -132,6 +141,7 @@ echo "Stage       : ${STAGE}"
 echo "Chromosome  : ${SLURM_ARRAY_TASK_ID:-'(whole-genome)'}"
 echo "Memory      : ${MEM}  |  Time limit: ${TIME}"
 echo "N / Ncases / Ncontrols: ${N:-'.'} / ${N_CASES:-'.'} / ${N_CONTROLS:-'.'}"
+echo "Extra flags : ${EXTRA_FLAGS:-.}"
 echo "Command     : ${CMD[*]}"
 echo "========================================================"
 

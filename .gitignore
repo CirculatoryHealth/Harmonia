@@ -4,6 +4,7 @@
 _archived/*
 .claude/*
 _drafts/*
+utility_scripts/*
 
 # Ignore all data files, but not the scripts that generate them
 data/*

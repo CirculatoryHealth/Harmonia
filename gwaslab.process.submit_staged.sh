@@ -145,8 +145,11 @@ for LINE in "${LINES[@]}"; do
     # ── Parse config line ─────────────────────────────────────────────────────
     # COL1–COL9 are required; COL10–COL11 (MEM_LIGHT, TIME_LIGHT) are optional
     # and fall back to script defaults when absent.
+    # COL12 (EXTRA_FLAGS) is optional; '.' means no extra flags.  It is passed
+    # through to the worker script (array_for_submit.sh) via LINE, which appends
+    # any flags verbatim to the Python command.  Example: --keep-multiallelic
     IFS=';' read -r INPUT_PATH GWAS_NAME POPULATION BUILD N N_CASES N_CONTROLS \
-        MEM TIME MEM_LIGHT TIME_LIGHT \
+        MEM TIME MEM_LIGHT TIME_LIGHT EXTRA_FLAGS \
         <<< "${LINE}"
 
     if [[ -z "${INPUT_PATH}" || -z "${GWAS_NAME}" || -z "${POPULATION}" || \

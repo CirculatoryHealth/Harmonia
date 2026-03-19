@@ -60,8 +60,8 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.8"
-VERSION_DATE = "2026-03-18"
+VERSION      = "1.4.10"
+VERSION_DATE = "2026-03-19"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -208,6 +208,10 @@ def parse_args() -> argparse.Namespace:
     tog.add_argument("--no-pickle",    action="store_true",
                    help="Skip saving .pkl files (reduces peak memory and disk usage "
                         "on the save step; disables --only-qc for this run).")
+    tog.add_argument("--keep-multiallelic", action="store_true",
+                   help="Retain multi-allelic variants (same CHR:POS with different alleles). "
+                        "By default these are removed together with duplicates (mode='md'). "
+                        "With this flag only exact duplicates are removed (mode='d').")
     tog.add_argument("--stage",
                    choices=["all",
                             "preprocess",
@@ -493,27 +497,36 @@ def normalise_build(build: str) -> str:
 # ── Column alias tables ────────────────────────────────────────────────────────
 
 SUMSTATS_ALIASES = {
-    "snpid": ("SNPID", ["variantid", "snpid", "snp", "marker", "markername", "id", "variant"]),
-    "chrom": ("CHR",   ["chr", "chrom", "chromosome", "chr(gcf1405.25)"]),
-    "pos":   ("POS",   ["bp", "pos", "position", "base_pair_location", "bp_hg18", "bp_hg19",
+    # hm_* aliases (GWAS Catalog harmonised columns) are listed BEFORE their bare
+    # equivalents so that when both exist in the same file the harmonised version
+    # is preferred by resolve_column().
+    "snpid": ("SNPID", ["hm_variant_id", "variant_id", "variantid",
+                         "snpid", "snp", "marker", "markername", "chrposid", "id", "variant"]),
+    "chrom": ("CHR",   ["hm_chrom", "chr", "chrom",
+                         "chromosome", "chromosome(b37)", "chr(gcf1405.25)"]),
+    "pos":   ("POS",   ["hm_pos", "bp", "pos", "position",
+                         "position(b37)", "base_pair_location", "bp_hg18", "bp_hg19",
                          "start(gcf1405.25)", "position_b38", "position_hg19", "position_hg38",
                          "bp_b37", "bp_b38", "pos_b37", "pos_b38"]),
-    "ea":    ("EA",    ["effectallele", "ea", "a1", "allele1", "alt", "reference_allele",
+    "ea":    ("EA",    ["hm_effect_allele", "effectallele", "ea", "a1", "allele1", "alt",
+                         "tested_allele", "reference_allele",
                          "effect_allele", "riskallele", "codedallele"]),
-    "nea":   ("NEA",   ["otherallele", "nea", "a2", "allele2", "ref", "non_effect_allele",
-                         "other_allele", "noneffect_allele", "nonriskallele"]),
-    "eaf":   ("EAF",   ["eaf", "effect_allele_frequency", "raf", "af", "allele_frequency",
+    "nea":   ("NEA",   ["hm_other_allele", "otherallele", "nea", "a2", "allele2", "ref",
+                         "non_effect_allele", "other_allele", "noneffect_allele", "nonriskallele"]),
+    "eaf":   ("EAF",   ["hm_effect_allele_frequency", "eaf", "effect_allele_frequency",
+                         "freq_tested_allele_in_hrs", "raf", "af", "allele_frequency",
                          "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
                          "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur"]),
-    "beta":  ("BETA",  ["beta", "effect_size", "effectsize", "effect", "log_odds", "logor",
-                         "beta_fixed", "b"]),
-    "se":    ("SE",    ["se", "stderr", "standard_error", "sebeta", "log_odds_se",
-                         "se_gc", "se_fixed"]),
-    "p":     ("P",     ["p", "pval", "p_value", "pvalue", "p-value", "p-value_gc",
+    "beta":  ("BETA",  ["hm_beta", "beta", "effect_size", "effectsize", "effect",
+                         "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b"]),
+    "se":    ("SE",    ["se", "stderr", "standard_error", "sebeta",
+                         "fixed-effects_se", "log_odds_se", "se_gc", "se_fixed"]),
+    "p":     ("P",     ["p", "pval", "p_value", "pvalue",
+                         "fixed-effects_p-value", "p-value", "p-value_gc",
                          "p.value", "p_fixed"]),
     "n":     ("N",     ["n", "samplesize", "sample_size", "n_total", "ntotal", "n_samples",
                          "totalsamplesize", "n_eff", "neff"]),
-    "rsid":  ("rsID",  ["rsid", "rs", "snp_id"]),
+    "rsid":  ("rsID",  ["hm_rsid", "rsid", "rs", "snp_id"]),
     "info":  ("INFO",  ["info", "impinfo", "imputation_quality", "r2", "rsq"]),
 }
 
@@ -984,7 +997,8 @@ def run_merge(stem: str, output_loc: str, reference: str,
 # ── Process sub-stage runner functions ────────────────────────────────────────
 
 def run_normalize(gwas_obj, reference: str, ref_loc: str,
-                  n_cores: int, do_liftover: bool, population: str) -> tuple:
+                  n_cores: int, do_liftover: bool, population: str,
+                  keep_multiallelic: bool = False) -> tuple:
     """
     process-normalize: basic_check + remove_dup + liftover.
     Returns (gwas_obj, reference) — reference may be updated to '38' after liftover.
@@ -993,8 +1007,18 @@ def run_normalize(gwas_obj, reference: str, ref_loc: str,
     gwas_obj.basic_check(verbose=True)
 
     logging.info("\n===== Running remove_dup =====")
-    gwas_obj.remove_dup(mode="md", keep_col="P", keep="first")
-    logging.info("After duplicate removal: %d variants remain.", len(gwas_obj.data))
+    dup_mode = "d" if keep_multiallelic else "md"
+    n_before = len(gwas_obj.data)
+    n_multiallelic = int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum()) if not keep_multiallelic else 0
+    gwas_obj.remove_dup(mode=dup_mode, keep_col="P", keep="first")
+    n_after = len(gwas_obj.data)
+    if keep_multiallelic:
+        logging.info("After duplicate removal: %d variants remain (%d removed).",
+                     n_after, n_before - n_after)
+    else:
+        logging.info("After multi-allelic and duplicate variant removal: %d variants remain "
+                     "(%d removed; %d variants were at multi-allelic positions).",
+                     n_after, n_before - n_after, n_multiallelic)
 
     logging.info("\n===== Running liftover =====")
     if do_liftover:
@@ -1528,7 +1552,8 @@ def make_sumstats_object(gwas_data: pd.DataFrame, reference: str) -> "gl.Sumstat
 # This function runs the core processing steps in sequence, with logging and error handling.
 def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
                    n_cores: int, do_liftover: bool, do_dbsnp: bool,
-                   population: str = "EUR") -> tuple:
+                   population: str = "EUR",
+                   keep_multiallelic: bool = False) -> tuple:
     """
     Run the core GWASLab processing steps.
     Returns (gwas_obj, reference) — reference may be updated after liftover.
@@ -1541,8 +1566,18 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
 
     # remove_dup
     logging.info("\n===== Running remove_dup =====")
-    gwas_obj.remove_dup(mode="md", keep_col="P", keep="first")
-    logging.info("After duplicate removal: %d variants remain.", len(gwas_obj.data))
+    dup_mode = "d" if keep_multiallelic else "md"
+    n_before = len(gwas_obj.data)
+    n_multiallelic = int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum()) if not keep_multiallelic else 0
+    gwas_obj.remove_dup(mode=dup_mode, keep_col="P", keep="first")
+    n_after = len(gwas_obj.data)
+    if keep_multiallelic:
+        logging.info("After duplicate removal: %d variants remain (%d removed).",
+                     n_after, n_before - n_after)
+    else:
+        logging.info("After multi-allelic and duplicate variant removal: %d variants remain "
+                     "(%d removed; %d variants were at multi-allelic positions).",
+                     n_after, n_before - n_after, n_multiallelic)
 
     # liftover
     logging.info("\n===== Running liftover =====")
@@ -2126,6 +2161,7 @@ def main() -> None:
             gwas_obj, REFERENCE = run_normalize(
                 gwas_obj, REFERENCE, args.ref, args.threads,
                 args.liftover, args.population,
+                keep_multiallelic=args.keep_multiallelic,
             )
             build_num = normalise_build(REFERENCE)
             stem      = file_tag(args.gwas, args.population, input_build, build_num, added_n)
@@ -2150,6 +2186,7 @@ def main() -> None:
                 gwas_obj, REFERENCE, args.ref, vcf,
                 args.threads, args.liftover, args.dbsnp,
                 population=args.population,
+                keep_multiallelic=args.keep_multiallelic,
             )
             build_num = normalise_build(REFERENCE)
             vcf       = ref_vcf_path(args.ref, args.population, build_num)

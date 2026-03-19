@@ -2,6 +2,26 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 ✨ Per-study extra flags via COL12 in gwas_list.txt
+- **Feature**: `gwas_list.txt` now supports an optional 12th semicolon-delimited field (`EXTRA_FLAGS`) for per-study flags passed verbatim to `gwaslab.process.py`. Use `.` as a no-op placeholder. Multiple flags are space-separated within the field.
+- **Example**: append `;--keep-multiallelic` to a study line to retain multi-allelic variants for that study only, while all other studies use the default `mode="md"` removal.
+- **Example**: `;--keep-multiallelic --no-figures` to combine multiple flags.
+- **Files**: `gwaslab.process.array_for_submit.sh` (reads COL12, appends to CMD array); `gwaslab.process.submit_staged.sh` (parses COL12 and documents it; the field passes through to the worker via `LINE`).
+- **Logging**: the worker script echoes `Extra flags : <value>` in the job header for traceability.
+
+## 2026-03-19 ✨ Extended column alias coverage for three new GWAS header formats (gwaslab.process.py v1.4.10)
+- **Feature**: Added aliases for three additional GWAS summary statistics header formats:
+  - **Format 1** (`Tested_Allele` / `Freq_Tested_Allele_in_HRS`): `tested_allele` → EA; `freq_tested_allele_in_hrs` → EAF.
+  - **Format 2** (meta-analysis fixed-effects): `chromosome(b37)` → CHR; `position(b37)` → POS; `chrposid` → SNPID; `fixed-effects_beta` → BETA; `fixed-effects_se` → SE; `fixed-effects_p-value` → P.
+  - **Format 3** (GWAS Catalog harmonised `hm_*` columns): `hm_variant_id` / `variant_id` → SNPID; `hm_rsid` → rsID; `hm_chrom` → CHR; `hm_pos` → POS; `hm_effect_allele` → EA; `hm_other_allele` → NEA; `hm_beta` → BETA; `hm_effect_allele_frequency` → EAF.
+- **Design**: `hm_*` aliases are placed **before** their bare equivalents in each list so that when a harmonised GWAS Catalog file contains both `hm_effect_allele` and `effect_allele`, the harmonised column is preferred by `resolve_column()`.
+
+## 2026-03-19 ✨ --keep-multiallelic flag and multi-allelic count logging (gwaslab.process.py v1.4.9)
+- **Feature**: new `--keep-multiallelic` flag. By default `remove_dup` runs with `mode="md"` (remove duplicates **and** multi-allelic variants). With `--keep-multiallelic` it runs with `mode="d"` (duplicates only), leaving multi-allelic sites in the dataset. Useful when the GWAS reports genuine multi-allelic signals or for exploratory analysis before committing to a COJO run.
+- **Feature**: before calling `remove_dup`, the number of variants at multi-allelic positions (same CHR:POS, different alleles) is now counted via `duplicated(subset=["CHR","POS"], keep=False)` and included in the post-removal log line: `After multi-allelic and duplicate variant removal: N variants remain (X removed; Y variants were at multi-allelic positions).`
+- **Change**: log message changed from `"After duplicate removal"` to `"After multi-allelic and duplicate variant removal"` to accurately describe what was removed.
+- 🛠️**Updated**: `run_normalize()` and `run_processing()` both receive the new `keep_multiallelic` kwarg; both call sites in `main()` pass `keep_multiallelic=args.keep_multiallelic`.
+
 ## 2026-03-19 ✨ gwaslab.process.cleanup.sh — granular pickle retention flags; remove qc.pkl by default (cleanup.sh)
 - **Change**: `KEEP_QC_PKL` default flipped from `1` → `0`. The `*.qc.pkl` contains only `self.data` (identical to `.qc.parquet`), `self.log` (redundant with archived SLURM logs), and gwaslab internal state flags — nothing needed for downstream analysis. Pass `--keep-qc-pkl` to retain it.
 - **Feature**: `*.normalize.pkl` moved out of the unconditional removal list and into its own conditional block, controlled by `--keep-normalize-pkl` (default: remove). Useful if you want to reload the normalized Sumstats object without re-running preprocess + normalize.
