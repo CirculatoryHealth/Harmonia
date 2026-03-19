@@ -2,6 +2,15 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 🐛 gwaslab.process.check.py — false ⚠ 22/26 chr when submit script arrays over 26 but split only produced 22 (v1.2.0)
+- **Bug**: array stages (checkref, inferstrand, assignrsid, checkaf) reported `⚠ 22/26 chr` and set `any_error = True` for autosome-only datasets. The submit script always arrays over all 26 chromosomes; for non-autosomal chromosomes the job finds no input data and finishes without writing a `[SAVE]` marker, so `_is_done()` returned `False` for those 4 jobs. The code then saw `n_done=22, n_total=26` and flagged a warning even though every autosomal chromosome completed successfully.
+- 🐛**Fixed** `gwaslab.process.check.py`:
+  - After processing the `split` stage, the chromosome count is now stored in `n_split_chr`.
+  - A new `split_autosome_only` flag is set when `n_split_chr == 22`; it is OR-ed with the existing `n_non_auto == 0` check into a combined `autosome_only` flag.
+  - Array stages now track `n_auto_done` (autosomal chromosomes that completed) separately from `n_done` (all chromosomes). When `autosome_only`, the effective counts `eff_done / eff_total` are `n_auto_done / 22`, so non-autosomal "not done" files are ignored.
+  - `checkref` aggregation is restricted to autosomal chromosome texts when `split_autosome_only` and non-autosomal log files exist, preventing empty files from skewing match-rate stats.
+- **Files**: `gwaslab.process.check.py` (v1.1.0 → v1.2.0).
+
 ## 2026-03-19 ✨ gwaslab.process.check.py — wider metric column, full "unmatched" display, and autosome-only detection (v1.1.0)
 - **Fix**: metric column widened from 46 to 58 characters (table width 100 → 112) so the full `unmatched N,NNN,NNN` value is no longer truncated to `unmat…` in the checkref row.
 - **Feature**: array stages (checkref, inferstrand, assignrsid, checkaf) now distinguish between truly incomplete runs and datasets that contain only the 22 autosomes. When all 22 autosomal chromosomes completed and no non-autosomal files exist, the status is `✓ done` instead of the misleading `⚠ 22/26 chr`, and `any_error` is no longer set — making real failures much easier to spot.

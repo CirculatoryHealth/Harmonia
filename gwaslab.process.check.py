@@ -24,7 +24,7 @@
 #
 # ============================================================
 VERSION_NAME = "gwaslab_process_check"
-VERSION      = "1.1.0"
+VERSION      = "1.2.0"
 VERSION_DATE = "2026-03-19"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -301,6 +301,7 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
     # -- Build per-stage rows ---------------------------------------------
     rows = []        # (stage, status_str, metric_str, n_warn, n_err, [snippets])
     any_error = False
+    n_split_chr = None   # populated when the split stage is processed
 
     for stage in STAGES:
         if stage not in files:
@@ -315,11 +316,12 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
             n_total    = len(chroms)
             n_auto     = sum(1 for c in chroms if c is not None and 1 <= c <= N_AUTOSOMAL)
             n_non_auto = sum(1 for c in chroms if c is not None and c > N_AUTOSOMAL)
-            n_done     = 0
-            tot_warn   = 0
-            tot_err    = 0
-            snips      = []
-            chr_texts  = []
+            n_done      = 0
+            n_auto_done = 0   # autosomal chromosomes that completed
+            tot_warn    = 0
+            tot_err     = 0
+            snips       = []
+            chr_texts   = []
 
             for chrom in chroms:
                 out_text  = _read(files[stage][chrom].get("out", ""))
@@ -329,28 +331,48 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
                 snips    += s
                 if _is_done(out_text):
                     n_done += 1
+                    if chrom is not None and 1 <= chrom <= N_AUTOSOMAL:
+                        n_auto_done += 1
                 chr_texts.append(out_text)
 
-            # All-autosomal-only: no non-autosomal chromosomes and all 22 are done
-            autosome_only = (n_non_auto == 0 and n_auto == N_AUTOSOMAL)
+            # Autosome-only when (a) no non-autosomal log files exist, OR (b) the
+            # split stage only produced 22 chromosomes — the submit script still
+            # arrays over all 26, so non-autosomal jobs run but find no input data.
+            split_autosome_only = (n_split_chr is not None and n_split_chr == N_AUTOSOMAL)
+            autosome_only = (n_non_auto == 0 and n_auto == N_AUTOSOMAL) or split_autosome_only
 
-            if autosome_only and n_done == n_total:
+            # Effective counts: when autosome-only, only the 22 autosomes matter
+            if autosome_only:
+                eff_done  = n_auto_done
+                eff_total = N_AUTOSOMAL
+            else:
+                eff_done  = n_done
+                eff_total = n_total
+
+            if autosome_only and eff_done == N_AUTOSOMAL:
                 status = "✓ done"
-            elif n_done == n_total:
-                status = f"✓ {n_done}/{n_total} chr"
-            elif n_done == 0:
-                status = f"✗ 0/{n_total} chr"
+            elif eff_done == eff_total:
+                status = f"✓ {eff_done}/{eff_total} chr"
+            elif eff_done == 0:
+                status = f"✗ 0/{eff_total} chr"
                 any_error = True
             else:
-                status = f"⚠ {n_done}/{n_total} chr"
+                status = f"⚠ {eff_done}/{eff_total} chr"
                 any_error = True
 
             if stage == "checkref":
-                metric = _metrics_checkref_agg(chr_texts)
+                # When non-autosomal log files exist but are empty (no data),
+                # restrict aggregation to autosomal texts to avoid skewing stats.
+                if split_autosome_only and n_non_auto > 0:
+                    auto_texts = [t for c, t in zip(chroms, chr_texts)
+                                  if c is not None and 1 <= c <= N_AUTOSOMAL]
+                    metric = _metrics_checkref_agg(auto_texts)
+                else:
+                    metric = _metrics_checkref_agg(chr_texts)
             elif autosome_only:
                 metric = f"{N_AUTOSOMAL} autosomes complete"
             else:
-                metric = f"{n_done}/{n_total} complete"
+                metric = f"{eff_done}/{eff_total} complete"
 
         else:
             chrom    = None
@@ -377,6 +399,11 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
                 metric = _metrics_normalize(out_text)
             elif stage == "split":
                 metric = _metrics_split(out_text)
+                # Record chromosome count so array stages can use it
+                _sc = _int(out_text, r"\[SAVE\] Chr-split manifest.*?\((\d+) chromosomes\)")
+                if not _sc:
+                    _sc = len(re.findall(r"\[chr\d+\] Saved", out_text))
+                n_split_chr = _sc if _sc else None
             elif stage == "merge":
                 metric = _metrics_merge(out_text)
             else:
