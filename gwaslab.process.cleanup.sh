@@ -23,12 +23,20 @@
 #   *.log / *.gwaslab_process.log logs
 #   PLOTS/                    all plot files
 #
+# Log archiving (default: enabled):
+#   SLURM *.out / *.err files found in LOG_DIR (default: OUT_BASE) that belong to
+#   the study being cleaned are moved into ${OUT_BASE}/<STUDY>/logs/.
+#   This keeps the submit directory tidy and preserves logs for gwaslab.process.check.py.
+#   Disable with --no-archive-logs.  Override the source dir with --log-dir PATH.
+#
 # Usage:
 #   bash gwaslab.process.cleanup.sh --study CAD_Aragam
 #   bash gwaslab.process.cleanup.sh --all
 #   bash gwaslab.process.cleanup.sh --all --dry-run
 #   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-raw-pkl
 #   bash gwaslab.process.cleanup.sh --config gwas_list.txt
+#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --no-archive-logs
+#   bash gwaslab.process.cleanup.sh --all --log-dir /path/to/slurm/logs
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -55,6 +63,8 @@ source "${CONF}"
 DRY_RUN=0
 KEEP_RAW_PKL=0     # set to 1 to preserve the final *.pkl (raw, non-QC) pickle
 KEEP_QC_PKL=1      # always kept unless --remove-qc-pkl is passed
+ARCHIVE_LOGS=1     # move SLURM *.out/*.err into <study_dir>/logs/ (disable: --no-archive-logs)
+LOG_DIR=""         # source dir for log archiving; defaults to OUT_BASE after conf is sourced
 MODE=""            # "study", "all", or "config"
 STUDY_NAME=""
 CONFIG_FILE=""
@@ -72,10 +82,12 @@ while [[ $# -gt 0 ]]; do
         --study)         MODE="study"; STUDY_NAME="${2:?--study requires a name}"; shift 2 ;;
         --all)           MODE="all";   shift ;;
         --config)        MODE="config"; CONFIG_FILE="${2:?--config requires a path}"; shift 2 ;;
-        --dry-run)       DRY_RUN=1;    shift ;;
-        --keep-raw-pkl)  KEEP_RAW_PKL=1; shift ;;
-        --remove-qc-pkl) KEEP_QC_PKL=0;  shift ;;
-        --help|-h)       usage ;;
+        --dry-run)          DRY_RUN=1;       shift ;;
+        --keep-raw-pkl)     KEEP_RAW_PKL=1;  shift ;;
+        --remove-qc-pkl)    KEEP_QC_PKL=0;   shift ;;
+        --no-archive-logs)  ARCHIVE_LOGS=0;  shift ;;
+        --log-dir)          LOG_DIR="${2:?--log-dir requires a path}"; shift 2 ;;
+        --help|-h)          usage ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
 done
@@ -84,6 +96,9 @@ if [[ -z "${MODE}" ]]; then
     echo "ERROR: specify --study <NAME>, --all, or --config <gwas_list.txt>" >&2
     exit 1
 fi
+
+# Default log source directory: same as OUT_BASE (where submit scripts write SLURM logs)
+[[ -z "${LOG_DIR}" ]] && LOG_DIR="${OUT_BASE}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Core cleanup function — operates on a single study output directory
@@ -170,6 +185,32 @@ cleanup_study() {
         local verb="Removed"
         [[ "${DRY_RUN}" -eq 1 ]] && verb="Would remove"
         echo "  [${study_name}] ${verb} ${total_removed} file(s)."
+    fi
+
+    # ── Archive SLURM *.out / *.err into <study_dir>/logs/ ────────────────────
+    if [[ "${ARCHIVE_LOGS}" -eq 1 ]]; then
+        local logs_dir="${study_dir}/logs"
+        local n_archived=0
+        for f in "${LOG_DIR}/${study_name}_"*.out "${LOG_DIR}/${study_name}_"*.err; do
+            [[ -f "${f}" ]] || continue
+            if [[ "${DRY_RUN}" -eq 1 ]]; then
+                echo "  [DRY-RUN] would archive: $(basename "${f}") → ${logs_dir}/"
+            else
+                mkdir -p "${logs_dir}"
+                mv "${f}" "${logs_dir}/"
+                echo "  [ARCHIVE] $(basename "${f}") → ${logs_dir}/"
+            fi
+            (( n_archived++ )) || true
+        done
+        if [[ "${n_archived}" -gt 0 ]]; then
+            local verb="Archived"
+            [[ "${DRY_RUN}" -eq 1 ]] && verb="Would archive"
+            echo "  [${study_name}] ${verb} ${n_archived} log file(s) → ${logs_dir}/"
+            echo "  [${study_name}] Run check.py against archived logs:"
+            echo "    python gwaslab.process.check.py ${study_name} ${logs_dir}"
+        elif [[ "${DRY_RUN}" -eq 0 ]]; then
+            echo "  [${study_name}] No SLURM log files found in ${LOG_DIR} — nothing archived."
+        fi
     fi
 }
 

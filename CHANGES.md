@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 ✨ gwaslab.process.cleanup.sh — archive SLURM log files into study/logs/ (cleanup.sh)
+- **Feature**: after removing intermediate checkpoints, the cleanup script now moves all SLURM `*.out` / `*.err` files belonging to the study from `LOG_DIR` (default: `OUT_BASE`) into `${OUT_BASE}/<STUDY>/logs/`. This keeps the submit directory tidy and preserves logs in a study-specific location for future use with `gwaslab.process.check.py`.
+- New flags: `--no-archive-logs` (skip archiving), `--log-dir PATH` (override source directory when SLURM logs land elsewhere).
+- After archiving, the script prints the exact `gwaslab.process.check.py` command to inspect the archived logs.
+- Log archiving is enabled by default; `--dry-run` mode previews what would be moved without touching files.
+
 ## 2026-03-19 🐛 gwaslab.process.cleanup.sh — wrong output directory path and fragile glob (cleanup.sh)
 - **Bug**: `gwaslab.process.cleanup.sh` was silently doing nothing in all three modes (`--study`, `--all`, `--config`). Root cause: all three study-directory paths were constructed as `${OUT_BASE}/${STUDY_NAME}/GWASCatalog`, but `/GWASCatalog` is only appended by `gwaslab.process.py` when `--output` is *not* passed on the command line. The pipeline always passes `--output "${OUT_BASE}/${GWAS_NAME}"` explicitly (via `array_for_submit.sh`), so `output_loc = args.output` — no `/GWASCatalog` suffix. Every directory existence check therefore failed and cleanup was skipped without any error.
 - 🐛**Fixed** `gwaslab.process.cleanup.sh`:
