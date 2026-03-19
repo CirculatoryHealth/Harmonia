@@ -201,7 +201,7 @@ cleanup_study() {
 
     # ── Archive SLURM *.out / *.err into <study_dir>/logs/ ────────────────────
     if [[ "${ARCHIVE_LOGS}" -eq 1 ]]; then
-        local logs_dir="${study_dir}/logs"
+        local logs_dir="${study_dir%/}/logs"
         local n_archived=0
         for f in "${LOG_DIR}/${study_name}_"*.out "${LOG_DIR}/${study_name}_"*.err; do
             [[ -f "${f}" ]] || continue
