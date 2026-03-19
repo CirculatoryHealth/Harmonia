@@ -2,6 +2,18 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-19 🐛 gwaslab.process.cleanup.sh — wrong output directory path and fragile glob (cleanup.sh)
+- **Bug**: `gwaslab.process.cleanup.sh` was silently doing nothing in all three modes (`--study`, `--all`, `--config`). Root cause: all three study-directory paths were constructed as `${OUT_BASE}/${STUDY_NAME}/GWASCatalog`, but `/GWASCatalog` is only appended by `gwaslab.process.py` when `--output` is *not* passed on the command line. The pipeline always passes `--output "${OUT_BASE}/${GWAS_NAME}"` explicitly (via `array_for_submit.sh`), so `output_loc = args.output` — no `/GWASCatalog` suffix. Every directory existence check therefore failed and cleanup was skipped without any error.
+- 🐛**Fixed** `gwaslab.process.cleanup.sh`:
+  - `--study` mode: `${OUT_BASE}/${STUDY_NAME}/GWASCatalog` → `${OUT_BASE}/${STUDY_NAME}`
+  - `--all` mode: glob `"${OUT_BASE}"/*/GWASCatalog` → `"${OUT_BASE}"/*/`; `basename "$(dirname ...)"` → `basename "${study_dir}"`
+  - `--config` mode: `${OUT_BASE}/${GWAS_NAME}/GWASCatalog` → `${OUT_BASE}/${GWAS_NAME}`
+  - Fragile unquoted glob `local raw_pkl_pattern="${study_dir}/"*.pkl` (expands at assignment time) → quoted `"${study_dir}/*.pkl"` (expands at `for` loop time)
+
+## 2026-03-19 🐛 gwaslab.process.check.py — AttributeError on optional regex group (check.py v1.0.1)
+- **Bug**: `AttributeError: 'NoneType' object has no attribute 'strip'` in `_first()` when called with a regex containing an optional capturing group (`(...)?`). The outer `re.search()` matched (so `m` was not `None`), but `m.group(1)` was `None` because the optional group did not participate in the match. The `m.group(group).strip() if m else default` guard only checked for a missing match, not for a `None` group value.
+- 🐛**Fixed** `gwaslab.process.check.py` — `_first()` now checks `val = m.group(group)` separately and returns `default` if `val is None`. The broken `\[SAVE\] QC Parquet` regex with an optional group was also removed (it was dead code — the result was never used; `qc_n` via the `After QC` pattern was the operative extraction). Bumped to v1.0.1.
+
 ## 2026-03-18 🧰 Added gwaslab.process.check.py — pipeline run-status checker (check.py v1.0.0 / gwaslab.process.py v1.4.8)
 - **New tool** `gwaslab.process.check.py` (v1.0.0): standalone Python script that parses `*.out` / `*.err` log files produced by the staged gwaslab pipeline and prints a per-stage summary table with key QC metrics, warning/error counts, and overall pass/fail status.
 - Supports checking a single study (`python gwaslab.process.check.py GWAS_ID [log_dir]`), all studies in a directory (`--all`), or only studies with problems (`--errors-only`).

@@ -109,7 +109,7 @@ cleanup_study() {
 
     # *.pkl that is NOT *.qc.pkl — the final raw pickle from process-check-af
     # We handle this separately because glob can't exclude a suffix directly.
-    local raw_pkl_pattern="${study_dir}/"*.pkl
+    local raw_pkl_pattern="${study_dir}/*.pkl"
 
     local total_removed=0
     local total_size=0
@@ -177,7 +177,7 @@ cleanup_study() {
 # Mode: single study
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "${MODE}" == "study" ]]; then
-    STUDY_DIR="${OUT_BASE}/${STUDY_NAME}/GWASCatalog"
+    STUDY_DIR="${OUT_BASE}/${STUDY_NAME}"
     echo "Cleaning up: ${STUDY_NAME}"
     [[ "${DRY_RUN}" -eq 1 ]] && echo "(dry-run — nothing will be deleted)"
     echo "──────────────────────────────────────────────────────────"
@@ -194,9 +194,9 @@ if [[ "${MODE}" == "all" ]]; then
     echo "Cleaning all studies under: ${OUT_BASE}"
     [[ "${DRY_RUN}" -eq 1 ]] && echo "(dry-run — nothing will be deleted)"
     echo "──────────────────────────────────────────────────────────"
-    for study_dir in "${OUT_BASE}"/*/GWASCatalog; do
+    for study_dir in "${OUT_BASE}"/*/; do
         [[ -d "${study_dir}" ]] || continue
-        study_name=$(basename "$(dirname "${study_dir}")")
+        study_name=$(basename "${study_dir}")
         echo "  Study: ${study_name}"
         cleanup_study "${study_dir}" "${study_name}"
     done
@@ -227,7 +227,7 @@ if [[ "${MODE}" == "config" ]]; then
         IFS=';' read -r INPUT_PATH GWAS_NAME _ <<< "${LINE}"
         [[ -z "${GWAS_NAME}" ]] && continue
         echo "  Study: ${GWAS_NAME}"
-        cleanup_study "${OUT_BASE}/${GWAS_NAME}/GWASCatalog" "${GWAS_NAME}"
+        cleanup_study "${OUT_BASE}/${GWAS_NAME}" "${GWAS_NAME}"
     done
 
     echo "──────────────────────────────────────────────────────────"

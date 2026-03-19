@@ -23,10 +23,31 @@
 #   {GWAS}_{step}_{stage}_{jobid}_{chrom}.{out|err}    per-chr array stages
 #
 # ============================================================
-# Authors   : S.W. van der Laan | s.w.vanderlaan[at]gmail[dot]com
-# Version   : 1.0.0
-# Date      : 2026-03-18
-# ============================================================
+VERSION_NAME = "gwaslab_process_check"
+VERSION      = "1.0.0"
+VERSION_DATE = "2026-03-18"
+COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
+COPYRIGHT_TEXT = '''
+The MIT License (MIT).
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and 
+associated documentation files (the "Software"), to deal in the Software without restriction, 
+including without limitation the rights to use, copy, modify, merge, publish, distribute, 
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is 
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies 
+or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR 
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS 
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE 
+OR OTHER DEALINGS IN THE SOFTWARE.
+
+Reference: http://opensource.org.
+'''
 
 import sys
 import os
@@ -118,6 +139,7 @@ def discover_studies(log_dir: str):
 # ---------------------------------------------------------------------------
 
 def _read(path):
+    """Read text from a file, return empty string on any error."""
     if not path or not os.path.isfile(path):
         return ""
     try:
@@ -128,11 +150,16 @@ def _read(path):
 
 
 def _first(text, pattern, group=1, default=None):
+    """Search *text* for *pattern*, return first match group or default."""
     m = re.search(pattern, text)
-    return m.group(group).strip() if m else default
+    if not m:
+        return default
+    val = m.group(group)
+    return val.strip() if val is not None else default
 
 
 def _int(text, pattern, group=1, default=0):
+    """Search *text* for *pattern*, return first match group as int or default."""
     m = re.search(pattern, text)
     if not m:
         return default
@@ -176,6 +203,7 @@ def _is_done(out_text):
 # ---------------------------------------------------------------------------
 
 def _metrics_preprocess(text):
+    """Extract key metrics from the preprocess stage .out text."""
     parts = []
     n = _first(text, r"\[SAVE\] Preprocess parquet.*?\((\S+ variants)")
     if n:
@@ -187,6 +215,7 @@ def _metrics_preprocess(text):
 
 
 def _metrics_normalize(text):
+    """Extract key metrics from the normalize stage .out text."""
     parts = []
     n = _first(text, r"After duplicate removal:\s*([\d,]+)\s+variants remain")
     if n:
@@ -200,6 +229,7 @@ def _metrics_normalize(text):
 
 
 def _metrics_split(text):
+    """Extract key metrics from the split stage .out text."""
     n_chr = _int(text, r"\[SAVE\] Chr-split manifest.*?\((\d+) chromosomes\)")
     if n_chr:
         return f"{n_chr} chromosomes"
@@ -230,12 +260,11 @@ def _metrics_checkref_agg(chr_texts):
 
 
 def _metrics_merge(text):
+    """Extract key metrics from the merge stage .out text."""
     parts = []
     combined = _first(text, r"\[merge\] Combined:\s*([\d,]+)\s+variants")
     if combined:
         parts.append(f"combined {combined}")
-    qc = _first(text, r"\[SAVE\] QC Parquet → .*?\.(\d[\d,]*\s+variant)?")
-    # Try a broader match for QC variant count in the log
     qc_n = _first(text, r"After QC[^:]*:\s*([\d,]+)\s+variants?")
     if qc_n:
         parts.append(f"QC-pass {qc_n}")
@@ -250,6 +279,8 @@ def _metrics_merge(text):
 # ---------------------------------------------------------------------------
 
 def check_study(gwas: str, log_dir: str, errors_only: bool = False):
+    """Check all stages for a single GWAS study and print a summary table."""
+    print(f"\n===== Checking study '{gwas}' =====")
     files = find_files(log_dir, gwas)
 
     if not files:
@@ -376,8 +407,9 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
 # ---------------------------------------------------------------------------
 
 def main():
+    """Main entry point: parse args and check studies."""
     ap = argparse.ArgumentParser(
-        description="Quick run-status checker for gwas2cojo pipeline log files.",
+        description="Quick run-status checker for gwaslab.process pipeline log files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -387,13 +419,14 @@ Examples:
   python gwaslab.process.check.py --all /path/to/logs --errors-only
 """,
     )
-    ap.add_argument("gwas",    nargs="?",        help="GWAS study ID to check")
+    ap.add_argument("gwas",    nargs="?",
+                    help="GWAS study ID to check. Ignored if --all is set.")
     ap.add_argument("log_dir", nargs="?",
-                    default=".",                 help="Directory containing log files (default: .)")
+                    default=".", help="Directory containing log files (default: .). Ignored if --all is set.")
     ap.add_argument("--all",   action="store_true",
-                                                 help="Check every study found in log_dir")
+                    help="Check every study found in log_dir. Overrides positional gwas argument.")
     ap.add_argument("--errors-only", action="store_true",
-                                                 help="Only print studies that have errors or missing stages")
+                    help="Only print studies that have errors or missing stages. Useful for quick scans.")
     args = ap.parse_args()
 
     log_dir = os.path.abspath(args.log_dir or ".")
@@ -411,7 +444,6 @@ Examples:
     else:
         ap.print_help()
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
