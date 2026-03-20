@@ -2,6 +2,22 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-20 ✨ Add --no-fill-eaf per-study override flag (v1.4.15)
+- **Problem**: The submit script passes `--fill-eaf` globally for all studies. Studies with no EAF column trigger a per-variant tabix lookup across the full VCF for every variant (O(n)), which is prohibitively slow for large files (e.g. 7.7M variants × tabix = many hours).
+- **Fix**: Added `--no-fill-eaf` flag that suppresses the EAF lookup even when `--fill-eaf` is present. Intended for use as a per-study `EXTRA_FLAGS` override in `gwas_list.txt`.
+- **Usage**: Add `;--no-fill-eaf` as COL12 in `gwas_list.txt` for the affected study. EAF will be filled properly at the `process-check-af` stage from the 1KG VCF anyway.
+- **Logging**: `--no-fill-eaf` is logged in the Toggles line. A separate info message confirms suppression when both flags are present.
+- **Files**: `gwaslab.process.py` v1.4.15.
+
+## 2026-03-20 🐛 Header typo: missing CHR/NEA aliases and KeyError in remove_dup (v1.4.14)
+- **Root cause**: The Suzuki2024 T2DGGI file uses `Chromsome` (typo, missing 'o') for chromosome and `NonEffectAllele` (no underscore) for the non-effect allele. Neither matched existing aliases, so gwaslab never received a CHR or NEA column.
+- **Symptom 1**: `KeyError: Index(['CHR'])` in `run_normalize()` at the `duplicated(subset=["CHR","POS"])` multi-allelic count — crashed before `remove_dup` was even called.
+- **Fix 1**: Added `"chromsome"` to CHR aliases in `SUMSTATS_ALIASES` (typo-tolerant match).
+- **Fix 2**: Added `"noneffectallele"` (no underscore) to NEA aliases in `SUMSTATS_ALIASES`.
+- **Fix 3**: Guarded the `duplicated(subset=["CHR","POS"])` call in both `run_normalize()` and `run_processing()` with a column-existence check (`_has_chr_pos`) so a missing CHR column logs 0 multi-allelics rather than raising `KeyError`.
+- **Note**: No SNPID column in this file is not a blocker — gwaslab derives CHR:POS:NEA:EA IDs via `fix_id` once CHR and NEA are correctly mapped.
+- **Files**: `gwaslab.process.py` v1.4.14.
+
 ## 2026-03-19 ✨ gwaslab.download_refs.py — conf-file integration, --build and --ancestry arguments
 - **Feature**: reference directory now defaults to `REF_DIR` from `gwas2cojo.conf` (parsed next to the script) instead of a hardcoded placeholder. A warning is printed if the conf is absent or `REF_DIR` is unset.
 - **Feature**: new `--build` argument (`all` / `hg19` / `hg38`, default: `all`) filters downloads to the requested genome build(s).

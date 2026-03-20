@@ -60,7 +60,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.13"
+VERSION      = "1.4.15"
 VERSION_DATE = "2026-03-19"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -205,6 +205,11 @@ def parse_args() -> argparse.Namespace:
     tog.add_argument("--fill-eaf",     action="store_true",
                    help="Look up missing EAF values from the (1KG) reference VCF "
                         "(slow for large datasets; skipped by default).")
+    tog.add_argument("--no-fill-eaf",  action="store_true",
+                   help="Suppress EAF lookup even when --fill-eaf is set. "
+                        "Useful as a per-study EXTRA_FLAGS override when the submit "
+                        "script passes --fill-eaf globally but the study has no EAF "
+                        "column and the lookup would be prohibitively slow.")
     tog.add_argument("--no-pickle",    action="store_true",
                    help="Skip saving .pkl files (reduces peak memory and disk usage "
                         "on the save step; disables --only-qc for this run).")
@@ -503,7 +508,8 @@ SUMSTATS_ALIASES = {
     "snpid": ("SNPID", ["hm_variant_id", "variant_id", "variantid",
                          "snpid", "snp", "marker", "markername", "chrposid", "id", "variant"]),
     "chrom": ("CHR",   ["hm_chrom", "chr", "chrom",
-                         "chromosome", "chromosome(b37)", "chr(gcf1405.25)"]),
+                         "chromosome", "chromsome",
+                         "chromosome(b37)", "chr(gcf1405.25)"]),
     "pos":   ("POS",   ["hm_pos", "bp", "pos", "position",
                          "position(b37)", "base_pair_location", "bp_hg18", "bp_hg19",
                          "start(gcf1405.25)", "position_b38", "position_hg19", "position_hg38",
@@ -511,7 +517,8 @@ SUMSTATS_ALIASES = {
     "ea":    ("EA",    ["hm_effect_allele", "effectallele", "ea", "a1", "allele1", "alt",
                          "tested_allele", "reference_allele",
                          "effect_allele", "riskallele", "codedallele"]),
-    "nea":   ("NEA",   ["hm_other_allele", "otherallele", "nea", "a2", "allele2", "ref",
+    "nea":   ("NEA",   ["hm_other_allele", "otherallele", "noneffectallele", "nea",
+                         "a2", "allele2", "ref",
                          "non_effect_allele", "other_allele", "noneffect_allele", "nonriskallele"]),
     "eaf":   ("EAF",   ["hm_effect_allele_frequency", "eaf", "effect_allele_frequency",
                          "freq_tested_allele_in_hrs", "raf", "af", "allele_frequency",
@@ -1009,7 +1016,11 @@ def run_normalize(gwas_obj, reference: str, ref_loc: str,
     logging.info("\n===== Running remove_dup =====")
     dup_mode = "d" if keep_multiallelic else "md"
     n_before = len(gwas_obj.data)
-    n_multiallelic = int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum()) if not keep_multiallelic else 0
+    _has_chr_pos = "CHR" in gwas_obj.data.columns and "POS" in gwas_obj.data.columns
+    n_multiallelic = (
+        int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum())
+        if (not keep_multiallelic and _has_chr_pos) else 0
+    )
     gwas_obj.remove_dup(mode=dup_mode, keep_col="P", keep="first")
     n_after = len(gwas_obj.data)
     if keep_multiallelic:
@@ -1616,7 +1627,11 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
     logging.info("\n===== Running remove_dup =====")
     dup_mode = "d" if keep_multiallelic else "md"
     n_before = len(gwas_obj.data)
-    n_multiallelic = int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum()) if not keep_multiallelic else 0
+    _has_chr_pos = "CHR" in gwas_obj.data.columns and "POS" in gwas_obj.data.columns
+    n_multiallelic = (
+        int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum())
+        if (not keep_multiallelic and _has_chr_pos) else 0
+    )
     gwas_obj.remove_dup(mode=dup_mode, keep_col="P", keep="first")
     n_after = len(gwas_obj.data)
     if keep_multiallelic:
@@ -2018,10 +2033,11 @@ def main() -> None:
     logging.info("Population   : %s", args.population)
     logging.info("Build        : %s", args.build)
     logging.info("Toggles      : liftover=%s  dbsnp=%s  qc=%s  "
-                 "only_qc=%s  fill_eaf=%s  figures=%s  leads=%s  "
+                 "only_qc=%s  fill_eaf=%s  no_fill_eaf=%s  figures=%s  leads=%s  "
                  "no_pickle=%s  stage=%s  chrom=%s  threads=%d",
                  args.liftover, args.dbsnp, args.qc,
-                 args.only_qc, args.fill_eaf, args.figures, args.leads,
+                 args.only_qc, args.fill_eaf, args.no_fill_eaf,
+                 args.figures, args.leads,
                  args.no_pickle, args.stage,
                  args.chrom if args.chrom else "(whole-genome)",
                  args.threads)
@@ -2154,12 +2170,15 @@ def main() -> None:
 
         REFERENCE = verify_build(gwas_data, REFERENCE)
 
-        if args.fill_eaf and vcf is not None:
+        do_fill_eaf = args.fill_eaf and not args.no_fill_eaf
+        if args.no_fill_eaf and args.fill_eaf:
+            logging.info("EAF lookup suppressed by --no-fill-eaf.")
+        if do_fill_eaf and vcf is not None:
             gwas_data = check_and_fill_eaf(gwas_data, vcf)
-        elif args.fill_eaf:
+        elif do_fill_eaf:
             logging.info("EAF lookup skipped (no reference VCF for build %s).", build_num)
         else:
-            logging.info("EAF lookup skipped (--fill-eaf not set).")
+            logging.info("EAF lookup skipped (--fill-eaf not set or suppressed).")
 
         if any(v is not None for v in [args.n, args.n_cases, args.n_controls]):
             gwas_data = apply_fixed_n(
