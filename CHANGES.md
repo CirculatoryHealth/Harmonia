@@ -2,6 +2,16 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-23 🐛 gwaslab.process.py — alias table corrections and gwas_list.txt fixes (v1.4.16)
+- **Fix**: added `"freq_a"` to EAF aliases in `SUMSTATS_ALIASES` — covers TAG consortium files (`tag.*.tbl.withN.txt.gz`) which use `FRQ_A` for effect-allele frequency. Previously EAF was always NaN for these studies and had to be filled from the reference VCF.
+- **Fix**: added `"imp_qual"` to INFO aliases — covers MVP PAD file (`CLEANED.MVP.EUR.PAD.results.anno.nodup.txt.gz`) which stores imputation quality as `IMP_QUAL`.
+- **Fix**: added `"rs_id"`, `"dbsnp_rs_id"`, `"dbsnp_id"` to rsID aliases — broadens coverage for MVP and dbSNP-derived header variants.
+- **Fix** (`gwas_list.txt`): `MI_PAN_withmultiallelic` path was missing the leading `/` — would have failed at file open.
+- **Fix** (`gwas_list.txt`): `AF_PAN` build was `19` but the TOPMed Freeze 5 file uses `position_b38` (hg38 coordinates) — corrected to `build=38` to prevent double-liftover.
+- **Fix** (`gwas_list.txt`): `MEM_LIGHT` was `64GB` for `PAD_EUR_MVP`, `PAD_EUR_FINNGEN`, `PAD_EUR_UKB` — SLURM requires `64G`; corrected.
+- **Change** (`gwas_list.txt`): TAG study names standardised to `TAG_EUR_*` naming convention for consistency with other phenotype–ancestry naming in the list.
+- **Files**: `gwaslab.process.py` (v1.4.15 → v1.4.16), `gwas_list.txt`.
+
 ## 2026-03-20 ✨ Add --no-fill-eaf per-study override flag (v1.4.15)
 - **Problem**: The submit script passes `--fill-eaf` globally for all studies. Studies with no EAF column trigger a per-variant tabix lookup across the full VCF for every variant (O(n)), which is prohibitively slow for large files (e.g. 7.7M variants × tabix = many hours).
 - **Fix**: Added `--no-fill-eaf` flag that suppresses the EAF lookup even when `--fill-eaf` is present. Intended for use as a per-study `EXTRA_FLAGS` override in `gwas_list.txt`.

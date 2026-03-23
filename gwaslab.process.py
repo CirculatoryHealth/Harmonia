@@ -60,8 +60,8 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.15"
-VERSION_DATE = "2026-03-19"
+VERSION      = "1.4.16"
+VERSION_DATE = "2026-03-23"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -523,7 +523,8 @@ SUMSTATS_ALIASES = {
     "eaf":   ("EAF",   ["hm_effect_allele_frequency", "eaf", "effect_allele_frequency",
                          "freq_tested_allele_in_hrs", "raf", "af", "allele_frequency",
                          "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
-                         "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur"]),
+                         "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur",
+                         "freq_a"]),
     "beta":  ("BETA",  ["hm_beta", "beta", "effect_size", "effectsize", "effect",
                          "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b"]),
     "se":    ("SE",    ["se", "stderr", "standard_error", "sebeta",
@@ -533,8 +534,9 @@ SUMSTATS_ALIASES = {
                          "p.value", "p_fixed"]),
     "n":     ("N",     ["n", "samplesize", "sample_size", "n_total", "ntotal", "n_samples",
                          "totalsamplesize", "n_eff", "neff"]),
-    "rsid":  ("rsID",  ["hm_rsid", "rsid", "rs", "snp_id"]),
-    "info":  ("INFO",  ["info", "impinfo", "imputation_quality", "r2", "rsq"]),
+    "rsid":  ("rsID",  ["hm_rsid", "rsid", "rs", "snp_id", "rs_id", "dbsnp_rs_id", "dbsnp_id"]),
+    "info":  ("INFO",  ["info", "impinfo", "imputation_quality", "r2", "rsq",
+                        "imp_qual"]),
 }
 
 OPTIONAL_OTHER_ALIASES = {
@@ -1298,6 +1300,7 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
         "eaf", "effect_allele_frequency", "raf", "af", "allele_frequency",
         "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
         "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur",
+        "freq_a"
     ]
     eaf_col   = resolve_column(gwas_data, EAF_ALIASES)
     needs_eaf = (eaf_col is None) or (gwas_data[eaf_col].isna().sum() > 0)
