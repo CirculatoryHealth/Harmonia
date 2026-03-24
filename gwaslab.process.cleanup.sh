@@ -281,7 +281,7 @@ fi
 # Mode: studies from config file
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "${MODE}" == "config" ]]; then
-    if [[ ! -f "${CONFIG_FILE}" ]]; then
+    if [[ ! -e "${CONFIG_FILE}" ]]; then
         echo "ERROR: config file not found: ${CONFIG_FILE}" >&2; exit 1
     fi
 

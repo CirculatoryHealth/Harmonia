@@ -2,6 +2,11 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-24 🐛 cleanup.sh — fix --config rejecting process substitution
+- **Bug**: `[[ ! -f "${CONFIG_FILE}" ]]` uses `-f` which only matches regular files; process substitution (`<(...)`) passes a named pipe (`/dev/fd/N`) which fails the test, producing `ERROR: config file not found: /dev/fd/63`.
+- **Fix**: changed to `[[ ! -e "${CONFIG_FILE}" ]]` (`-e` matches any file type including pipes), so `--config <(grep ...)` now works as expected.
+- **File**: `gwaslab.process.cleanup.sh`
+
 ## 2026-03-23 🐛 gwaslab.process.py — alias table corrections and gwas_list.txt fixes (v1.4.16)
 - **Fix**: added `"freq_a"` to EAF aliases in `SUMSTATS_ALIASES` — covers TAG consortium files (`tag.*.tbl.withN.txt.gz`) which use `FRQ_A` for effect-allele frequency. Previously EAF was always NaN for these studies and had to be filled from the reference VCF.
 - **Fix**: added `"imp_qual"` to INFO aliases — covers MVP PAD file (`CLEANED.MVP.EUR.PAD.results.anno.nodup.txt.gz`) which stores imputation quality as `IMP_QUAL`.
