@@ -6,6 +6,7 @@ Usage
 -----
     python gwaslab.download_refs.py [--ref-dir DIR] [--build all|hg19|hg38]
                                     [--ancestry EUR|AFR|EAS|AMR|SAS|PAN|all]
+                                    [--no-x]
 
 The reference directory defaults to REF_DIR from gwas2cojo.conf (looked up
 next to this script).  Pass --ref-dir to override.
@@ -15,6 +16,10 @@ files for (default: all).
 
 --ancestry controls which 1KG population VCF(s) to download (default: EUR).
 Use 'all' to download every available ancestry.
+
+Chromosome X VCFs (1kg_*_x_hg19/hg38) and chrX SNPID→rsID tables
+(1kg_dbsnp151_hg19_x / hg38_x) are downloaded by default alongside the
+autosomal files.  Pass --no-x to skip all chrX reference files.
 
 Non-ancestry-specific files (dbSNP VCFs, FASTA, recombination maps, GTFs,
 HapMap3 EAF, SNPID→rsID tables) are always included for the requested build(s).
@@ -30,8 +35,8 @@ https://cloufield.github.io/gwaslab/Download/
 
 # ============================================================
 VERSION_NAME = "gwaslab.download_refs"
-VERSION      = "1.1.0"
-VERSION_DATE = "2026-03-19"
+VERSION      = "1.2.0"
+VERSION_DATE = "2026-03-25"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -95,10 +100,28 @@ _ANCESTRY_VCFS = {
     ("SAS", "hg38"): "1kg_sas_hg38",
 }
 
+_ANCESTRY_X_VCFS = {
+    # 1KG chrX VCFs — hg19 (1KGp3v5)
+    ("EUR", "hg19"): "1kg_eur_x_hg19",
+    ("PAN", "hg19"): "1kg_pan_x_hg19",
+    ("AFR", "hg19"): "1kg_afr_x_hg19",
+    ("EAS", "hg19"): "1kg_eas_x_hg19",
+    ("AMR", "hg19"): "1kg_amr_x_hg19",
+    ("SAS", "hg19"): "1kg_sas_x_hg19",
+    # 1KG chrX VCFs — hg38 (1KGp 30x)
+    ("EUR", "hg38"): "1kg_eur_x_hg38",
+    ("PAN", "hg38"): "1kg_pan_x_hg38",
+    ("AFR", "hg38"): "1kg_afr_x_hg38",
+    ("EAS", "hg38"): "1kg_eas_x_hg38",
+    ("AMR", "hg38"): "1kg_amr_x_hg38",
+    ("SAS", "hg38"): "1kg_sas_x_hg38",
+}
+
 _BUILD_FILES = {
     "hg19": [
         "1kg_hm3_hg19_eaf",        # HapMap3 pan-ancestry EAF
-        "1kg_dbsnp151_hg19_auto",  # SNPID→rsID conversion table
+        "1kg_dbsnp151_hg19_auto",  # SNPID→rsID conversion table (autosomes)
+        "1kg_dbsnp151_hg19_x",     # SNPID→rsID conversion table (chrX)
         "dbsnp_v151_hg19",         # dbSNP v151 VCF  (!large)
         "dbsnp_v157_hg19",         # dbSNP v157 VCF  (!large)
         "ucsc_genome_hg19",        # reference FASTA  (!large)
@@ -108,7 +131,8 @@ _BUILD_FILES = {
     ],
     "hg38": [
         "1kg_hm3_hg38_eaf",
-        "1kg_dbsnp151_hg38_auto",
+        "1kg_dbsnp151_hg38_auto",  # SNPID→rsID conversion table (autosomes)
+        "1kg_dbsnp151_hg38_x",     # SNPID→rsID conversion table (chrX)
         "dbsnp_v151_hg38",
         "dbsnp_v157_hg38",
         "ucsc_genome_hg38",
@@ -143,18 +167,29 @@ def _read_conf_ref_dir() -> str:
 DEFAULT_REF_DIR = _read_conf_ref_dir()
 
 # ── Download list function ───────────────────────────────────────────────────────────
-def build_download_list(builds: list, ancestries: list) -> list:
+def build_download_list(builds: list, ancestries: list, include_x: bool = True) -> list:
     """Return the ordered list of gwaslab keywords to download."""
     to_download = []
-    # 1KG ancestry VCFs first
+    # 1KG ancestry VCFs — autosomes first, then chrX
     for ancestry in ancestries:
         for build in builds:
             key = (ancestry.upper(), build)
             if key in _ANCESTRY_VCFS:
                 to_download.append(_ANCESTRY_VCFS[key])
+    if include_x:
+        for ancestry in ancestries:
+            for build in builds:
+                key = (ancestry.upper(), build)
+                if key in _ANCESTRY_X_VCFS:
+                    to_download.append(_ANCESTRY_X_VCFS[key])
     # Build-specific but ancestry-agnostic files
+    # (chrX SNPID→rsID tables are included in _BUILD_FILES when include_x is True;
+    #  skip them here if --no-x was requested)
     for build in builds:
-        to_download.extend(_BUILD_FILES[build])
+        files = _BUILD_FILES[build]
+        if not include_x:
+            files = [f for f in files if "_x" not in f]
+        to_download.extend(files)
     return to_download
 
 # ── Main function ───────────────────────────────────────────────────────────
@@ -179,7 +214,9 @@ def main() -> None:
             "  python gwaslab.download_refs.py --build hg19 --ancestry all\n\n"
             "  # Everything, custom directory\n"
             "  python gwaslab.download_refs.py --build all --ancestry all \\\n"
-            "      --ref-dir /path/to/references/gwaslab/\n"
+            "      --ref-dir /path/to/references/gwaslab/\n\n"
+            "  # Autosomes only, skip chrX VCFs and chrX rsID tables\n"
+            "  python gwaslab.download_refs.py --no-x\n"
         ),
     )
     parser.add_argument(
@@ -196,6 +233,13 @@ def main() -> None:
         help=(
             "Ancestry/population VCF(s) to download. "
             f"Choices: {', '.join(ALL_ANCESTRIES)}, all  (default: EUR)."
+        ),
+    )
+    parser.add_argument(
+        "--no-x", dest="include_x", action="store_false", default=True,
+        help=(
+            "Skip chromosome X VCFs and chrX SNPID→rsID tables "
+            "(by default chrX references are downloaded alongside autosomes)."
         ),
     )
     args = parser.parse_args()
@@ -224,8 +268,9 @@ def main() -> None:
         print(f"Reference directory : {args.ref_dir}  (from gwas2cojo.conf)")
     print(f"Build(s)            : {', '.join(builds)}")
     print(f"Ancestry/population : {', '.join(ancestries)}")
+    print(f"Include chrX        : {'yes' if args.include_x else 'no (--no-x)'}")
 
-    to_download = build_download_list(builds, ancestries)
+    to_download = build_download_list(builds, ancestries, include_x=args.include_x)
     print(f"Files to download   : {len(to_download)}")
 
     set_default_directory(args.ref_dir)

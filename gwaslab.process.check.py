@@ -24,8 +24,8 @@
 #
 # ============================================================
 VERSION_NAME = "gwaslab_process_check"
-VERSION      = "1.2.2"
-VERSION_DATE = "2026-03-19"
+VERSION      = "1.2.3"
+VERSION_DATE = "2026-03-25"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -283,6 +283,47 @@ def _metrics_merge(text):
     return "  |  ".join(parts) if parts else ""
 
 
+def _parse_ancestry_check(text):
+    """
+    Parse the [ANCESTRY CHECK] log line emitted by run_infer_ancestry().
+
+    Returns a dict with keys:
+      provided (str), inferred (str), match (bool|None), status (str)
+    or None if no ancestry check line was found.
+
+    Expected log patterns:
+      [ANCESTRY CHECK] Provided: EUR | Inferred: EUR | Match: True
+      [ANCESTRY CHECK] Provided: EUR | Inferred: AFR | Match: FALSE  ⚠ MISMATCH
+      [ANCESTRY CHECK] Provided: EUR | Inferred: unknown  ⚠ SKIPPED
+    """
+    m = re.search(
+        r"\[ANCESTRY CHECK\]\s+Provided:\s*(\S+)\s*\|\s*Inferred:\s*(\S+)\s*\|\s*Match:\s*(\S+)",
+        text,
+    )
+    if not m:
+        # Skipped variant (no Match field)
+        m2 = re.search(
+            r"\[ANCESTRY CHECK\]\s+Provided:\s*(\S+)\s*\|\s*Inferred:\s*(\S+)\s*⚠\s*SKIPPED",
+            text,
+        )
+        if m2:
+            return {
+                "provided": m2.group(1),
+                "inferred": m2.group(2),
+                "match": None,
+                "status": "skipped",
+            }
+        return None
+    provided = m.group(1)
+    inferred = m.group(2)
+    match_str = m.group(3).upper()
+    if match_str == "TRUE":
+        return {"provided": provided, "inferred": inferred, "match": True,  "status": "ok"}
+    elif match_str == "FALSE":
+        return {"provided": provided, "inferred": inferred, "match": False, "status": "mismatch"}
+    return {"provided": provided, "inferred": inferred, "match": None, "status": "unknown"}
+
+
 # ---------------------------------------------------------------------------
 # Study checker
 # ---------------------------------------------------------------------------
@@ -302,9 +343,19 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
     pop   = _first(pre_text, r"Population\s+:\s+(\S+)") or "?"
     build = _first(pre_text, r"Build\s+:\s+(\S+)")       or "?"
 
+    # -- Ancestry check: scan merge and qc/all stage logs -----------------
+    ancestry_result = None
+    for _stage in ("merge", "qc"):
+        _stage_files = files.get(_stage, {})
+        _out = _read((_stage_files.get(None) or {}).get("out", ""))
+        ancestry_result = _parse_ancestry_check(_out)
+        if ancestry_result:
+            break
+
     # -- Build per-stage rows ---------------------------------------------
     rows = []        # (stage, status_str, metric_str, n_warn, n_err, [snippets])
     any_error = False
+    ancestry_mismatch = ancestry_result and ancestry_result.get("match") is False
     n_split_chr = None   # populated when the split stage is processed
 
     for stage in STAGES:
@@ -419,12 +470,25 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
         rows.append((stage, status, metric, tot_warn, tot_err, snips[:2]))
 
     # -- Print table -------------------------------------------------------
-    if errors_only and not any_error:
+    if errors_only and not (any_error or ancestry_mismatch):
         return
 
     W = 112
     print("═" * W)
-    print(f"  Study: {gwas}  |  Population: {pop}  |  Build: {build}")
+    # Build ancestry annotation for the header line
+    if ancestry_result is None:
+        anc_str = "ancestry: not checked"
+    elif ancestry_result["status"] == "skipped":
+        anc_str = f"ancestry: skipped (provided={ancestry_result['provided']})"
+    elif ancestry_result["match"] is True:
+        anc_str = f"ancestry: {ancestry_result['inferred']} ✓ (matches {ancestry_result['provided']})"
+    elif ancestry_result["match"] is False:
+        anc_str = (f"ancestry: inferred={ancestry_result['inferred']} "
+                   f"≠ declared={ancestry_result['provided']}  ⚠ MISMATCH")
+    else:
+        anc_str = f"ancestry: {ancestry_result['inferred']} (status unknown)"
+
+    print(f"  Study: {gwas}  |  Population: {pop}  |  Build: {build}  |  {anc_str}")
     print("═" * W)
     print(f"  {'Stage':<16}  {'Status':<16}  {'Key metric':<58}  {'Warn':>5}  {'Err':>4}")
     print("─" * W)
@@ -441,8 +505,9 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
 
     print("─" * W)
     overall = "✓ COMPLETE" if not any_error else "✗ ISSUES FOUND"
+    ancestry_flag = "  ⚠ ANCESTRY MISMATCH — re-check population label" if ancestry_mismatch else ""
     print(f"  Overall: {overall:<20}  "
-          f"Warnings (gwaslab upstream): {total_warn}   Errors: {total_err}")
+          f"Warnings (gwaslab upstream): {total_warn}   Errors: {total_err}{ancestry_flag}")
     print("═" * W)
     print()
 

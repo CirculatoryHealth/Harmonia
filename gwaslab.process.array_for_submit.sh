@@ -101,6 +101,7 @@ CMD=(
     --dbsnp
     --qc
     --cojo --cojo-pos --cojo-id rsid
+    --ldsc
     --leads
     --fill-eaf
     --stage       "${STAGE}"

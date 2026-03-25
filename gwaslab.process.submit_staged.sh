@@ -85,7 +85,7 @@ echo "Submission log: ${SUBMIT_LOG}"
 
 # Flags always passed to the Python worker (must match across all stages).
 # --dbsnp controls whether process-assign-rsid is submitted.
-WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --cojo-id rsid --leads --fill-eaf"
+WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --cojo-id rsid --ldsc --leads --fill-eaf"
 
 # ── SLURM job settings ────────────────────────────────────────────────────────
 NODES=1          # nodes per job (all stages are single-node)

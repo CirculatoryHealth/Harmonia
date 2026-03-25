@@ -2,6 +2,57 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-25 ✨ LDSC-ready output via --ldsc flag (v1.4.21)
+- **New**: `write_ldsc()` function produces an LDSC-ready munged summary statistics file from the QC-filtered data. Applies the standard LDSC pre-filtering pipeline on an isolated deep copy (original QC object unchanged):
+  1. `filter_hapmap3()` — HapMap3 variants only
+  2. `filter_palindromic(mode="out")` — all A/T and C/G SNPs removed (LDSC cannot handle strand ambiguity)
+  3. `exclude_hla()` — HLA region excluded (chr6:25–34 Mb)
+  4. `filter_region_out(high_ld=True, build=output_build)` — other high-LD regions excluded
+  5. `filter_value('INFO > 0.9 & EAF > 0.01 & EAF < 0.99')` — quality thresholds (INFO filter skipped if column absent)
+  6. `to_format(fmt="ldsc")` — gwaslab ldsc format: SNP (rsID), A1, A2, Beta/OR, Frq, INFO, N, P, Z, CHR, POS
+- **New**: `--ldsc` argparse flag (analogous to `--cojo`); enabled by default in both submission scripts.
+- **Output**: `{stem}.qc.ldsc.tsv.gz` alongside the existing `.qc.tsv.gz` and `.cojo.gz`.
+- **Robustness**: each filter step wrapped in try/except — a missing reference file or failed step skips that step and logs a warning without aborting the pipeline.
+- **Files**: `gwaslab.process.py` (v1.4.20 → v1.4.21), `gwaslab.process.array_for_submit.sh`, `gwaslab.process.submit_staged.sh`.
+
+## 2026-03-25 ✨ ancestry inference check at QC stage (v1.4.20 / check v1.2.3)
+- **New** (`gwaslab.process.py`): `run_infer_ancestry()` calls `gwas_obj.infer_ancestry()` on the QC-filtered data, comparing the declared `--population` against the Fst-inferred super-population from the HapMap3 pan-ancestry EAF reference (`1kg_hm3_hg19/hg38_eaf`). Run at the end of the QC block in both the `merge` stage and the `--stage all` path.
+- **New** (`gwaslab.process.py`): `--no-infer-ancestry` flag skips the ancestry check (enabled by default). Logged under Toggles as `infer_ancestry=True/False`.
+- **Logging**: emits a canonical `[ANCESTRY CHECK] Provided: X | Inferred: Y | Match: True/FALSE` line (WARNING level on mismatch) parseable by the check script.
+- **Output**: result saved to `{stem}.ancestry_check.json` in the output directory for archival.
+- **New** (`gwaslab.process.check.py` v1.2.3): `_parse_ancestry_check()` parses the `[ANCESTRY CHECK]` log line from the merge or qc stage output. Result displayed in the study header line. Mismatches shown as `⚠ MISMATCH` in the header and `⚠ ANCESTRY MISMATCH — re-check population label` in the overall summary. `--errors-only` also surfaces ancestry mismatches.
+- **Files**: `gwaslab.process.py` (v1.4.19 → v1.4.20), `gwaslab.process.check.py` (v1.2.2 → v1.2.3).
+
+## 2026-03-25 ✨ gwaslab.process.py — comprehensive STATUS filter + --filter-palindromic (v1.4.19)
+- **New**: `_apply_status_filter()` helper replaces the previous single digit_7 check with a comprehensive STATUS-based filter covering all problematic flag classes:
+  - Build prefix 97/98: `UnknownGenome` / `UnmappedVariant` (e.g. liftover failures)
+  - Digit 4 in [5,6,7,8]: CHR or POS invalid/unknown (safety net; most handled by `basic_check(remove=True)`)
+  - Digit 5 in [5,6,7]: allele indistinguishable, invalid notation, or unknown
+  - Digit 6 = 8: not on reference genome (safety net; most removed by `check_ref` internally)
+  - Digit 7 in [7,8]: `infer_strand2` indistinguishable (7) or no match/no info (8) — previously only 8 was filtered
+- **New**: `--filter-palindromic` flag calls `filter_palindromic(mode="out")` to remove ALL A/T and C/G SNPs at QC. Disabled by default — the STATUS filter is more precise (resolved palindromics at asymmetric MAF are retained; only unresolvable ones removed via digit_7 [7,8]). Use for strict meta-analysis strand-safety.
+- **Logging**: STATUS filter reports per-class counts so the breakdown is visible in the log.
+- **Note**: Digit 3 (SNPID/rsID format) issues are intentionally not filtered — they represent ID format problems only; CHR:POS and alleles are still valid and usable.
+- **Files**: `gwaslab.process.py` (v1.4.18 → v1.4.19).
+
+## 2026-03-25 ✨ gwaslab.process.py — STATUS-based filter at QC stage (v1.4.18)
+- **New**: `apply_qc()` now runs a STATUS digit-7 filter after the numeric threshold pass. Variants where `infer_strand2` could not resolve the strand (STATUS digit_7 == 8 — palindromic SNPs at MAF~0.5, or indel allele mismatches) are removed before saving QC output.
+- **Background**: gwaslab's `check_ref` already internally removes variants with digit_6 == 8 (allele absent from FASTA reference). `check_af2` does not use STATUS — it populates the DAF column, which is covered by `--daf-max`. The only STATUS flag that survives to output without removal is digit_7 == 8 from `infer_strand2`. No `filter_status()` method exists in this gwaslab version; the filter is implemented directly via integer arithmetic (`STATUS % 10 == 8`).
+- **Logging**: separate counts for numeric filter and STATUS filter; total after all QC filters logged at end.
+- **Files**: `gwaslab.process.py` (v1.4.17 → v1.4.18).
+
+## 2026-03-25 ✨ gwaslab.process.py — add normalize_allele + basic_check(remove=True) (v1.4.17)
+- **New**: `normalize_allele(threads=n_cores)` inserted between `basic_check()` and `remove_dup()` in both `run_normalize()` and the `--stage all` path. This standardises indel notation (trim shared prefix/suffix, uppercase, left-align) before deduplication so that variants expressed differently across studies but representing the same position are correctly identified as duplicates.
+- **Change**: `basic_check()` now called with `remove=True` (previously no arguments), so variants with invalid chromosome codes, positions, or allele strings are dropped at source rather than propagating through the pipeline.
+- **Files**: `gwaslab.process.py` (v1.4.16 → v1.4.17).
+
+## 2026-03-25 ✨ gwaslab.download_refs.py — add chromosome X reference support (v1.2.0)
+- **New**: Added `_ANCESTRY_X_VCFS` dict covering all 6 ancestries × 2 builds for the 1KG chrX VCFs (`1kg_{eur,pan,afr,eas,amr,sas}_x_hg19/hg38`).
+- **New**: Added `1kg_dbsnp151_hg19_x` and `1kg_dbsnp151_hg38_x` chrX SNPID→rsID conversion tables to `_BUILD_FILES` (alongside existing autosomal `_auto` tables).
+- **New**: `--no-x` flag to skip all chrX downloads (population VCFs + rsID tables); default behaviour is to include chrX.
+- **New**: `build_download_list()` gains `include_x` parameter; `main()` prints `Include chrX` status line.
+- **Files**: `gwaslab.download_refs.py` (v1.1.0 → v1.2.0).
+
 ## 2026-03-24 🐛 cleanup.sh — fix --config rejecting process substitution
 - **Bug**: `[[ ! -f "${CONFIG_FILE}" ]]` uses `-f` which only matches regular files; process substitution (`<(...)`) passes a named pipe (`/dev/fd/N`) which fails the test, producing `ERROR: config file not found: /dev/fd/63`.
 - **Fix**: changed to `[[ ! -e "${CONFIG_FILE}" ]]` (`-e` matches any file type including pipes), so `--config <(grep ...)` now works as expected.

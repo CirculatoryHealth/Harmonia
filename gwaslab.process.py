@@ -14,22 +14,24 @@
 #   5.  Column standardisation  [always]
 #   6.  Create GWASLab Sumstats object  [always]
 #   7.  Plot raw histograms  [--no-figures to disable]
-#   8.  basic_check  [always]
-#   9.  remove_dup  [always]
-#  10.  Liftover to hg38 if build is hg18 or hg19  [--liftover to enable]
+#   8.  basic_check (remove=True)  [always]
+#   9.  normalize_allele  [always]
+#  10.  remove_dup  [always]
+#  11.  Liftover to hg38 if build is hg18 or hg19  [--liftover to enable]
 #        hg19→hg38: built-in chain  |  hg18→hg38: requires hg18ToHg38.over.chain.gz in --ref
-#  11.  check_ref + flip_allele_stats  [always, requires FASTA]
-#  12.  fix_id  [always]
-#  13.  infer_strand + flip_allele_stats  [always]
-#  14.  assign_rsid (dbSNP)  [--no-dbsnp to disable]
-#  15.  check_af2 [always]  (sweep variant — bcftools one-pass)
-#  16.  Save raw output (pickle + parquet + TSV.GZ)  [always; use --no-pickle to skip pkl]
+#  12.  check_ref + flip_allele_stats  [always, requires FASTA]
+#  13.  fix_id  [always]
+#  14.  infer_strand + flip_allele_stats  [always]
+#  15.  assign_rsid (dbSNP)  [--no-dbsnp to disable]
+#  16.  check_af2 [always]  (sweep variant — bcftools one-pass)
+#  17.  Save raw output (pickle + parquet + TSV.GZ)  [always; use --no-pickle to skip pkl]
 #  17.  Manhattan + QQ plots (unfiltered)  [--no-figures to disable]
 #  18.  QC filter  [--no-qc to disable]
 #  19.  Save QC output  [when QC enabled]
 #  20.  Manhattan + QQ plots (QC-filtered)  [--no-figures to disable]
 #  21.  Lead SNPs  [--no-leads to disable]
 #  22.  COJO output  [--cojo to enable]
+#  23.  LDSC output  [--ldsc to enable]  (HapMap3 + palindromic-free + HLA-excl + high-LD-excl)
 #
 # COJO format:  SNP  A1  A2  freq  b  se  p  n
 #   --cojo-id   chrpos (default) | rsid
@@ -60,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.16"
+VERSION      = "1.4.21"
 VERSION_DATE = "2026-03-23"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -217,6 +219,18 @@ def parse_args() -> argparse.Namespace:
                    help="Retain multi-allelic variants (same CHR:POS with different alleles). "
                         "By default these are removed together with duplicates (mode='md'). "
                         "With this flag only exact duplicates are removed (mode='d').")
+    tog.add_argument("--filter-palindromic", action="store_true",
+                   help="Remove ALL palindromic SNPs (A/T and C/G) at the QC stage, "
+                        "regardless of whether their strand was resolved by infer_strand2. "
+                        "By default only unresolvable palindromics are removed via the "
+                        "STATUS filter (digit_7 in [7,8]). Use this flag for stricter "
+                        "strand-ambiguity filtering when preparing data for meta-analysis.")
+    tog.add_argument("--no-infer-ancestry", action="store_true",
+                   help="Skip ancestry inference at the QC/merge stage. "
+                        "By default, infer_ancestry() is run on the QC-filtered data "
+                        "to compare the declared --population against the Fst-inferred "
+                        "super-population. A mismatch is flagged in the check script "
+                        "as a warning but does not stop the pipeline.")
     tog.add_argument("--stage",
                    choices=["all",
                             "preprocess",
@@ -234,7 +248,7 @@ def parse_args() -> argparse.Namespace:
                          "for handoff, so each stage can be submitted as a separate "
                          "SLURM job with its own memory and time limits. "
                          "  preprocess          : load + standardise → .preprocess.parquet  (light)  "
-                         "  process-normalize   : basic_check + remove_dup + liftover → .normalize.pkl  (medium)  "
+                         "  process-normalize   : basic_check + normalize_allele + remove_dup + liftover → .normalize.pkl  (medium)  "
                          "  process-split       : split normalize.pkl into per-chr parquets + manifest  (trivial)  "
                          "  process-check-ref   : check_ref + flip + fix_id  (medium; per-chr with --chrom)  "
                          "  process-infer-strand: infer_strand2 + flip  (high — 1KG sweep; per-chr with --chrom)  "
@@ -272,6 +286,15 @@ def parse_args() -> argparse.Namespace:
                            "'rsid'   = rsID (requires --dbsnp or pre-existing rsID).")
     cojo.add_argument("--cojo-pos", action="store_true",
                       help="Add CHR and BP columns immediately after the SNP column.")
+
+    ldsc = p.add_argument_group("LDSC output (LD Score Regression ready format)")
+    ldsc.add_argument("--ldsc", action="store_true",
+                      help="Write an LDSC-ready munged summary statistics file. "
+                           "Applies the standard LDSC pre-filtering pipeline on the "
+                           "QC-filtered data: HapMap3 variants only, palindromic SNPs "
+                           "removed, HLA excluded, high-LD regions excluded, "
+                           "INFO > 0.9 and MAF > 0.01. "
+                           "Output: {stem}.qc.ldsc.tsv.gz  (gwaslab ldsc format).")
 
     # ── Performance ───────────────────────────────────────────────────────────
     perf = p.add_argument_group("performance")
@@ -656,6 +679,114 @@ def write_cojo(gwas_obj, phenotype: str, population: str,
     cojo.to_csv(cojo_path, sep="\t", index=False, compression="gzip")
     logging.info("[SAVE] COJO  → %s  (%s variants)", cojo_path, f"{len(cojo):,}")
 
+
+def write_ldsc(gwas_obj, phenotype: str, population: str,
+               input_build: str, output_build: str,
+               output_loc: str, suffix: str = "qc",
+               added_n: bool = False) -> None:
+    """
+    Write an LDSC-ready munged summary statistics file.
+
+    Applies the standard LDSC pre-filtering pipeline on a copy of the data:
+      1. filter_hapmap3()              — keep HapMap3 variants only
+      2. filter_palindromic(mode="out")— remove all A/T and C/G SNPs
+      3. exclude_hla()                 — exclude the HLA region (chr6:25–34 Mb)
+      4. filter_region_out(high_ld=True, build=output_build)
+                                       — exclude other high-LD regions
+      5. filter_value('INFO > 0.9 & MAF > 0.01')
+                                       — quality thresholds (skipped if INFO absent)
+      6. to_format(fmt="ldsc")         — write in LDSC tab-separated format
+
+    LDSC format columns (gwaslab formatbook):
+      SNP (rsID)  A1 (EA)  A2 (NEA)  Beta/OR  Frq (EAF)  INFO  N  P  Z  CHR  POS
+
+    Notes
+    -----
+    - Steps 1–5 operate on an isolated copy so the QC-filtered gwas_obj is unchanged.
+    - filter_hapmap3() and filter_region_out() require the gwaslab reference files to
+      be available; if they are missing the step is skipped with a warning.
+    - The INFO filter is only applied when an INFO column is present.
+    - rsID must be present for the SNP column; if absent gwaslab falls back to SNPID.
+    """
+    import copy
+
+    logging.info("\n===== Writing LDSC output =====")
+
+    # Work on a deep copy so none of the filters affect the caller's object.
+    try:
+        ldsc_obj = copy.deepcopy(gwas_obj)
+    except Exception as exc:
+        logging.warning("LDSC: deep copy of Sumstats object failed (%s); "
+                        "skipping LDSC output.", exc)
+        return
+
+    n_start = len(ldsc_obj.data)
+    logging.info("LDSC: starting with %s variants.", f"{n_start:,}")
+
+    # 1. HapMap3 variants only
+    try:
+        ldsc_obj = ldsc_obj.filter_hapmap3()
+        logging.info("LDSC: after HapMap3 filter: %s variants.", f"{len(ldsc_obj.data):,}")
+    except Exception as exc:
+        logging.warning("LDSC: filter_hapmap3 failed (%s) — skipping step.", exc)
+
+    # 2. Remove all palindromic SNPs (A/T, C/G) — LDSC cannot resolve strand for these.
+    try:
+        ldsc_obj = ldsc_obj.filter_palindromic(mode="out")
+        logging.info("LDSC: after palindromic filter: %s variants.", f"{len(ldsc_obj.data):,}")
+    except Exception as exc:
+        logging.warning("LDSC: filter_palindromic failed (%s) — skipping step.", exc)
+
+    # 3. Exclude HLA region
+    try:
+        ldsc_obj = ldsc_obj.exclude_hla()
+        logging.info("LDSC: after HLA exclusion: %s variants.", f"{len(ldsc_obj.data):,}")
+    except Exception as exc:
+        logging.warning("LDSC: exclude_hla failed (%s) — skipping step.", exc)
+
+    # 4. Exclude other high-LD regions
+    try:
+        ldsc_obj = ldsc_obj.filter_region_out(high_ld=True, build=output_build)
+        logging.info("LDSC: after high-LD region exclusion: %s variants.", f"{len(ldsc_obj.data):,}")
+    except Exception as exc:
+        logging.warning("LDSC: filter_region_out(high_ld=True) failed (%s) — skipping step.", exc)
+
+    # 5. Quality thresholds: INFO > 0.9 and MAF > 0.01
+    # INFO filter only applied when column is present; MAF is derived from EAF.
+    cols = set(ldsc_obj.data.columns)
+    if "INFO" in cols and "EAF" in cols:
+        ldsc_filter = "INFO > 0.9 & EAF > 0.01 & EAF < 0.99"
+    elif "EAF" in cols:
+        ldsc_filter = "EAF > 0.01 & EAF < 0.99"
+        logging.info("LDSC: INFO column absent — applying MAF filter only.")
+    else:
+        ldsc_filter = None
+        logging.warning("LDSC: neither EAF nor INFO column present — skipping quality filter.")
+
+    if ldsc_filter:
+        try:
+            ldsc_obj = ldsc_obj.filter_value(expr=ldsc_filter)
+            logging.info("LDSC: after quality filter (%s): %s variants.",
+                         ldsc_filter, f"{len(ldsc_obj.data):,}")
+        except Exception as exc:
+            logging.warning("LDSC: filter_value('%s') failed (%s) — skipping step.",
+                            ldsc_filter, exc)
+
+    # 6. Write in LDSC format via gwaslab to_format()
+    tag      = f".{suffix}" if suffix else ""
+    stem_out = file_tag(phenotype, population, input_build, output_build, added_n)
+    out_path = os.path.join(output_loc, f"{stem_out}{tag}.ldsc")
+
+    try:
+        ldsc_obj.to_format(path=out_path, fmt="ldsc", build=output_build,
+                           no_status=True, verbose=True)
+        # gwaslab appends .gz automatically when gzip=True (default)
+        final_path = out_path + ".tsv.gz" if not out_path.endswith(".gz") else out_path
+        logging.info("[SAVE] LDSC  → %s  (%s variants)", out_path, f"{len(ldsc_obj.data):,}")
+    except Exception as exc:
+        logging.error("LDSC: to_format(fmt='ldsc') failed: %s", exc)
+
+
 # ── Stage checkpoint I/O ───────────────────────────────────────────────────────
 
 def save_preprocess_checkpoint(gwas_data: pd.DataFrame, meta: dict,
@@ -974,7 +1105,8 @@ def run_merge(stem: str, output_loc: str, reference: str,
     if args.qc:
         stem_out = file_tag(args.gwas, args.population, input_build, build_num, added_n)
         gwas_obj_qc = apply_qc(gwas_obj, args.eaf_min, args.beta_max,
-                               args.se_max, args.info_min, args.daf_max)
+                               args.se_max, args.info_min, args.daf_max,
+                               filter_palindromic=args.filter_palindromic)
         del gwas_obj
         gc.collect()
 
@@ -992,9 +1124,18 @@ def run_merge(stem: str, output_loc: str, reference: str,
                        snpid_fmt=args.cojo_id, add_pos=args.cojo_pos,
                        suffix="qc", added_n=added_n)
 
+        if args.ldsc:
+            write_ldsc(gwas_obj_qc, args.gwas, args.population,
+                       input_build, build_num, output_loc,
+                       suffix="qc", added_n=added_n)
+
         if args.leads:
             extract_leads(gwas_obj_qc, args.gwas, args.population,
                           input_build, build_num, output_loc, True, added_n)
+
+        if not args.no_infer_ancestry:
+            run_infer_ancestry(gwas_obj_qc, args.population, build_num,
+                               output_loc, stem_out)
     else:
         if args.leads:
             extract_leads(gwas_obj, args.gwas, args.population,
@@ -1009,11 +1150,14 @@ def run_normalize(gwas_obj, reference: str, ref_loc: str,
                   n_cores: int, do_liftover: bool, population: str,
                   keep_multiallelic: bool = False) -> tuple:
     """
-    process-normalize: basic_check + remove_dup + liftover.
+    process-normalize: basic_check + normalize_allele + remove_dup + liftover.
     Returns (gwas_obj, reference) — reference may be updated to '38' after liftover.
     """
     logging.info("\n===== Running basic_check =====")
-    gwas_obj.basic_check(verbose=True)
+    gwas_obj.basic_check(remove=True, verbose=True)
+
+    logging.info("\n===== Running normalize_allele =====")
+    gwas_obj.normalize_allele(threads=n_cores)
 
     logging.info("\n===== Running remove_dup =====")
     dup_mode = "d" if keep_multiallelic else "md"
@@ -1153,6 +1297,97 @@ def run_check_af(gwas_obj, vcf: str, n_cores: int) -> object:
         gwas_obj.check_af2(vcf_path=vcf, ref_alt_freq="AF", threads=n_cores)
 
     return gwas_obj
+
+
+def run_infer_ancestry(gwas_obj, population: str, build: str,
+                       output_loc: str, stem: str) -> dict:
+    """
+    Infer ancestry from allele frequencies and compare with the declared population.
+
+    Uses the gwaslab HapMap3 pan-ancestry EAF reference (1kg_hm3_hg19_eaf /
+    1kg_hm3_hg38_eaf).  The result is:
+      - logged with an [ANCESTRY CHECK] prefix for parsing by check.py
+      - saved to {output_loc}/{stem}.ancestry_check.json for archival
+
+    Returns a dict with keys: provided, inferred, match (bool or None on error).
+
+    Infer_ancestry uses Fst between the study EAF and each 1KG super-population
+    to determine the closest population label.  The comparison is against the
+    gwaslab super-population labels: EUR, EAS, AFR, AMR, SAS (and per-population
+    subgroups).  We compare the declared --population against the top-level
+    super-population returned.
+
+    NOTE: infer_ancestry requires EAF to be present and non-trivially filled.
+    If EAF is all-NaN (e.g. the study had no EAF column and --fill-eaf was not
+    used), the step is skipped gracefully.
+    """
+    import json
+
+    build_norm = normalise_build(build)
+    eaf_key    = "1kg_hm3_hg38_eaf" if build_norm == "38" else "1kg_hm3_hg19_eaf"
+    result     = {"provided": population, "inferred": "unknown", "match": None}
+
+    logging.info("\n===== Running infer_ancestry =====")
+
+    # Guard: EAF must exist and have real values
+    if "EAF" not in gwas_obj.data.columns:
+        logging.warning("infer_ancestry skipped — EAF column not present.")
+        _log_ancestry_result(result)
+        return result
+
+    n_eaf_valid = int(gwas_obj.data["EAF"].notna().sum())
+    if n_eaf_valid == 0:
+        logging.warning("infer_ancestry skipped — EAF column is all-NaN.")
+        _log_ancestry_result(result)
+        return result
+
+    logging.info("infer_ancestry: using reference '%s', %d variants with valid EAF.",
+                 eaf_key, n_eaf_valid)
+
+    try:
+        gwas_obj.infer_ancestry(ancestry_af=eaf_key, build=build_norm)
+        inferred = (gwas_obj.meta or {}).get("gwaslab", {}).get("inferred_ancestry", "unknown")
+        result["inferred"] = inferred
+        result["match"]    = inferred.upper() == population.upper()
+    except Exception as exc:
+        logging.warning("infer_ancestry failed: %s", exc)
+        _log_ancestry_result(result)
+        return result
+
+    _log_ancestry_result(result)
+
+    # Save JSON sidecar
+    json_path = os.path.join(output_loc, f"{stem}.ancestry_check.json")
+    try:
+        with open(json_path, "w") as fh:
+            json.dump(result, fh, indent=2)
+        logging.info("[ANCESTRY CHECK] Saved → %s", json_path)
+    except OSError as exc:
+        logging.warning("Could not write ancestry_check JSON: %s", exc)
+
+    return result
+
+
+def _log_ancestry_result(result: dict) -> None:
+    """Emit the canonical [ANCESTRY CHECK] log line parsed by check.py."""
+    provided = result.get("provided", "?")
+    inferred = result.get("inferred", "unknown")
+    match    = result.get("match")
+    if match is None:
+        logging.warning(
+            "[ANCESTRY CHECK] Provided: %s | Inferred: %s | Match: unknown  ⚠ SKIPPED",
+            provided, inferred,
+        )
+    elif match:
+        logging.info(
+            "[ANCESTRY CHECK] Provided: %s | Inferred: %s | Match: True",
+            provided, inferred,
+        )
+    else:
+        logging.warning(
+            "[ANCESTRY CHECK] Provided: %s | Inferred: %s | Match: FALSE  ⚠ MISMATCH",
+            provided, inferred,
+        )
 
 
 # ── Pipeline steps ─────────────────────────────────────────────────────────────
@@ -1624,7 +1859,13 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
     """
     # basic_check
     logging.info("\n===== Running basic_check =====")
-    gwas_obj.basic_check(verbose=True)
+    gwas_obj.basic_check(remove=True, verbose=True)
+
+    # normalize_allele — standardise indel notation and uppercase alleles before
+    # remove_dup, so that variants expressed differently (e.g. ACG/A vs AC/–)
+    # are recognised as the same position and deduplicated correctly.
+    logging.info("\n===== Running normalize_allele =====")
+    gwas_obj.normalize_allele(threads=n_cores)
 
     # remove_dup
     logging.info("\n===== Running remove_dup =====")
@@ -1851,9 +2092,110 @@ def plot_full_dataset(gwas_obj, phenotype: str, reference: str,
             )
 
 
+def _apply_status_filter(df: "pd.DataFrame") -> tuple:
+    """Remove variants with problematic STATUS codes; return (filtered_df, counts_dict).
+
+    STATUS is a 7-digit integer encoding build + 5 per-step flag digits:
+      Digits 1-2 (build prefix) : 19/38 = good; 97 = UnknownGenome; 98 = UnmappedVariant
+      Digit 3 (SNPID)           : not filtered — ID format issues only, stats still valid
+      Digit 4 (CHR / POS)       : 5-8 = CHR or POS invalid/unknown → remove
+      Digit 5 (allele)          : 5 = indistinguishable/not normalised
+                                  6 = invalid allele notation
+                                  7 = unknown allele  → remove 5,6,7
+      Digit 6 (check_ref)       : 8 = not on reference genome → already removed by
+                                  check_ref internally; kept here as a safety net
+      Digit 7 (infer_strand2)   : 7 = indistinguishable (palindromic at MAF~0.5)
+                                  8 = no match / no info in reference VCF → remove 7,8
+
+    What is intentionally NOT filtered:
+      Digit 3 problems: rsID/SNPID format only; CHR:POS + alleles are still valid.
+      Digit 7 = 9    : variant was not processed by infer_strand2 (e.g. already had
+                       a check_ref problem; keeping these avoids double-counting).
+
+    Note on palindromics: filter_palindromic(mode="out") removes ALL A/T and C/G SNPs
+    regardless of whether their strand was resolved.  The STATUS filter is strictly
+    more precise: infer_strand2 resolves palindromic SNPs with asymmetric MAF
+    (digit_7 → 1 or 5 = good) and only flags the truly ambiguous ones (digit_7 → 7/8).
+    Use --filter-palindromic for blanket removal if needed.
+    """
+    import pandas as pd
+
+    counts = {
+        "build_prefix": 0,
+        "digit4_chrpos": 0,
+        "digit5_allele": 0,
+        "digit6_ref": 0,
+        "digit7_strand": 0,
+    }
+
+    if "STATUS" not in df.columns:
+        return df, counts
+
+    try:
+        status = df["STATUS"].astype("Int64")
+    except Exception:
+        return df, counts
+
+    # ── Build prefix: 97 = UnknownGenome, 98 = UnmappedVariant ───────────────
+    # STATUS // 100000 extracts the two leftmost digits.
+    build_prefix = status // 100000
+    mask_bad_build = build_prefix.isin([97, 98])
+    counts["build_prefix"] = int(mask_bad_build.sum())
+
+    # ── Digit 4 (CHR/POS): 5–8 = invalid or unknown ──────────────────────────
+    # (STATUS // 1000) % 10 extracts digit 4.
+    # basic_check(remove=True) already drops most of these; liftover can
+    # introduce new NaN CHR/POS that gwaslab encodes as 97/98 prefix, but a
+    # safety net here is cheap and catches any edge cases.
+    digit_4 = (status // 1000) % 10
+    mask_bad_chrpos = digit_4.isin([5, 6, 7, 8])
+    counts["digit4_chrpos"] = int(mask_bad_chrpos.sum())
+
+    # ── Digit 5 (allele): 5 = indistinguishable/not normalised,
+    #                      6 = invalid notation, 7 = unknown ─────────────────
+    # basic_check(remove=True) drops 6 and 7; digit_5=5 (fixed but not
+    # normalised) can persist after normalize_allele on truly ambiguous alleles.
+    digit_5 = (status // 100) % 10
+    mask_bad_allele = digit_5.isin([5, 6, 7])
+    counts["digit5_allele"] = int(mask_bad_allele.sum())
+
+    # ── Digit 6 (check_ref): 8 = not on reference genome ─────────────────────
+    # check_ref already drops these internally; this is a safety net only.
+    digit_6 = (status // 10) % 10
+    mask_bad_ref = digit_6 == 8
+    counts["digit6_ref"] = int(mask_bad_ref.sum())
+
+    # ── Digit 7 (infer_strand2): 7 = indistinguishable, 8 = no match/info ────
+    digit_7 = status % 10
+    mask_bad_strand = digit_7.isin([7, 8])
+    counts["digit7_strand"] = int(mask_bad_strand.sum())
+
+    # Combined mask — OR of all bad flags
+    mask_any_bad = (
+        mask_bad_build |
+        mask_bad_chrpos |
+        mask_bad_allele |
+        mask_bad_ref |
+        mask_bad_strand
+    )
+    df_filtered = df.loc[~mask_any_bad].reset_index(drop=True)
+    return df_filtered, counts
+
+
 def apply_qc(gwas_obj, eaf_min: float, beta_max: float, se_max: float,
-             info_min: float, daf_max: float) -> "gl.Sumstats":
-    """Apply numeric QC filters and return a filtered Sumstats object."""
+             info_min: float, daf_max: float,
+             filter_palindromic: bool = False) -> "gl.Sumstats":
+    """Apply numeric QC filters + STATUS-based filter; return a filtered Sumstats object.
+
+    Three-pass filter:
+    1. Numeric thresholds: EAF, BETA, SE, INFO, DAF via gwaslab filter_value().
+    2. STATUS-based filter via _apply_status_filter() — removes variants flagged
+       as unmapped, CHR/POS invalid, allele invalid, not on reference, or with
+       unresolvable strand by infer_strand2.
+    3. Optional palindromic removal: filter_palindromic(mode="out") removes ALL
+       A/T and C/G SNPs.  Disabled by default — the STATUS filter is more precise.
+       Enable with --filter-palindromic.
+    """
     logging.info("\n===== Applying QC filters =====")
     cols = set(gwas_obj.data.columns)
     coerce_numeric_cols(gwas_obj.data,
@@ -1884,8 +2226,44 @@ def apply_qc(gwas_obj, eaf_min: float, beta_max: float, se_max: float,
         daf_max   if "DAF"  in cols else 0,
     )
     logging.info("QC filter expression: %s", expr)
+    n_before_numeric = len(gwas_obj.data)
     gwas_obj_qc = gwas_obj.filter_value(expr=expr)
-    logging.info("Variants after QC: %d", len(gwas_obj_qc.data))
+    logging.info("Variants after numeric QC: %d (removed %d).",
+                 len(gwas_obj_qc.data), n_before_numeric - len(gwas_obj_qc.data))
+
+    # ── STATUS filter ─────────────────────────────────────────────────────────
+    if "STATUS" in gwas_obj_qc.data.columns:
+        try:
+            n_before_status = len(gwas_obj_qc.data)
+            gwas_obj_qc.data, status_counts = _apply_status_filter(gwas_obj_qc.data)
+            n_removed_status = n_before_status - len(gwas_obj_qc.data)
+            logging.info(
+                "STATUS filter: removed %d variant(s) total  "
+                "[build_prefix=%d  digit4_chrpos=%d  digit5_allele=%d  "
+                "digit6_ref=%d  digit7_strand=%d].",
+                n_removed_status,
+                status_counts["build_prefix"],
+                status_counts["digit4_chrpos"],
+                status_counts["digit5_allele"],
+                status_counts["digit6_ref"],
+                status_counts["digit7_strand"],
+            )
+        except Exception as exc:
+            logging.warning("STATUS filter skipped — unexpected error: %s", exc)
+    else:
+        logging.warning("STATUS filter skipped — STATUS column not present in data.")
+
+    # ── Optional: remove all palindromic variants ─────────────────────────────
+    # Disabled by default; the STATUS digit-7 filter already removes unresolvable
+    # palindromic SNPs with more precision (resolved palindromes at asymmetric
+    # MAF are retained).
+    if filter_palindromic:
+        n_before_pal = len(gwas_obj_qc.data)
+        gwas_obj_qc = gwas_obj_qc.filter_palindromic(mode="out")
+        logging.info("Palindromic filter: removed %d variant(s).",
+                     n_before_pal - len(gwas_obj_qc.data))
+
+    logging.info("Variants after all QC filters: %d.", len(gwas_obj_qc.data))
     return gwas_obj_qc
 
 # This function saves the QC-filtered outputs in multiple formats, with logging.
@@ -2037,11 +2415,13 @@ def main() -> None:
     logging.info("Build        : %s", args.build)
     logging.info("Toggles      : liftover=%s  dbsnp=%s  qc=%s  "
                  "only_qc=%s  fill_eaf=%s  no_fill_eaf=%s  figures=%s  leads=%s  "
-                 "no_pickle=%s  stage=%s  chrom=%s  threads=%d",
+                 "no_pickle=%s  filter_palindromic=%s  infer_ancestry=%s  "
+                 "stage=%s  chrom=%s  threads=%d",
                  args.liftover, args.dbsnp, args.qc,
                  args.only_qc, args.fill_eaf, args.no_fill_eaf,
                  args.figures, args.leads,
-                 args.no_pickle, args.stage,
+                 args.no_pickle, args.filter_palindromic,
+                 not args.no_infer_ancestry, args.stage,
                  args.chrom if args.chrom else "(whole-genome)",
                  args.threads)
     if args.cojo:
@@ -2523,6 +2903,7 @@ def main() -> None:
             gwas_obj,
             args.eaf_min, args.beta_max, args.se_max,
             args.info_min, args.daf_max,
+            filter_palindromic=args.filter_palindromic,
         )
         # Free the unfiltered object — gwas_obj_qc is now the working copy.
         del gwas_obj
@@ -2544,9 +2925,18 @@ def main() -> None:
                 suffix="qc", added_n=added_n,
             )
 
+        if args.ldsc:
+            write_ldsc(gwas_obj_qc, args.gwas, args.population,
+                       input_build, build_num, output_loc,
+                       suffix="qc", added_n=added_n)
+
         if args.leads:
             extract_leads(gwas_obj_qc, args.gwas, args.population,
                           input_build, build_num, output_loc, True, added_n)
+
+        if not args.no_infer_ancestry:
+            run_infer_ancestry(gwas_obj_qc, args.population, build_num,
+                               output_loc, stem)
 
         if stage == "qc":
             logging.info("Stage 'qc' complete.")
