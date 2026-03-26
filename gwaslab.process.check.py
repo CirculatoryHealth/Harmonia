@@ -24,8 +24,8 @@
 #
 # ============================================================
 VERSION_NAME = "gwaslab_process_check"
-VERSION      = "1.2.3"
-VERSION_DATE = "2026-03-25"
+VERSION      = "1.2.4"
+VERSION_DATE = "2026-03-26"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -277,9 +277,18 @@ def _metrics_merge(text):
     qc_n = _first(text, r"After QC[^:]*:\s*([\d,]+)\s+variants?")
     if qc_n:
         parts.append(f"QC-pass {qc_n}")
+    return "  |  ".join(parts) if parts else ""
+
+
+def _metrics_outputs(text):
+    """Extract COJO and LDSC output variant counts from a stage .out text."""
+    parts = []
     cojo = _first(text, r"\[SAVE\] COJO\s+→.*?\(([\d,]+)\s+variants?\)")
     if cojo:
         parts.append(f"COJO {cojo}")
+    ldsc = _first(text, r"\[SAVE\] LDSC\s+→.*?\(([\d,]+)\s+variants?\)")
+    if ldsc:
+        parts.append(f"LDSC {ldsc}")
     return "  |  ".join(parts) if parts else ""
 
 
@@ -321,6 +330,9 @@ def _parse_ancestry_check(text):
         return {"provided": provided, "inferred": inferred, "match": True,  "status": "ok"}
     elif match_str == "FALSE":
         return {"provided": provided, "inferred": inferred, "match": False, "status": "mismatch"}
+    elif match_str == "UNKNOWN":
+        # Logged when EAF is absent/all-NaN so infer_ancestry was skipped.
+        return {"provided": provided, "inferred": inferred, "match": None, "status": "skipped"}
     return {"provided": provided, "inferred": inferred, "match": None, "status": "unknown"}
 
 
@@ -469,6 +481,12 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
 
         rows.append((stage, status, metric, tot_warn, tot_err, snips[:2]))
 
+        # After merge: add an outputs sub-row for COJO / LDSC variant counts
+        if stage == "merge" and not is_array:
+            _outputs = _metrics_outputs(out_text)
+            if _outputs:
+                rows.append(("outputs", "", _outputs, 0, 0, []))
+
     # -- Print table -------------------------------------------------------
     if errors_only and not (any_error or ancestry_mismatch):
         return
@@ -479,7 +497,11 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
     if ancestry_result is None:
         anc_str = "ancestry: not checked"
     elif ancestry_result["status"] == "skipped":
-        anc_str = f"ancestry: skipped (provided={ancestry_result['provided']})"
+        if ancestry_result.get("inferred", "?") == "unknown":
+            anc_str = (f"ancestry: not inferred — EAF unavailable "
+                       f"(provided={ancestry_result['provided']})")
+        else:
+            anc_str = f"ancestry: skipped (provided={ancestry_result['provided']})"
     elif ancestry_result["match"] is True:
         anc_str = f"ancestry: {ancestry_result['inferred']} ✓ (matches {ancestry_result['provided']})"
     elif ancestry_result["match"] is False:
@@ -495,6 +517,10 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
 
     total_warn = total_err = 0
     for stage, status, metric, nw, ne, snips in rows:
+        if stage == "outputs":
+            metric_str = (metric[:57] + "…") if len(metric) > 58 else metric
+            print(f"  {'└ outputs':<16}  {'':16}  {metric_str}")
+            continue
         flag = "  ◄ ERRORS" if ne else ""
         metric_str = (metric[:57] + "…") if len(metric) > 58 else metric
         print(f"  {stage:<16}  {status:<16}  {metric_str:<58}  {nw:>5}  {ne:>4}{flag}")

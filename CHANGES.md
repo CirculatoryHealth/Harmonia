@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-26 🔧 check.py — outputs row + ancestry display fix (check v1.2.4)
+- **Fix**: `_parse_ancestry_check()` now correctly handles `Match: unknown  ⚠ SKIPPED` log lines (emitted when EAF is absent/all-NaN and `infer_ancestry` is skipped). Previously the `UNKNOWN` match value fell through to `status: "unknown"`, showing `ancestry: unknown (status unknown)`. Now mapped to `status: "skipped"` and displayed as `ancestry: not inferred — EAF unavailable (provided=POP)`.
+- **New**: `_metrics_outputs(text)` extracts COJO and LDSC output variant counts from the merge stage log (`[SAVE] COJO → ...` and `[SAVE] LDSC → ...` patterns).
+- **New**: A `└ outputs` sub-row is printed directly after the merge row when either COJO or LDSC (or both) outputs were written, showing variant counts (e.g. `COJO 6,912,451  |  LDSC 1,103,847`). COJO count removed from the merge row itself.
+- **Files**: `gwaslab.process.check.py` (v1.2.3 → v1.2.4).
+
 ## 2026-03-25 ✨ LDSC-ready output via --ldsc flag (v1.4.21)
 - **New**: `write_ldsc()` function produces an LDSC-ready munged summary statistics file from the QC-filtered data. Applies the standard LDSC pre-filtering pipeline on an isolated deep copy (original QC object unchanged):
   1. `filter_hapmap3()` — HapMap3 variants only
