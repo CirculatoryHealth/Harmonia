@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gwaslab.process.cleanup.sh — remove intermediate checkpoint files after a
+# gwas_process.cleanup.sh — remove intermediate checkpoint files after a
 #                               successful staged pipeline run.
 #
 # What is removed (per study output directory):
@@ -24,25 +24,25 @@
 #   *.qc.tsv.gz               final QC output
 #   *.cojo.gz / *.qc.cojo.gz  final COJO output
 #   *.leads.tsv / *.qc.leads.tsv  lead-variant tables
-#   *.log / *.gwaslab_process.log logs
+#   *.log / *.gwas_process.log logs
 #   PLOTS/                    all plot files
 #
 # Log archiving (default: enabled):
 #   SLURM *.out / *.err files found in LOG_DIR (default: OUT_BASE) that belong to
 #   the study being cleaned are moved into ${OUT_BASE}/<STUDY>/logs/.
-#   This keeps the submit directory tidy and preserves logs for gwaslab.process.check.py.
+#   This keeps the submit directory tidy and preserves logs for gwas_process.check.py.
 #   Disable with --no-archive-logs.  Override the source dir with --log-dir PATH.
 #
 # Usage:
-#   bash gwaslab.process.cleanup.sh --study CAD_Aragam
-#   bash gwaslab.process.cleanup.sh --all
-#   bash gwaslab.process.cleanup.sh --all --dry-run
-#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-normalize-pkl
-#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-raw-pkl
-#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --keep-qc-pkl
-#   bash gwaslab.process.cleanup.sh --config gwas_list.txt
-#   bash gwaslab.process.cleanup.sh --study CAD_Aragam --no-archive-logs
-#   bash gwaslab.process.cleanup.sh --all --log-dir /path/to/slurm/logs
+#   bash gwas_process.cleanup.sh --study CAD_Aragam
+#   bash gwas_process.cleanup.sh --all
+#   bash gwas_process.cleanup.sh --all --dry-run
+#   bash gwas_process.cleanup.sh --study CAD_Aragam --keep-normalize-pkl
+#   bash gwas_process.cleanup.sh --study CAD_Aragam --keep-raw-pkl
+#   bash gwas_process.cleanup.sh --study CAD_Aragam --keep-qc-pkl
+#   bash gwas_process.cleanup.sh --config gwas_list.txt
+#   bash gwas_process.cleanup.sh --study CAD_Aragam --no-archive-logs
+#   bash gwas_process.cleanup.sh --all --log-dir /path/to/slurm/logs
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -238,7 +238,7 @@ cleanup_study() {
             [[ "${DRY_RUN}" -eq 1 ]] && verb="Would archive"
             echo "  [${study_name}] ${verb} ${n_archived} log file(s) → ${logs_dir}/"
             echo "  [${study_name}] Run check.py against archived logs:"
-            echo "    python gwaslab.process.check.py ${study_name} ${logs_dir}"
+            echo "    python gwas_process.check.py ${study_name} ${logs_dir}"
         elif [[ "${DRY_RUN}" -eq 0 ]]; then
             echo "  [${study_name}] No SLURM log files found in ${LOG_DIR} — nothing archived."
         fi

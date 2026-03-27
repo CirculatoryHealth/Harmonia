@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# gwaslab.process.submit.sh — submit one independent SLURM job per GWAS dataset.
+# gwas_process.submit.sh — submit one independent SLURM job per GWAS dataset.
 #
 # Memory and time limits are read from the config file (COL8 and COL9), so each
 # dataset gets exactly the resources it needs.  Jobs are never killed because a
 # sibling in an array timed out.
 #
 # Usage:
-#   bash gwaslab.process.submit.sh gwas_list.txt
-#   bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem
+#   bash gwas_process.submit.sh gwas_list.txt
+#   bash gwas_process.submit.sh gwas_list.txt --partition=highmem
 #
 # Any extra arguments are forwarded to every sbatch call (e.g. --partition,
 # --account).  Per-job --mem, --time, --job-name, --output and --error are
@@ -19,7 +19,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
+WORKER_SCRIPT="${SCRIPT_DIR}/gwas_process.array_for_submit.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Site configuration — loaded from gwas2cojo.conf (next to this script).
@@ -45,7 +45,7 @@ CPUS=8
 MAIL_TYPE="FAIL"   # NONE | BEGIN | END | FAIL | ALL
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
-CONFIG="${1:?Usage: bash gwaslab.process.submit.sh <config.txt> [extra sbatch args]}"
+CONFIG="${1:?Usage: bash gwas_process.submit.sh <config.txt> [extra sbatch args]}"
 shift   # remaining args forwarded to every sbatch call
 
 # ── Validate ──────────────────────────────────────────────────────────────────

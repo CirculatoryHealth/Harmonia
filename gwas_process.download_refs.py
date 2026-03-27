@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-gwaslab.download_refs.py — Download gwaslab reference files.
+gwas_process.download_refs.py — Download gwaslab reference files.
 
 Usage
 -----
-    python gwaslab.download_refs.py [--ref-dir DIR] [--build all|hg19|hg38]
+    python gwas_process.download_refs.py [--ref-dir DIR] [--build all|hg19|hg38]
                                     [--ancestry EUR|AFR|EAS|AMR|SAS|PAN|all]
                                     [--no-x]
 
@@ -34,9 +34,9 @@ https://cloufield.github.io/gwaslab/Download/
 """
 
 # ============================================================
-VERSION_NAME = "gwaslab.download_refs"
-VERSION      = "1.2.0"
-VERSION_DATE = "2026-03-25"
+VERSION_NAME = "gwas_process.download_refs"
+VERSION      = "1.2.1"
+VERSION_DATE = "2026-03-27"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -197,7 +197,7 @@ def main() -> None:
     # ── Argument parsing ───────────────────────────────────────────────────────────
     parser = argparse.ArgumentParser(
         description=(
-            f"gwaslab.download_refs  v{VERSION}  ({VERSION_DATE})\n"
+            f"gwas_process.download_refs  v{VERSION}  ({VERSION_DATE})\n"
             "Download gwaslab reference files for the gwas2cojo pipeline.\n"
             "Target directory is read from gwas2cojo.conf (REF_DIR) by default."
         ),
@@ -205,18 +205,18 @@ def main() -> None:
         epilog=(
             "Examples:\n"
             "  # EUR VCFs for both builds (default)\n"
-            "  python gwaslab.download_refs.py\n\n"
+            "  python gwas_process.download_refs.py\n\n"
             "  # EUR VCFs, hg38 only\n"
-            "  python gwaslab.download_refs.py --build hg38\n\n"
+            "  python gwas_process.download_refs.py --build hg38\n\n"
             "  # AFR VCFs for both builds\n"
-            "  python gwaslab.download_refs.py --ancestry AFR\n\n"
+            "  python gwas_process.download_refs.py --ancestry AFR\n\n"
             "  # All ancestries, hg19 only\n"
-            "  python gwaslab.download_refs.py --build hg19 --ancestry all\n\n"
+            "  python gwas_process.download_refs.py --build hg19 --ancestry all\n\n"
             "  # Everything, custom directory\n"
-            "  python gwaslab.download_refs.py --build all --ancestry all \\\n"
+            "  python gwas_process.download_refs.py --build all --ancestry all \\\n"
             "      --ref-dir /path/to/references/gwaslab/\n\n"
             "  # Autosomes only, skip chrX VCFs and chrX rsID tables\n"
-            "  python gwaslab.download_refs.py --no-x\n"
+            "  python gwas_process.download_refs.py --no-x\n"
         ),
     )
     parser.add_argument(

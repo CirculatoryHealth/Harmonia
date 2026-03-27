@@ -8,7 +8,7 @@ This suite of scripts offers two standalone pipelines to process genome-wide ass
 
 * The first script, `gwas2cojo.py`, is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. This relies on the 1000G phase 3 reference dataset for Europeans, but can be used with any reference dataset with the appropriate columns. It generates a [COJO]-compatible file that can be used for many post-GWAS analyses, including SMR. It is the recommended tool for legacy datasets using b37 and hundreds of thousands of variants (< ±7 million).
 
-* The second script, `gwaslab.process.py`, is a more recent and comprehensive pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It relies on the human reference, dbSNP, and 1000G phase 3 data. It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
+* The second script, `gwas_process.py`, is a more recent and comprehensive pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It relies on the human reference, dbSNP, and 1000G phase 3 data. It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
 
 ## ⚙️ Requirements
 
@@ -75,10 +75,10 @@ Confirm that `gwas2cojo.py` runs:
 python gwas2cojo.py --help
 ```
 
-Confirm that `gwaslab.process.py` runs:
+Confirm that `gwas_process.py` runs:
 
 ```bash
-python gwaslab.process.py --help
+python gwas_process.py --help
 ```
 
 For a minimal parsing test without running the full pipeline:
@@ -237,9 +237,9 @@ You will need a reference to map the data to. You can create your own, or use th
 
 ---
 
-# 🔬 gwaslab.process.py — GWASLab Processing Pipeline
+# 🔬 gwas_process.py — GWASLab Processing Pipeline
 
-`gwaslab.process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
+`gwas_process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
 
 
 ## 🗺️ Pipeline overview
@@ -276,7 +276,7 @@ Steps run in order; individual steps can be toggled with the flags described bel
 ### Minimal — full default pipeline (hg19 input)
 
 ```bash
-python3 gwaslab.process.py \
+python3 gwas_process.py \
     --gwas    MyStudy \
     --input   MyStudy.parsed.txt.gz \
     --directory /data/gwas/MyStudy \
@@ -291,7 +291,7 @@ python3 gwaslab.process.py \
 ### hg18 input with all options
 
 ```bash
-python3 gwaslab.process.py \
+python3 gwas_process.py \
     --gwas    CAD_SCHUNKERT \
     --input   cardiogram_gwas_results_edited.txt.gz \
     --directory /data/gwas/CARDIoGRAM \
@@ -310,32 +310,32 @@ Use `--stage` to run only one part of the pipeline. Pass the same `--gwas`, `--b
 
 ```bash
 # Stage 1 — light: load + standardise (saves .preprocess.parquet)
-python3 gwaslab.process.py --gwas CAD_SCHUNKERT --input cardiogram_gwas_results_edited.txt.gz \
+python3 gwas_process.py --gwas CAD_SCHUNKERT --input cardiogram_gwas_results_edited.txt.gz \
     --directory /data/gwas/CARDIoGRAM --ref /data/references/gwaslab \
     --output /data/results/CAD_SCHUNKERT --population EUR --build 18 \
     --liftover --dbsnp --qc --figures --leads --cojo --cojo-pos --cojo-id rsid \
     --stage preprocess
 
 # Stage 2 — light: basic checks + liftover (saves .normalize.pkl)
-python3 gwaslab.process.py ... --stage process-normalize
+python3 gwas_process.py ... --stage process-normalize
 
 # Stage 3 — medium: reference check + flip (saves .checkref.pkl)
-python3 gwaslab.process.py ... --stage process-check-ref
+python3 gwas_process.py ... --stage process-check-ref
 
 # Stage 4 — heavy: 1KG strand inference (saves .inferstrand.pkl)
-python3 gwaslab.process.py ... --stage process-infer-strand
+python3 gwas_process.py ... --stage process-infer-strand
 
 # Stage 5 — heaviest: dbSNP rsID sweep (saves .assignrsid.pkl)
-python3 gwaslab.process.py ... --stage process-assign-rsid
+python3 gwas_process.py ... --stage process-assign-rsid
 
 # Stage 6 — heavy: AF check + save final raw outputs (.pkl / .parquet / .tsv.gz)
-python3 gwaslab.process.py ... --stage process-check-af
+python3 gwas_process.py ... --stage process-check-af
 
 # Stage 7 — medium: QC filter + plots + leads
-python3 gwaslab.process.py ... --stage qc
+python3 gwas_process.py ... --stage qc
 
 # Stage 8 — light: write COJO file
-python3 gwaslab.process.py ... --stage cojo
+python3 gwas_process.py ... --stage cojo
 ```
 
 > **Important:** pass the same `--gwas`, `--population`, `--build`, `--liftover`, and `--output` flags to every stage so file stems match.
@@ -345,7 +345,7 @@ python3 gwaslab.process.py ... --stage cojo
 If the pipeline completed the processing stages but failed later (e.g. during plotting), resume from the pickle without repeating the expensive VCF sweeps:
 
 ```bash
-python3 gwaslab.process.py \
+python3 gwas_process.py \
     --gwas    CAD_SCHUNKERT \
     --input   cardiogram_gwas_results_edited.txt.gz \
     --directory /data/gwas/CARDIoGRAM \
@@ -485,13 +485,13 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 | `<stem>.qc.cojo.gz` | COJO file (QC-filtered) |
 | `<stem>.leads.tsv` | Lead SNPs (QC-filtered, p < 5×10⁻⁸) |
 | `PLOTS/<stem>.*.png` | Diagnostic plots (Manhattan, QQ, DAF, histograms) |
-| `<GWAS>.gwaslab_process.log` | Pipeline run log |
+| `<GWAS>.gwas_process.log` | Pipeline run log |
 
 ---
 
 # 📥 Reference file management
 
-`gwaslab.download_refs.py` downloads gwaslab reference files using gwaslab's built-in `gl.download_ref()` function. `.tbi` index files are fetched automatically alongside VCFs. The target directory and the set of files to download are controlled by arguments and `gwas2cojo.conf`.
+`gwas_process.download_refs.py` downloads gwaslab reference files using gwaslab's built-in `gl.download_ref()` function. `.tbi` index files are fetched automatically alongside VCFs. The target directory and the set of files to download are controlled by arguments and `gwas2cojo.conf`.
 
 ## Usage
 
@@ -499,22 +499,22 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 conda activate gwas2cojo
 
 # EUR VCFs for both builds — most common case (default)
-python gwaslab.download_refs.py
+python gwas_process.download_refs.py
 
 # EUR VCFs for hg38 only
-python gwaslab.download_refs.py --build hg38
+python gwas_process.download_refs.py --build hg38
 
 # AFR VCFs for both builds
-python gwaslab.download_refs.py --ancestry AFR
+python gwas_process.download_refs.py --ancestry AFR
 
 # All ancestry VCFs, hg19 only
-python gwaslab.download_refs.py --build hg19 --ancestry all
+python gwas_process.download_refs.py --build hg19 --ancestry all
 
 # Everything for all ancestries and both builds
-python gwaslab.download_refs.py --build all --ancestry all
+python gwas_process.download_refs.py --build all --ancestry all
 
 # Override the reference directory
-python gwaslab.download_refs.py --ref-dir /path/to/references/gwaslab/
+python gwas_process.download_refs.py --ref-dir /path/to/references/gwaslab/
 ```
 
 | Argument | Default | Choices | Description |
@@ -565,7 +565,7 @@ All HPC scripts read their paths and settings from a single file — **`gwas2coj
 cp gwas2cojo.conf.example gwas2cojo.conf
 
 # 2. Open gwas2cojo.conf and fill in the five values:
-#    PYTHON_SCRIPT  — absolute path to gwaslab.process.py
+#    PYTHON_SCRIPT  — absolute path to gwas_process.py
 #    REF_DIR        — directory containing gwaslab reference files
 #    OUT_BASE       — base output directory (per-study subdirs + SLURM logs go here)
 #    CONDA_ENV      — conda environment name (default: gwas2cojo)
@@ -581,12 +581,12 @@ nano gwas2cojo.conf
 |------|-------------|
 | `gwas2cojo.conf.example` | Site configuration template — copy to `gwas2cojo.conf` and fill in your paths |
 | `gwas_list.example.txt` | Study list template (3 example studies) — copy to `gwas_list.txt` and update paths |
-| `gwaslab.process.array_for_submit.sh` | SLURM worker — runs one `gwaslab.process.py` call for one study and one stage |
-| `gwaslab.process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
-| `gwaslab.process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
-| `gwaslab.process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
-| `gwaslab.process.check.py` | Parse `*.out`/`*.err` log files and print a per-stage summary table with QC metrics and error/warning counts |
-| `gwaslab.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |
+| `gwas_process.array_for_submit.sh` | SLURM worker — runs one `gwas_process.py` call for one study and one stage |
+| `gwas_process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
+| `gwas_process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
+| `gwas_process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
+| `gwas_process.check.py` | Parse `*.out`/`*.err` log files and print a per-stage summary table with QC metrics and error/warning counts |
+| `gwas_process.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |
 
 ## Config file format (`gwas_list.txt`)
 
@@ -622,23 +622,23 @@ Example:
 
 ---
 
-## Option 1: Single full-pipeline job per study (`gwaslab.process.submit.sh`)
+## Option 1: Single full-pipeline job per study (`gwas_process.submit.sh`)
 
 Submits one SLURM job per study running `--stage all`. The `MEM` and `TIME` from the config are used for the entire job. Suitable when you want simplicity over granular resource control.
 
 ```bash
-bash gwaslab.process.submit.sh gwas_list.txt
+bash gwas_process.submit.sh gwas_list.txt
 ```
 
 Extra `sbatch` arguments can be appended:
 
 ```bash
-bash gwaslab.process.submit.sh gwas_list.txt --partition=highmem
+bash gwas_process.submit.sh gwas_list.txt --partition=highmem
 ```
 
 ---
 
-## Option 2: Staged per-study chain (`gwaslab.process.submit_staged.sh`)
+## Option 2: Staged per-study chain (`gwas_process.submit_staged.sh`)
 
 Submits SLURM jobs chained with `--dependency=afterok`. If a stage fails, SLURM automatically cancels all downstream stages for that study (`DependencyNeverSatisfied`). Other studies are completely independent and keep running.
 
@@ -674,7 +674,7 @@ Because each per-chr job sweeps only ~1/22 of the VCF region, the HEAVY tier mem
 ### Submit
 
 ```bash
-bash gwaslab.process.submit_staged.sh gwas_list.txt
+bash gwas_process.submit_staged.sh gwas_list.txt
 ```
 
 Output shows the two-tier resources and the job IDs per study:
@@ -684,7 +684,7 @@ GWAS                    MEM_L    TIME_L      MEM_H    TIME_H      pre=... nrm=..
 CAD_Aragam              64G      24:00:00    128G     96:00:00    pre=1001 nrm=1002 spl=1003 chr=1004 ...
 ```
 
-A timestamped submission log is automatically written to `${LOG_BASE}/gwaslab.process.submit_staged_YYYYMMDD_HHMMSS.log`.
+A timestamped submission log is automatically written to `${LOG_BASE}/gwas_process.submit_staged_YYYYMMDD_HHMMSS.log`.
 
 ### Monitor and cancel
 
@@ -696,7 +696,7 @@ sacct -j 1004 --format=JobID,State,Elapsed,MaxRSS        # check completed stage
 
 ---
 
-## Cleanup intermediate checkpoints (`gwaslab.process.cleanup.sh`)
+## Cleanup intermediate checkpoints (`gwas_process.cleanup.sh`)
 
 After a successful run, intermediate files can be safely removed. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `PLOTS/`, `*.log`) are **never** touched.
 
@@ -711,55 +711,55 @@ After a successful run, intermediate files can be safely removed. Final outputs 
 | `*.pkl` (raw, non-QC, non-normalize) | check-af → merge handoff |
 | `*.qc.pkl` | QC-filtered pickle (data identical to `.qc.parquet`) |
 
-**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `gwaslab.process.check.py`.
+**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `gwas_process.check.py`.
 
 ```bash
 # Always dry-run first to see what will be removed / archived
-bash gwaslab.process.cleanup.sh --study CAD_Aragam --dry-run
+bash gwas_process.cleanup.sh --study CAD_Aragam --dry-run
 
 # Clean a single study
-bash gwaslab.process.cleanup.sh --study CAD_Aragam
+bash gwas_process.cleanup.sh --study CAD_Aragam
 
 # Clean all studies under OUT_BASE
-bash gwaslab.process.cleanup.sh --all
+bash gwas_process.cleanup.sh --all
 
 # Clean studies listed in a config file
-bash gwaslab.process.cleanup.sh --config gwas_list.txt
+bash gwas_process.cleanup.sh --config gwas_list.txt
 
 # Retain specific pickles
-bash gwaslab.process.cleanup.sh --all --keep-normalize-pkl  # keep *.normalize.pkl
-bash gwaslab.process.cleanup.sh --all --keep-raw-pkl        # keep final raw *.pkl
-bash gwaslab.process.cleanup.sh --all --keep-qc-pkl         # keep *.qc.pkl
+bash gwas_process.cleanup.sh --all --keep-normalize-pkl  # keep *.normalize.pkl
+bash gwas_process.cleanup.sh --all --keep-raw-pkl        # keep final raw *.pkl
+bash gwas_process.cleanup.sh --all --keep-qc-pkl         # keep *.qc.pkl
 
 # Skip log archiving, or specify a different log source directory
-bash gwaslab.process.cleanup.sh --all --no-archive-logs
-bash gwaslab.process.cleanup.sh --all --log-dir /path/to/slurm/logs
+bash gwas_process.cleanup.sh --all --no-archive-logs
+bash gwas_process.cleanup.sh --all --log-dir /path/to/slurm/logs
 ```
 
 After cleanup, check the archived logs with:
 
 ```bash
-python gwaslab.process.check.py CAD_Aragam ${OUT_BASE}/CAD_Aragam/logs/
+python gwas_process.check.py CAD_Aragam ${OUT_BASE}/CAD_Aragam/logs/
 ```
 
 ---
 
-## 🩺 Check run status (`gwaslab.process.check.py`)
+## 🩺 Check run status (`gwas_process.check.py`)
 
-After submitting jobs, use `gwaslab.process.check.py` to quickly verify whether a study completed correctly. It parses all `*.out` / `*.err` log files in the log directory and prints a per-stage summary with key QC metrics, warning counts, and a clear pass/fail status.
+After submitting jobs, use `gwas_process.check.py` to quickly verify whether a study completed correctly. It parses all `*.out` / `*.err` log files in the log directory and prints a per-stage summary with key QC metrics, warning counts, and a clear pass/fail status.
 
 ```bash
 # Check one study in the current directory (where *.out/*.err files live)
-python gwaslab.process.check.py CAD_Aragam
+python gwas_process.check.py CAD_Aragam
 
 # Check one study in a specific log directory
-python gwaslab.process.check.py CAD_Aragam /hpc/data/gwas2cojo
+python gwas_process.check.py CAD_Aragam /hpc/data/gwas2cojo
 
 # Check every study found in the log directory
-python gwaslab.process.check.py --all /hpc/data/gwas2cojo
+python gwas_process.check.py --all /hpc/data/gwas2cojo
 
 # Morning triage — only print studies with errors or missing stages
-python gwaslab.process.check.py --all /hpc/data/gwas2cojo --errors-only
+python gwas_process.check.py --all /hpc/data/gwas2cojo --errors-only
 ```
 
 Example output for a healthy study:

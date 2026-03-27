@@ -2,11 +2,22 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-03-27 🔁 rename: gwaslab.process.* → gwas_process.*
+- **Rename**: all pipeline scripts renamed from `gwaslab.process.<name>` to `gwas_process.<name>` for consistency and brevity:
+  - `gwas_process.py` → `gwas_process.py`
+  - `gwas_process.check.py` → `gwas_process.check.py`
+  - `gwas_process.cleanup.sh` → `gwas_process.cleanup.sh`
+  - `gwas_process.submit.sh` → `gwas_process.submit.sh`
+  - `gwas_process.submit_staged.sh` → `gwas_process.submit_staged.sh`
+  - `gwas_process.array_for_submit.sh` → `gwas_process.array_for_submit.sh`
+- **Updated**: all internal cross-references, `VERSION_NAME`, `prog=`, log file suffix (`.gwaslab_process.log` → `.gwas_process.log`), and submit-log filename prefix updated accordingly.
+- **Files**: all six scripts above + `CHANGES.md`.
+
 ## 2026-03-26 🔧 check.py — outputs row + ancestry display fix (check v1.2.4)
 - **Fix**: `_parse_ancestry_check()` now correctly handles `Match: unknown  ⚠ SKIPPED` log lines (emitted when EAF is absent/all-NaN and `infer_ancestry` is skipped). Previously the `UNKNOWN` match value fell through to `status: "unknown"`, showing `ancestry: unknown (status unknown)`. Now mapped to `status: "skipped"` and displayed as `ancestry: not inferred — EAF unavailable (provided=POP)`.
 - **New**: `_metrics_outputs(text)` extracts COJO and LDSC output variant counts from the merge stage log (`[SAVE] COJO → ...` and `[SAVE] LDSC → ...` patterns).
 - **New**: A `└ outputs` sub-row is printed directly after the merge row when either COJO or LDSC (or both) outputs were written, showing variant counts (e.g. `COJO 6,912,451  |  LDSC 1,103,847`). COJO count removed from the merge row itself.
-- **Files**: `gwaslab.process.check.py` (v1.2.3 → v1.2.4).
+- **Files**: `gwas_process.check.py` (v1.2.3 → v1.2.4).
 
 ## 2026-03-25 ✨ LDSC-ready output via --ldsc flag (v1.4.21)
 - **New**: `write_ldsc()` function produces an LDSC-ready munged summary statistics file from the QC-filtered data. Applies the standard LDSC pre-filtering pipeline on an isolated deep copy (original QC object unchanged):
@@ -19,15 +30,15 @@ This document tracks changes to the codebase. Each entry should include a brief 
 - **New**: `--ldsc` argparse flag (analogous to `--cojo`); enabled by default in both submission scripts.
 - **Output**: `{stem}.qc.ldsc.tsv.gz` alongside the existing `.qc.tsv.gz` and `.cojo.gz`.
 - **Robustness**: each filter step wrapped in try/except — a missing reference file or failed step skips that step and logs a warning without aborting the pipeline.
-- **Files**: `gwaslab.process.py` (v1.4.20 → v1.4.21), `gwaslab.process.array_for_submit.sh`, `gwaslab.process.submit_staged.sh`.
+- **Files**: `gwas_process.py` (v1.4.20 → v1.4.21), `gwas_process.array_for_submit.sh`, `gwas_process.submit_staged.sh`.
 
 ## 2026-03-25 ✨ ancestry inference check at QC stage (v1.4.20 / check v1.2.3)
-- **New** (`gwaslab.process.py`): `run_infer_ancestry()` calls `gwas_obj.infer_ancestry()` on the QC-filtered data, comparing the declared `--population` against the Fst-inferred super-population from the HapMap3 pan-ancestry EAF reference (`1kg_hm3_hg19/hg38_eaf`). Run at the end of the QC block in both the `merge` stage and the `--stage all` path.
-- **New** (`gwaslab.process.py`): `--no-infer-ancestry` flag skips the ancestry check (enabled by default). Logged under Toggles as `infer_ancestry=True/False`.
+- **New** (`gwas_process.py`): `run_infer_ancestry()` calls `gwas_obj.infer_ancestry()` on the QC-filtered data, comparing the declared `--population` against the Fst-inferred super-population from the HapMap3 pan-ancestry EAF reference (`1kg_hm3_hg19/hg38_eaf`). Run at the end of the QC block in both the `merge` stage and the `--stage all` path.
+- **New** (`gwas_process.py`): `--no-infer-ancestry` flag skips the ancestry check (enabled by default). Logged under Toggles as `infer_ancestry=True/False`.
 - **Logging**: emits a canonical `[ANCESTRY CHECK] Provided: X | Inferred: Y | Match: True/FALSE` line (WARNING level on mismatch) parseable by the check script.
 - **Output**: result saved to `{stem}.ancestry_check.json` in the output directory for archival.
-- **New** (`gwaslab.process.check.py` v1.2.3): `_parse_ancestry_check()` parses the `[ANCESTRY CHECK]` log line from the merge or qc stage output. Result displayed in the study header line. Mismatches shown as `⚠ MISMATCH` in the header and `⚠ ANCESTRY MISMATCH — re-check population label` in the overall summary. `--errors-only` also surfaces ancestry mismatches.
-- **Files**: `gwaslab.process.py` (v1.4.19 → v1.4.20), `gwaslab.process.check.py` (v1.2.2 → v1.2.3).
+- **New** (`gwas_process.check.py` v1.2.3): `_parse_ancestry_check()` parses the `[ANCESTRY CHECK]` log line from the merge or qc stage output. Result displayed in the study header line. Mismatches shown as `⚠ MISMATCH` in the header and `⚠ ANCESTRY MISMATCH — re-check population label` in the overall summary. `--errors-only` also surfaces ancestry mismatches.
+- **Files**: `gwas_process.py` (v1.4.19 → v1.4.20), `gwas_process.check.py` (v1.2.2 → v1.2.3).
 
 ## 2026-03-25 ✨ gwaslab.process.py — comprehensive STATUS filter + --filter-palindromic (v1.4.19)
 - **New**: `_apply_status_filter()` helper replaces the previous single digit_7 check with a comprehensive STATUS-based filter covering all problematic flag classes:
@@ -39,18 +50,18 @@ This document tracks changes to the codebase. Each entry should include a brief 
 - **New**: `--filter-palindromic` flag calls `filter_palindromic(mode="out")` to remove ALL A/T and C/G SNPs at QC. Disabled by default — the STATUS filter is more precise (resolved palindromics at asymmetric MAF are retained; only unresolvable ones removed via digit_7 [7,8]). Use for strict meta-analysis strand-safety.
 - **Logging**: STATUS filter reports per-class counts so the breakdown is visible in the log.
 - **Note**: Digit 3 (SNPID/rsID format) issues are intentionally not filtered — they represent ID format problems only; CHR:POS and alleles are still valid and usable.
-- **Files**: `gwaslab.process.py` (v1.4.18 → v1.4.19).
+- **Files**: `gwas_process.py` (v1.4.18 → v1.4.19).
 
 ## 2026-03-25 ✨ gwaslab.process.py — STATUS-based filter at QC stage (v1.4.18)
 - **New**: `apply_qc()` now runs a STATUS digit-7 filter after the numeric threshold pass. Variants where `infer_strand2` could not resolve the strand (STATUS digit_7 == 8 — palindromic SNPs at MAF~0.5, or indel allele mismatches) are removed before saving QC output.
 - **Background**: gwaslab's `check_ref` already internally removes variants with digit_6 == 8 (allele absent from FASTA reference). `check_af2` does not use STATUS — it populates the DAF column, which is covered by `--daf-max`. The only STATUS flag that survives to output without removal is digit_7 == 8 from `infer_strand2`. No `filter_status()` method exists in this gwaslab version; the filter is implemented directly via integer arithmetic (`STATUS % 10 == 8`).
 - **Logging**: separate counts for numeric filter and STATUS filter; total after all QC filters logged at end.
-- **Files**: `gwaslab.process.py` (v1.4.17 → v1.4.18).
+- **Files**: `gwas_process.py` (v1.4.17 → v1.4.18).
 
 ## 2026-03-25 ✨ gwaslab.process.py — add normalize_allele + basic_check(remove=True) (v1.4.17)
 - **New**: `normalize_allele(threads=n_cores)` inserted between `basic_check()` and `remove_dup()` in both `run_normalize()` and the `--stage all` path. This standardises indel notation (trim shared prefix/suffix, uppercase, left-align) before deduplication so that variants expressed differently across studies but representing the same position are correctly identified as duplicates.
 - **Change**: `basic_check()` now called with `remove=True` (previously no arguments), so variants with invalid chromosome codes, positions, or allele strings are dropped at source rather than propagating through the pipeline.
-- **Files**: `gwaslab.process.py` (v1.4.16 → v1.4.17).
+- **Files**: `gwas_process.py` (v1.4.16 → v1.4.17).
 
 ## 2026-03-25 ✨ gwaslab.download_refs.py — add chromosome X reference support (v1.2.0)
 - **New**: Added `_ANCESTRY_X_VCFS` dict covering all 6 ancestries × 2 builds for the 1KG chrX VCFs (`1kg_{eur,pan,afr,eas,amr,sas}_x_hg19/hg38`).
@@ -62,7 +73,7 @@ This document tracks changes to the codebase. Each entry should include a brief 
 ## 2026-03-24 🐛 cleanup.sh — fix --config rejecting process substitution
 - **Bug**: `[[ ! -f "${CONFIG_FILE}" ]]` uses `-f` which only matches regular files; process substitution (`<(...)`) passes a named pipe (`/dev/fd/N`) which fails the test, producing `ERROR: config file not found: /dev/fd/63`.
 - **Fix**: changed to `[[ ! -e "${CONFIG_FILE}" ]]` (`-e` matches any file type including pipes), so `--config <(grep ...)` now works as expected.
-- **File**: `gwaslab.process.cleanup.sh`
+- **File**: `gwas_process.cleanup.sh`
 
 ## 2026-03-23 🐛 gwaslab.process.py — alias table corrections and gwas_list.txt fixes (v1.4.16)
 - **Fix**: added `"freq_a"` to EAF aliases in `SUMSTATS_ALIASES` — covers TAG consortium files (`tag.*.tbl.withN.txt.gz`) which use `FRQ_A` for effect-allele frequency. Previously EAF was always NaN for these studies and had to be filled from the reference VCF.
@@ -72,14 +83,14 @@ This document tracks changes to the codebase. Each entry should include a brief 
 - **Fix** (`gwas_list.txt`): `AF_PAN` build was `19` but the TOPMed Freeze 5 file uses `position_b38` (hg38 coordinates) — corrected to `build=38` to prevent double-liftover.
 - **Fix** (`gwas_list.txt`): `MEM_LIGHT` was `64GB` for `PAD_EUR_MVP`, `PAD_EUR_FINNGEN`, `PAD_EUR_UKB` — SLURM requires `64G`; corrected.
 - **Change** (`gwas_list.txt`): TAG study names standardised to `TAG_EUR_*` naming convention for consistency with other phenotype–ancestry naming in the list.
-- **Files**: `gwaslab.process.py` (v1.4.15 → v1.4.16), `gwas_list.txt`.
+- **Files**: `gwas_process.py` (v1.4.15 → v1.4.16), `gwas_list.txt`.
 
 ## 2026-03-20 ✨ Add --no-fill-eaf per-study override flag (v1.4.15)
 - **Problem**: The submit script passes `--fill-eaf` globally for all studies. Studies with no EAF column trigger a per-variant tabix lookup across the full VCF for every variant (O(n)), which is prohibitively slow for large files (e.g. 7.7M variants × tabix = many hours).
 - **Fix**: Added `--no-fill-eaf` flag that suppresses the EAF lookup even when `--fill-eaf` is present. Intended for use as a per-study `EXTRA_FLAGS` override in `gwas_list.txt`.
 - **Usage**: Add `;--no-fill-eaf` as COL12 in `gwas_list.txt` for the affected study. EAF will be filled properly at the `process-check-af` stage from the 1KG VCF anyway.
 - **Logging**: `--no-fill-eaf` is logged in the Toggles line. A separate info message confirms suppression when both flags are present.
-- **Files**: `gwaslab.process.py` v1.4.15.
+- **Files**: `gwas_process.py` v1.4.15.
 
 ## 2026-03-20 🐛 Header typo: missing CHR/NEA aliases and KeyError in remove_dup (v1.4.14)
 - **Root cause**: The Suzuki2024 T2DGGI file uses `Chromsome` (typo, missing 'o') for chromosome and `NonEffectAllele` (no underscore) for the non-effect allele. Neither matched existing aliases, so gwaslab never received a CHR or NEA column.
@@ -88,7 +99,7 @@ This document tracks changes to the codebase. Each entry should include a brief 
 - **Fix 2**: Added `"noneffectallele"` (no underscore) to NEA aliases in `SUMSTATS_ALIASES`.
 - **Fix 3**: Guarded the `duplicated(subset=["CHR","POS"])` call in both `run_normalize()` and `run_processing()` with a column-existence check (`_has_chr_pos`) so a missing CHR column logs 0 multi-allelics rather than raising `KeyError`.
 - **Note**: No SNPID column in this file is not a blocker — gwaslab derives CHR:POS:NEA:EA IDs via `fix_id` once CHR and NEA are correctly mapped.
-- **Files**: `gwaslab.process.py` v1.4.14.
+- **Files**: `gwas_process.py` v1.4.14.
 
 ## 2026-03-19 ✨ gwaslab.download_refs.py — conf-file integration, --build and --ancestry arguments
 - **Feature**: reference directory now defaults to `REF_DIR` from `gwas2cojo.conf` (parsed next to the script) instead of a hardcoded placeholder. A warning is printed if the conf is absent or `REF_DIR` is unset.
@@ -100,49 +111,49 @@ This document tracks changes to the codebase. Each entry should include a brief 
 ## 2026-03-19 ✨ gwaslab.process.py — detect OR column mislabelled as BETA and auto-rename (v1.4.13)
 - **Feature**: new `check_or_vs_beta()` function called during preprocess (after `standardise_columns`). If the standardised `OR` column contains any negative values it cannot be a true odds ratio — the source file has mislabelled a BETA/log-odds column as `OR`. The function renames `OR` → `BETA` with a warning log line showing the count and percentage of negative values, and processing continues normally. If both `OR` and `BETA` are already present the check is skipped.
 - **Example**: `tag.logonset.tbl.withN.txt.gz` has a column named `OR` containing effect sizes like `-0.0054`, `-0.0049`, which are clearly log-odds / BETA values. Without this fix the mislabelled column passed through to `run_check_ref` where `flip_allele_stats` tried to compute `1 / OR` and either hit `FloatingPointError` (OR = 0) or silently produced nonsensical results.
-- **Files**: `gwaslab.process.py` (v1.4.12 → v1.4.13).
+- **Files**: `gwas_process.py` (v1.4.12 → v1.4.13).
 
 ## 2026-03-19 🐛 gwaslab.process.py — FloatingPointError in flip_allele_stats when OR = 0 (v1.4.12)
 - **Bug**: `run_check_ref` crashed with `FloatingPointError: divide by zero encountered in divide` inside gwaslab's `flip_by_inverse` when flipping OR-based studies (e.g. TAG_LogOnset). gwaslab computes `OR = 1 / OR` for flipped variants; if any OR value is 0 (missing data stored as zero rather than NaN), this raises a `FloatingPointError`. The error affected all 22 chromosomes (44 total errors = 2 per chromosome).
-- 🐛**Fixed** `gwaslab.process.py` — `run_check_ref` now checks for an `OR` column before calling `flip_allele_stats`. Any rows where `OR = 0` are dropped with a warning log line before the flip, preventing the divide-by-zero. OR = 0 is not a biologically valid value; these are treated as missing data.
-- **Files**: `gwaslab.process.py` (v1.4.11 → v1.4.12).
+- 🐛**Fixed** `gwas_process.py` — `run_check_ref` now checks for an `OR` column before calling `flip_allele_stats`. Any rows where `OR = 0` are dropped with a warning log line before the flip, preventing the divide-by-zero. OR = 0 is not a biologically valid value; these are treated as missing data.
+- **Files**: `gwas_process.py` (v1.4.11 → v1.4.12).
 
 ## 2026-03-19 🐛 gwaslab.process.py — plot_mqq crashes with TypeError when EAF is entirely missing (v1.4.11)
 - **Bug**: `run_merge` → `plot_full_dataset` crashed with `TypeError: cannot unpack non-iterable NoneType object` when the dataset had no valid EAF values (e.g. DIAMANTE-TA PAN file has no EAF column). gwaslab's `_mqqplot` returns `None` instead of `(plot, log)` when it finds no plottable data, and the call site did not guard against this. The `plot_daf` call already had a `try/except`, but `plot_mqq` (both pre-QC and QC) did not.
-- 🐛**Fixed** `gwaslab.process.py` — both `plot_mqq` loops (pre-QC in `plot_full_dataset` and QC in `plot_qc_dataset`) are now wrapped in `try/except TypeError` that logs a warning and skips the plot rather than crashing the pipeline. All other outputs (parquet, TSV.GZ, COJO, leads) are unaffected.
-- **Files**: `gwaslab.process.py` (v1.4.10 → v1.4.11).
+- 🐛**Fixed** `gwas_process.py` — both `plot_mqq` loops (pre-QC in `plot_full_dataset` and QC in `plot_qc_dataset`) are now wrapped in `try/except TypeError` that logs a warning and skips the plot rather than crashing the pipeline. All other outputs (parquet, TSV.GZ, COJO, leads) are unaffected.
+- **Files**: `gwas_process.py` (v1.4.10 → v1.4.11).
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — normalize "after dedup" count not shown for default mode (v1.2.2)
-- **Bug**: the normalize metric showed `liftover → 38` only (no variant count) for studies run with the default `mode="md"`. Root cause: `gwaslab.process.py` v1.4.9 changed the log message from `"After duplicate removal"` to `"After multi-allelic and duplicate variant removal"`, but the regex in `_metrics_normalize` still matched only the old wording. Studies run with `--keep-multiallelic` (`mode="d"`) still wrote the old message, so they showed the count while default-mode studies did not.
-- 🐛**Fixed** `gwaslab.process.check.py` — `_metrics_normalize()` regex broadened to `After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:` to match both message variants.
-- **Files**: `gwaslab.process.check.py` (v1.2.1 → v1.2.2).
+- **Bug**: the normalize metric showed `liftover → 38` only (no variant count) for studies run with the default `mode="md"`. Root cause: `gwas_process.py` v1.4.9 changed the log message from `"After duplicate removal"` to `"After multi-allelic and duplicate variant removal"`, but the regex in `_metrics_normalize` still matched only the old wording. Studies run with `--keep-multiallelic` (`mode="d"`) still wrote the old message, so they showed the count while default-mode studies did not.
+- 🐛**Fixed** `gwas_process.check.py` — `_metrics_normalize()` regex broadened to `After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:` to match both message variants.
+- **Files**: `gwas_process.check.py` (v1.2.1 → v1.2.2).
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — "after dedup" variant count missing thousands separator (v1.2.1)
 - **Bug**: the normalize metric displayed the post-dedup variant count without comma separators (e.g. `20073068 after dedup`) because `_first()` returns the raw matched string and the log line itself omits commas.
-- 🐛**Fixed** `gwaslab.process.check.py` — `_metrics_normalize()` now converts the matched string to `int` and reformats it with `{:,}` before appending to the metric string, yielding `20,073,068 after dedup`.
-- **Files**: `gwaslab.process.check.py` (v1.2.0 → v1.2.1).
+- 🐛**Fixed** `gwas_process.check.py` — `_metrics_normalize()` now converts the matched string to `int` and reformats it with `{:,}` before appending to the metric string, yielding `20,073,068 after dedup`.
+- **Files**: `gwas_process.check.py` (v1.2.0 → v1.2.1).
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — false ⚠ 22/26 chr when submit script arrays over 26 but split only produced 22 (v1.2.0)
 - **Bug**: array stages (checkref, inferstrand, assignrsid, checkaf) reported `⚠ 22/26 chr` and set `any_error = True` for autosome-only datasets. The submit script always arrays over all 26 chromosomes; for non-autosomal chromosomes the job finds no input data and finishes without writing a `[SAVE]` marker, so `_is_done()` returned `False` for those 4 jobs. The code then saw `n_done=22, n_total=26` and flagged a warning even though every autosomal chromosome completed successfully.
-- 🐛**Fixed** `gwaslab.process.check.py`:
+- 🐛**Fixed** `gwas_process.check.py`:
   - After processing the `split` stage, the chromosome count is now stored in `n_split_chr`.
   - A new `split_autosome_only` flag is set when `n_split_chr == 22`; it is OR-ed with the existing `n_non_auto == 0` check into a combined `autosome_only` flag.
   - Array stages now track `n_auto_done` (autosomal chromosomes that completed) separately from `n_done` (all chromosomes). When `autosome_only`, the effective counts `eff_done / eff_total` are `n_auto_done / 22`, so non-autosomal "not done" files are ignored.
   - `checkref` aggregation is restricted to autosomal chromosome texts when `split_autosome_only` and non-autosomal log files exist, preventing empty files from skewing match-rate stats.
-- **Files**: `gwaslab.process.check.py` (v1.1.0 → v1.2.0).
+- **Files**: `gwas_process.check.py` (v1.1.0 → v1.2.0).
 
 ## 2026-03-19 ✨ gwaslab.process.check.py — wider metric column, full "unmatched" display, and autosome-only detection (v1.1.0)
 - **Fix**: metric column widened from 46 to 58 characters (table width 100 → 112) so the full `unmatched N,NNN,NNN` value is no longer truncated to `unmat…` in the checkref row.
 - **Feature**: array stages (checkref, inferstrand, assignrsid, checkaf) now distinguish between truly incomplete runs and datasets that contain only the 22 autosomes. When all 22 autosomal chromosomes completed and no non-autosomal files exist, the status is `✓ done` instead of the misleading `⚠ 22/26 chr`, and `any_error` is no longer set — making real failures much easier to spot.
 - **Feature**: inferstrand / assignrsid / checkaf metric in autosome-only mode shows `22 autosomes complete` instead of `22/22 complete`.
 - **Feature**: split metric now appends `, no non-autosomal` when exactly 22 chromosomes are present.
-- **Files**: `gwaslab.process.check.py` (v1.0.0 → v1.1.0).
+- **Files**: `gwas_process.check.py` (v1.0.0 → v1.1.0).
 
 ## 2026-03-19 ✨ Per-study extra flags via COL12 in gwas_list.txt
-- **Feature**: `gwas_list.txt` now supports an optional 12th semicolon-delimited field (`EXTRA_FLAGS`) for per-study flags passed verbatim to `gwaslab.process.py`. Use `.` as a no-op placeholder. Multiple flags are space-separated within the field.
+- **Feature**: `gwas_list.txt` now supports an optional 12th semicolon-delimited field (`EXTRA_FLAGS`) for per-study flags passed verbatim to `gwas_process.py`. Use `.` as a no-op placeholder. Multiple flags are space-separated within the field.
 - **Example**: append `;--keep-multiallelic` to a study line to retain multi-allelic variants for that study only, while all other studies use the default `mode="md"` removal.
 - **Example**: `;--keep-multiallelic --no-figures` to combine multiple flags.
-- **Files**: `gwaslab.process.array_for_submit.sh` (reads COL12, appends to CMD array); `gwaslab.process.submit_staged.sh` (parses COL12 and documents it; the field passes through to the worker via `LINE`).
+- **Files**: `gwas_process.array_for_submit.sh` (reads COL12, appends to CMD array); `gwas_process.submit_staged.sh` (parses COL12 and documents it; the field passes through to the worker via `LINE`).
 - **Logging**: the worker script echoes `Extra flags : <value>` in the job header for traceability.
 
 ## 2026-03-19 ✨ Extended column alias coverage for three new GWAS header formats (gwaslab.process.py v1.4.10)
@@ -167,17 +178,17 @@ This document tracks changes to the codebase. Each entry should include a brief 
 
 ## 2026-03-19 🐛 gwaslab.process.cleanup.sh — per-chromosome intermediate parquets not removed (cleanup.sh)
 - **Bug**: per-chromosome intermediate parquets (`*.chr*.normalize.parquet`, `*.chr*.checkref.parquet`, `*.chr*.inferstrand.parquet`, `*.chr*.assignrsid.parquet`, `*.chr*.checkaf.parquet`) were not included in the cleanup patterns. These files are the stage-to-stage handoffs written by `save_chrom_parquet()` for each of the 26 chromosome array tasks, and collectively represent the largest share of intermediate disk usage (e.g. 26 × 5 stages × ~28 MB = ~3.6 GB per study for a large GWAS).
-- 🐛**Fixed** `gwaslab.process.cleanup.sh` — added all five `*.chr*.{stage}.parquet` glob patterns to the `patterns` array in `cleanup_study()`. Updated the header comment to document them.
+- 🐛**Fixed** `gwas_process.cleanup.sh` — added all five `*.chr*.{stage}.parquet` glob patterns to the `patterns` array in `cleanup_study()`. Updated the header comment to document them.
 
 ## 2026-03-19 ✨ gwaslab.process.cleanup.sh — archive SLURM log files into study/logs/ (cleanup.sh)
-- **Feature**: after removing intermediate checkpoints, the cleanup script now moves all SLURM `*.out` / `*.err` files belonging to the study from `LOG_DIR` (default: `OUT_BASE`) into `${OUT_BASE}/<STUDY>/logs/`. This keeps the submit directory tidy and preserves logs in a study-specific location for future use with `gwaslab.process.check.py`.
+- **Feature**: after removing intermediate checkpoints, the cleanup script now moves all SLURM `*.out` / `*.err` files belonging to the study from `LOG_DIR` (default: `OUT_BASE`) into `${OUT_BASE}/<STUDY>/logs/`. This keeps the submit directory tidy and preserves logs in a study-specific location for future use with `gwas_process.check.py`.
 - New flags: `--no-archive-logs` (skip archiving), `--log-dir PATH` (override source directory when SLURM logs land elsewhere).
-- After archiving, the script prints the exact `gwaslab.process.check.py` command to inspect the archived logs.
+- After archiving, the script prints the exact `gwas_process.check.py` command to inspect the archived logs.
 - Log archiving is enabled by default; `--dry-run` mode previews what would be moved without touching files.
 
 ## 2026-03-19 🐛 gwaslab.process.cleanup.sh — wrong output directory path and fragile glob (cleanup.sh)
-- **Bug**: `gwaslab.process.cleanup.sh` was silently doing nothing in all three modes (`--study`, `--all`, `--config`). Root cause: all three study-directory paths were constructed as `${OUT_BASE}/${STUDY_NAME}/GWASCatalog`, but `/GWASCatalog` is only appended by `gwaslab.process.py` when `--output` is *not* passed on the command line. The pipeline always passes `--output "${OUT_BASE}/${GWAS_NAME}"` explicitly (via `array_for_submit.sh`), so `output_loc = args.output` — no `/GWASCatalog` suffix. Every directory existence check therefore failed and cleanup was skipped without any error.
-- 🐛**Fixed** `gwaslab.process.cleanup.sh`:
+- **Bug**: `gwas_process.cleanup.sh` was silently doing nothing in all three modes (`--study`, `--all`, `--config`). Root cause: all three study-directory paths were constructed as `${OUT_BASE}/${STUDY_NAME}/GWASCatalog`, but `/GWASCatalog` is only appended by `gwas_process.py` when `--output` is *not* passed on the command line. The pipeline always passes `--output "${OUT_BASE}/${GWAS_NAME}"` explicitly (via `array_for_submit.sh`), so `output_loc = args.output` — no `/GWASCatalog` suffix. Every directory existence check therefore failed and cleanup was skipped without any error.
+- 🐛**Fixed** `gwas_process.cleanup.sh`:
   - `--study` mode: `${OUT_BASE}/${STUDY_NAME}/GWASCatalog` → `${OUT_BASE}/${STUDY_NAME}`
   - `--all` mode: glob `"${OUT_BASE}"/*/GWASCatalog` → `"${OUT_BASE}"/*/`; `basename "$(dirname ...)"` → `basename "${study_dir}"`
   - `--config` mode: `${OUT_BASE}/${GWAS_NAME}/GWASCatalog` → `${OUT_BASE}/${GWAS_NAME}`
@@ -185,19 +196,19 @@ This document tracks changes to the codebase. Each entry should include a brief 
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — AttributeError on optional regex group (check.py v1.0.1)
 - **Bug**: `AttributeError: 'NoneType' object has no attribute 'strip'` in `_first()` when called with a regex containing an optional capturing group (`(...)?`). The outer `re.search()` matched (so `m` was not `None`), but `m.group(1)` was `None` because the optional group did not participate in the match. The `m.group(group).strip() if m else default` guard only checked for a missing match, not for a `None` group value.
-- 🐛**Fixed** `gwaslab.process.check.py` — `_first()` now checks `val = m.group(group)` separately and returns `default` if `val is None`. The broken `\[SAVE\] QC Parquet` regex with an optional group was also removed (it was dead code — the result was never used; `qc_n` via the `After QC` pattern was the operative extraction). Bumped to v1.0.1.
+- 🐛**Fixed** `gwas_process.check.py` — `_first()` now checks `val = m.group(group)` separately and returns `default` if `val is None`. The broken `\[SAVE\] QC Parquet` regex with an optional group was also removed (it was dead code — the result was never used; `qc_n` via the `After QC` pattern was the operative extraction). Bumped to v1.0.1.
 
 ## 2026-03-18 🧰 Added gwaslab.process.check.py — pipeline run-status checker (check.py v1.0.0 / gwaslab.process.py v1.4.8)
-- **New tool** `gwaslab.process.check.py` (v1.0.0): standalone Python script that parses `*.out` / `*.err` log files produced by the staged gwaslab pipeline and prints a per-stage summary table with key QC metrics, warning/error counts, and overall pass/fail status.
+- **New tool** `gwas_process.check.py` (v1.0.0): standalone Python script that parses `*.out` / `*.err` log files produced by the staged gwaslab pipeline and prints a per-stage summary table with key QC metrics, warning/error counts, and overall pass/fail status.
 - Supports checking a single study (`python gwaslab.process.check.py GWAS_ID [log_dir]`), all studies in a directory (`--all`), or only studies with problems (`--errors-only`).
 - Parses: variant counts from preprocess/normalize, liftover status, chr-split count, checkref match rate + flipped/unmatched variant totals aggregated across chromosomes, and merge combined/QC-pass/COJO variant counts.
 - Distinguishes real errors (Traceback, `*Error:`, `Illegal instruction`, `[ERROR]`) from known-benign upstream warnings (gwaslab FutureWarning/UserWarning/SettingWithCopyWarning, matplotlib, htslib `[W::]`).
-- 📝**Updated**: `README.md` — added `gwaslab.process.check.py` to the HPC files table and added a dedicated `🩺 Check run status` section with usage examples and sample output.
-- 🛠️**Updated**: Bumped `gwaslab.process.py` to v1.4.8 (`2026-03-18`) to mark this as a versioned release.
+- 📝**Updated**: `README.md` — added `gwas_process.check.py` to the HPC files table and added a dedicated `🩺 Check run status` section with usage examples and sample output.
+- 🛠️**Updated**: Bumped `gwas_process.py` to v1.4.8 (`2026-03-18`) to mark this as a versioned release.
 
 ## 2026-03-18 🔇 Suppress FutureWarning in run_merge pd.concat (v1.4.7)
 - **Warning**: `FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated` was emitted from line 903 during the merge stage. Root cause: per-chromosome shards for continuous traits (no `N_cases`/`N_controls`) contain all-NA entries in those nullable integer columns. When `pd.concat` sees a mix of all-NA and populated shards it warns about dtype inference, even though the parquet-preserved `Int64` dtypes are already correct and consistent across all shards.
-- 🐛**Fixed** `gwaslab.process.py` — `run_merge()` now (1) filters out genuinely empty DataFrames before concat as a safety guard, and (2) wraps `pd.concat` in a `warnings.catch_warnings()` context that suppresses only this specific FutureWarning. The current concat behaviour is exactly correct for our use case; the suppression will be revisited if pandas changes its dtype inference in a way that affects results.
+- 🐛**Fixed** `gwas_process.py` — `run_merge()` now (1) filters out genuinely empty DataFrames before concat as a safety guard, and (2) wraps `pd.concat` in a `warnings.catch_warnings()` context that suppresses only this specific FutureWarning. The current concat behaviour is exactly correct for our use case; the suppression will be revisited if pandas changes its dtype inference in a way that affects results.
 - 🛠️**Updated**: Added `import warnings` to the import block. Bumped version to `1.4.7` (`2026-03-18`).
 
 ## 2026-03-18 🐛 SIGILL crash on older HPC compute nodes — polars requires AVX2 (v1.4.6)
@@ -208,7 +219,7 @@ This document tracks changes to the codebase. Each entry should include a brief 
 
 ## 2026-03-18 🐛 Categorical re-encoding by gwaslab __init__ breaks flip_allele_stats in per-chr stages (v1.4.5)
 - **Bug**: `process-check-ref` (and downstream per-chromosome stages) crashed with `TypeError: Cannot setitem on a Categorical with a new category, set the categories first` inside `gwaslab.flip_allele_stats()`, even though `load_chrom_parquet()` already converted Categorical columns to `object` before passing the DataFrame to `make_sumstats_from_chrom_df()`. Root cause: gwaslab's `gl.Sumstats.__init__()` calls `basic_check()` internally, which re-encodes `EA` and `NEA` as `pd.Categorical`. Because the input is a per-chromosome shard, each column's category set only contains the allele values observed on that chromosome. When `flip_allele_stats()` then tries to swap `EA↔NEA` for 117,715 variants (e.g. LAS chromosome 9), it attempts to assign an `EA` value that is present in `NEA`'s category set but absent from `EA`'s subset, causing the pandas error. The earlier `v1.4.2` fix in `load_chrom_parquet()` was not sufficient because it converted before construction, and construction undoes it.
-- 🐛**Fixed** `gwaslab.process.py` — `make_sumstats_from_chrom_df()` now runs a second Categorical-to-object conversion on `gwas_obj.data` immediately *after* `make_sumstats_object()` returns. All columns identified by `select_dtypes(include="category")` (typically `EA`, `NEA`, `SNPID`) are converted to plain `object` dtype. This conversion is applied once at object-creation time and persists through all downstream per-chromosome processing steps (`check_ref`, `infer_strand`, `assign_rsid`, `check_af`). The `load_chrom_parquet()` conversion is kept as a pre-construction safety net.
+- 🐛**Fixed** `gwas_process.py` — `make_sumstats_from_chrom_df()` now runs a second Categorical-to-object conversion on `gwas_obj.data` immediately *after* `make_sumstats_object()` returns. All columns identified by `select_dtypes(include="category")` (typically `EA`, `NEA`, `SNPID`) are converted to plain `object` dtype. This conversion is applied once at object-creation time and persists through all downstream per-chromosome processing steps (`check_ref`, `infer_strand`, `assign_rsid`, `check_af`). The `load_chrom_parquet()` conversion is kept as a pre-construction safety net.
 - 🛠️**Updated**: Bumped version to `1.4.5` (`2026-03-18`).
 
 ## 2026-03-18 🧪 Synthetic test datasets for gwas2cojo.py
@@ -235,33 +246,33 @@ This document tracks changes to the codebase. Each entry should include a brief 
 ## 2026-03-18 🐛 gwas2cojo.conf not found when running as SLURM job
 - 🛠️**Updated**: Bumped version to `1.4.4` (`2026-03-18`).
 - **Bug**: After the `gwas2cojo.conf` introduction, SLURM jobs immediately failed with `ERROR: /var/spool/slurmd/job<ID>/gwas2cojo.conf not found`. SLURM copies the worker script (`array_for_submit.sh`) to its own temporary spool directory before executing it on the compute node, so `BASH_SOURCE[0]` inside the job resolves to the spool path rather than the original script location. The conf-file lookup `"${SCRIPT_DIR}/gwas2cojo.conf"` therefore searched in `/var/spool/slurmd/job<ID>/` where no conf file exists.
-- 🐛**Fixed** `gwaslab.process.array_for_submit.sh` — the conf-loading stanza now checks the environment variable `GWAS2COJO_CONF` first (exported by the submit scripts, which run on the login node and always have the correct absolute path). The `BASH_SOURCE`-relative lookup is retained as a fallback for direct local invocation only. An improved error message names all three possible causes when the conf is still not found.
-- 🛠️**Updated** `gwaslab.process.submit_staged.sh`, `gwaslab.process.submit.sh` — both scripts now `export GWAS2COJO_CONF="${CONF}"` immediately after sourcing the conf. SLURM propagates all exported environment variables to job environments by default (`--export=ALL`), so the absolute path is reliably available inside every job regardless of which spool directory SLURM uses.
+- 🐛**Fixed** `gwas_process.array_for_submit.sh` — the conf-loading stanza now checks the environment variable `GWAS2COJO_CONF` first (exported by the submit scripts, which run on the login node and always have the correct absolute path). The `BASH_SOURCE`-relative lookup is retained as a fallback for direct local invocation only. An improved error message names all three possible causes when the conf is still not found.
+- 🛠️**Updated** `gwas_process.submit_staged.sh`, `gwas_process.submit.sh` — both scripts now `export GWAS2COJO_CONF="${CONF}"` immediately after sourcing the conf. SLURM propagates all exported environment variables to job environments by default (`--export=ALL`), so the absolute path is reliably available inside every job regardless of which spool directory SLURM uses.
 
 ## 2026-03-18 🔒 Removed hardcoded site-specific paths; added gwas2cojo.conf
 - 🛠️**Updated**: Bumped version to `1.4.3` (`2026-03-18`).
 - 🔒**Removed** all hardcoded HPC-specific paths and institutional email addresses (`@umcutrecht.nl`) from every tracked file in the repository so the codebase is clean for public use.
 - 🆕**Added** `gwas2cojo.conf.example` — a single site-configuration template containing five variables (`PYTHON_SCRIPT`, `REF_DIR`, `OUT_BASE`, `CONDA_ENV`, `EMAIL`). Users copy it to `gwas2cojo.conf` (gitignored) and fill in their local values once.
-- 🛠️**Updated** `gwaslab.process.array_for_submit.sh`, `gwaslab.process.submit.sh`, `gwaslab.process.submit_staged.sh`, `gwaslab.process.cleanup.sh` — replaced per-script `USER CONFIGURATION` blocks with a uniform conf-loading stanza (`source "${SCRIPT_DIR}/gwas2cojo.conf"`). All four scripts now emit a clear error with instructions if `gwas2cojo.conf` is missing.
+- 🛠️**Updated** `gwas_process.array_for_submit.sh`, `gwas_process.submit.sh`, `gwas_process.submit_staged.sh`, `gwas_process.cleanup.sh` — replaced per-script `USER CONFIGURATION` blocks with a uniform conf-loading stanza (`source "${SCRIPT_DIR}/gwas2cojo.conf"`). All four scripts now emit a clear error with instructions if `gwas2cojo.conf` is missing.
 - 🛠️**Updated** `.gitignore` — added `gwas2cojo.conf` and `gwas_list.txt` so local site settings and study lists are never accidentally committed.
 - 🛠️**Updated** `gwaslab.download_refs.py` — replaced hardcoded `DEFAULT_REF_DIR` path and docstring with placeholder values.
 - 🆕**Added** `gwas_list.example.txt` — a minimal three-study example config (`CAD_Aragam`, `CHARGE_CAC_EA`, `AF`) with placeholder `/path/to/gwas_datasets/` prefixes, HEADER comments, and resource annotations. Serves as the committed template; users copy to `gwas_list.txt` (gitignored) and update paths.
-- 🛠️**Updated** `gwas2cojo.py`, `gwas2cojo-verify.py` — replaced `@umcutrecht.nl` banner addresses with obfuscated personal addresses (`lennart[at]landsmeer[dot]email`, `s.w.vanderlaan[at]gmail[dot]com`), matching the format already used in `gwaslab.process.py` and the README licence block.
+- 🛠️**Updated** `gwas2cojo.py`, `gwas2cojo-verify.py` — replaced `@umcutrecht.nl` banner addresses with obfuscated personal addresses (`lennart[at]landsmeer[dot]email`, `s.w.vanderlaan[at]gmail[dot]com`), matching the format already used in `gwas_process.py` and the README licence block.
 - 🛠️**Updated** `README.md` — added a `⚙️ One-time site setup` section explaining the `gwas2cojo.conf` workflow; added `gwas2cojo.conf.example` and `gwas_list.example.txt` to the HPC files table; replaced remaining HPC paths and institutional emails throughout.
 
 ## 2026-03-18 🐛 Categorical dtype crash in per-chr stages and ZeroDivisionError in plot_daf
 - 🛠️**Updated**: Bumped version to `1.4.2` (`2026-03-18`).
 - **Bug 1**: All per-chromosome `process-check-ref` and `process-infer-strand` jobs failed with `TypeError: Cannot setitem on a Categorical with a new category, set the categories first` inside gwaslab's `flip_allele_stats()`. gwaslab encodes EA/NEA/SNPID as `pd.Categorical` after `basic_check()` for memory efficiency, and parquet round-trips preserve that dtype. A per-chromosome shard's Categorical column only contains the allele categories actually present on that chromosome. When `flip_allele_stats` tries to swap EA↔NEA for a variant whose allele (e.g. an indel sequence) exists in EA's category set but not NEA's on that chromosome, pandas refuses the assignment. In the whole-genome path this never surfaced because the full Categorical across all chromosomes includes all values in both columns simultaneously.
-- 🐛**Fixed** `gwaslab.process.py` — `load_chrom_parquet()` now converts all `pd.CategoricalDtype` columns to plain `object` dtype immediately after reading the parquet (`df.select_dtypes(include="category")`), before the DataFrame is passed to `make_sumstats_from_chrom_df()`. This only affects EA/NEA/SNPID-style string columns; numeric columns (STATUS `Int64`, CHR, POS, BETA, SE, P, N, etc.) are not Categorical and are completely unaffected. gwaslab operates identically on `object` dtype allele strings for all harmonise/check operations; Categorical is purely a memory optimisation that is not required for correctness.
+- 🐛**Fixed** `gwas_process.py` — `load_chrom_parquet()` now converts all `pd.CategoricalDtype` columns to plain `object` dtype immediately after reading the parquet (`df.select_dtypes(include="category")`), before the DataFrame is passed to `make_sumstats_from_chrom_df()`. This only affects EA/NEA/SNPID-style string columns; numeric columns (STATUS `Int64`, CHR, POS, BETA, SE, P, N, etc.) are not Categorical and are completely unaffected. gwaslab operates identically on `object` dtype allele strings for all harmonise/check operations; Categorical is purely a memory optimisation that is not required for correctness.
 - **Bug 2**: The `merge` stage failed for CHARGE_CAC_EA_AA with `ZeroDivisionError: division by zero` inside gwaslab's `plot_daf()` (`num / len(sumstats)` where `len(sumstats) == 0`). The study had too few variants with a valid DAF value after processing (EAF largely absent or all-NaN), leaving an empty subset after DAF filtering inside gwaslab's plot routine.
-- 🐛**Fixed** `gwaslab.process.py` — wrapped `gwas_obj.plot_daf()` in both `plot_full_dataset()` and `plot_qc_dataset()` with `try/except ZeroDivisionError`. When triggered, a `logging.warning` is emitted and the DAF plot is skipped; the rest of the merge stage (Manhattan, QQ, QC, leads, COJO) continues normally.
-- 🛠️**Updated** `gwaslab.process.submit.sh` — added `NODES`, `CPUS`, `EMAIL`, and `MAIL_TYPE` variables and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to the `sbatch` call. Previously these were absent, relying on the now-removed `#SBATCH` directives in `array_for_submit.sh`.
-- 🛠️**Updated** `gwaslab.process.array_for_submit.sh` — removed `#SBATCH --mail-type=END,FAIL` and `#SBATCH --mail-user` directives from the worker script header. SLURM merges `#SBATCH` directives from the script with command-line flags rather than letting the command line override them, so the hardcoded `END` in the script was causing end-of-job emails despite both submit scripts setting `--mail-type=FAIL`. Mail settings are now solely controlled by the calling submit script. Updated the comment to correctly name both `submit.sh` and `submit_staged.sh` as the controlling scripts.
+- 🐛**Fixed** `gwas_process.py` — wrapped `gwas_obj.plot_daf()` in both `plot_full_dataset()` and `plot_qc_dataset()` with `try/except ZeroDivisionError`. When triggered, a `logging.warning` is emitted and the DAF plot is skipped; the rest of the merge stage (Manhattan, QQ, QC, leads, COJO) continues normally.
+- 🛠️**Updated** `gwas_process.submit.sh` — added `NODES`, `CPUS`, `EMAIL`, and `MAIL_TYPE` variables and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to the `sbatch` call. Previously these were absent, relying on the now-removed `#SBATCH` directives in `array_for_submit.sh`.
+- 🛠️**Updated** `gwas_process.array_for_submit.sh` — removed `#SBATCH --mail-type=END,FAIL` and `#SBATCH --mail-user` directives from the worker script header. SLURM merges `#SBATCH` directives from the script with command-line flags rather than letting the command line override them, so the hardcoded `END` in the script was causing end-of-job emails despite both submit scripts setting `--mail-type=FAIL`. Mail settings are now solely controlled by the calling submit script. Updated the comment to correctly name both `submit.sh` and `submit_staged.sh` as the controlling scripts.
 
 ## 2026-03-18 🐛 Missing --nodes, --cpus-per-task, and --mail-* in gwaslab.process.submit_staged.sh
 - 🛠️**Updated**: Bumped version to `1.4.1` (`2026-03-18`).
-- **Bug**: The v1.4.0 per-chromosome refactor of `gwaslab.process.submit_staged.sh` dropped three SLURM job settings that were present in the earlier script: `--nodes`, `--cpus-per-task`, and `--mail-type`/`--mail-user`. As a result all submitted jobs would inherit SLURM defaults (typically 1 CPU, which starves the multi-threaded Python worker that requests `--threads 8` via `WORKER_FLAGS`), and no failure-notification emails would be sent.
-- 🐛**Fixed** `gwaslab.process.submit_staged.sh` — added four variables to the USER CONFIGURATION block (`NODES=1`, `CPUS=8`, `EMAIL`, `MAIL_TYPE="FAIL"`) and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to all eight `sbatch` calls (preprocess, normalize, split, check-ref, infer-strand, assign-rsid, check-af, merge). `CPUS` is intentionally kept in sync with the `--threads N` value in `WORKER_FLAGS`.
+- **Bug**: The v1.4.0 per-chromosome refactor of `gwas_process.submit_staged.sh` dropped three SLURM job settings that were present in the earlier script: `--nodes`, `--cpus-per-task`, and `--mail-type`/`--mail-user`. As a result all submitted jobs would inherit SLURM defaults (typically 1 CPU, which starves the multi-threaded Python worker that requests `--threads 8` via `WORKER_FLAGS`), and no failure-notification emails would be sent.
+- 🐛**Fixed** `gwas_process.submit_staged.sh` — added four variables to the USER CONFIGURATION block (`NODES=1`, `CPUS=8`, `EMAIL`, `MAIL_TYPE="FAIL"`) and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to all eight `sbatch` calls (preprocess, normalize, split, check-ref, infer-strand, assign-rsid, check-af, merge). `CPUS` is intentionally kept in sync with the `--threads N` value in `WORKER_FLAGS`.
 
 ## 2026-03-18 🐛 Wrong build passed to reference-checking stages after liftover
 - **Bug**: In all staged pipeline paths (`process-check-ref`, `process-infer-strand`, `process-assign-rsid`, `process-check-af`, `qc`, and the new `merge`), `normalise_build(REFERENCE)` was used instead of `build_num` when selecting the reference FASTA, dbSNP VCF, and Sumstats build, and when setting the chromosome map for Manhattan/QQ plots. `REFERENCE` is set from `args.build` (the original input build, e.g. `"19"`) and is never updated between staged invocations. `build_num` is correctly set to `"38"` at startup for any hg19/hg18+liftover study.
@@ -271,7 +282,7 @@ This document tracks changes to the codebase. Each entry should include a brief 
   - `build="19"` in reconstructed `Sumstats` objects (per-chr and merge paths) → wrong internal build attribute for all downstream gwaslab operations.
   - `build=reference` in `plot_mqq` → hg19 chromosome-length map applied to hg38 positions → distorted Manhattan plots.
 - **Why not seen before**: The staged whole-genome path (pre-v1.4.0) always OOM'd inside `process-check-ref` or later, so these stages never produced output. The per-chromosome refactor (v1.4.0) is specifically designed to make these stages complete — meaning the wrong results would be written and stored for the first time.
-- 🐛**Fixed** `gwaslab.process.py` — replaced `normalise_build(REFERENCE)` / `REFERENCE` with `build_num` at nine call sites across `main()` and `run_merge()`:
+- 🐛**Fixed** `gwas_process.py` — replaced `normalise_build(REFERENCE)` / `REFERENCE` with `build_num` at nine call sites across `main()` and `run_merge()`:
   - `process-check-ref` per-chr and whole-genome: `run_check_ref(gwas_obj, build_num, args.ref)` (FASTA path)
   - `process-assign-rsid` per-chr and whole-genome: `run_assign_rsid(gwas_obj, build_num, args.ref, …)` (dbSNP VCF path)
   - `make_sumstats_from_chrom_df(df, build_num)` in all four per-chr stage branches and in `run_merge()`
@@ -280,29 +291,29 @@ This document tracks changes to the codebase. Each entry should include a brief 
 ## 2026-03-17 🆕 Per-chromosome array-job pipeline for heavy stages (v1.4.0)
 - 🛠️**Updated**: Bumped version to `1.4.0` (`2026-03-17`).
 - **Context**: Studies were OOM-failing at `process-check-ref`, `process-infer-strand`, `process-assign-rsid`, and `process-check-af` even at 128–256 G. The root cause is that these stages sweep large VCF files (1KG ~84 M variants, dbSNP ~1 B variants) against the full genome-wide GWAS dataset. The fix splits the dataset by chromosome before the heavy stages so each VCF-sweep job works on ~1/22 of the variants.
-- 🆕**Added** `process-split` stage to `gwaslab.process.py` — loads `{stem}.normalize.pkl`, splits by chromosome into per-chromosome BROTLI parquets (`{stem}.chr{N}.normalize.parquet`, N = 1–26), and writes a `{stem}.chrsplit.json` manifest. CHR values follow gwaslab's `Int64` convention: 1–22 = autosomes, 23 = X, 24 = Y, 25 = nonPAR, 26 = MT. Parquets preserve the STATUS bitmask column so gwaslab state is maintained across the per-chr jobs.
-- 🆕**Added** `merge` stage to `gwaslab.process.py` — concatenates all `{stem}.chr{N}.checkaf.parquet` shards into a single genome-wide DataFrame, recreates a gwaslab `Sumstats` object (with STATUS restored), then runs QC filtering, plots (Manhattan, QQ, DAF), lead-variant extraction, and COJO output. Replaces the separate `qc` + `cojo` stages in the per-chromosome pipeline path.
-- 🆕**Added** `--chrom N` argument (int 1–26) to `gwaslab.process.py`. When set, `process-check-ref`, `process-infer-strand`, `process-assign-rsid`, and `process-check-af` each operate on a single chromosome shard (`{stem}.chr{N}.{prev}.parquet` → `{stem}.chr{N}.{next}.parquet`). If the shard does not exist the stage exits gracefully with exit code 0, satisfying SLURM `afterok` dependencies for the next array stage.
+- 🆕**Added** `process-split` stage to `gwas_process.py` — loads `{stem}.normalize.pkl`, splits by chromosome into per-chromosome BROTLI parquets (`{stem}.chr{N}.normalize.parquet`, N = 1–26), and writes a `{stem}.chrsplit.json` manifest. CHR values follow gwaslab's `Int64` convention: 1–22 = autosomes, 23 = X, 24 = Y, 25 = nonPAR, 26 = MT. Parquets preserve the STATUS bitmask column so gwaslab state is maintained across the per-chr jobs.
+- 🆕**Added** `merge` stage to `gwas_process.py` — concatenates all `{stem}.chr{N}.checkaf.parquet` shards into a single genome-wide DataFrame, recreates a gwaslab `Sumstats` object (with STATUS restored), then runs QC filtering, plots (Manhattan, QQ, DAF), lead-variant extraction, and COJO output. Replaces the separate `qc` + `cojo` stages in the per-chromosome pipeline path.
+- 🆕**Added** `--chrom N` argument (int 1–26) to `gwas_process.py`. When set, `process-check-ref`, `process-infer-strand`, `process-assign-rsid`, and `process-check-af` each operate on a single chromosome shard (`{stem}.chr{N}.{prev}.parquet` → `{stem}.chr{N}.{next}.parquet`). If the shard does not exist the stage exits gracefully with exit code 0, satisfying SLURM `afterok` dependencies for the next array stage.
 - 🆕**Added** helper functions: `load_chrom_parquet()`, `save_chrom_parquet()`, `make_sumstats_from_chrom_df()`, `split_by_chrom()`, `load_chrsplit_manifest()`, `run_merge()`.
-- 🛠️**Updated** `gwaslab.process.submit_staged.sh` — the four heavy process stages are now submitted as SLURM array jobs (`--array=1-26`); a `process-split` job is inserted between `process-normalize` and the array stages; a `merge` job replaces the `qc` + `cojo` tail. Fixed resources: `process-split` 16 G / 30 min. `afterok` on an array job ID waits for all 26 tasks; absent-chromosome tasks (exit 0) satisfy the dependency automatically. Job count per study: ~107 (vs. 8 before), well within the site limit of 120,000. Updated monitor/cancel hints.
-- 🛠️**Updated** `gwaslab.process.array_for_submit.sh` — appends `--chrom ${SLURM_ARRAY_TASK_ID}` to the Python command when running as an array task; logs the chromosome in the job header.
+- 🛠️**Updated** `gwas_process.submit_staged.sh` — the four heavy process stages are now submitted as SLURM array jobs (`--array=1-26`); a `process-split` job is inserted between `process-normalize` and the array stages; a `merge` job replaces the `qc` + `cojo` tail. Fixed resources: `process-split` 16 G / 30 min. `afterok` on an array job ID waits for all 26 tasks; absent-chromosome tasks (exit 0) satisfy the dependency automatically. Job count per study: ~107 (vs. 8 before), well within the site limit of 120,000. Updated monitor/cancel hints.
+- 🛠️**Updated** `gwas_process.array_for_submit.sh` — appends `--chrom ${SLURM_ARRAY_TASK_ID}` to the Python command when running as an array task; logs the chromosome in the job header.
 
 ## 2026-03-16 🆕 Reference file download utility
 - 🆕**Added**: `gwaslab.download_refs.py` — utility script and complete inventory of all gwaslab reference files, using gwaslab's built-in `gl.download_ref()` function. Active entries (AFR, EAS, AMR, SAS for both hg19 and hg38) are downloaded; all other files already present at the reference directory are listed as comments and can be uncommented to (re-)download. Covered categories: 1KG population VCFs (all six populations, hg19 + hg38), HapMap3 EAF tables, 1KG SNPID→rsID conversion tables, dbSNP v151/v157 VCFs (very large, NCBI FTP), UCSC reference FASTA, recombination maps, and Ensembl/RefSeq GTF files. The `.tbi` index is fetched automatically alongside each VCF. Target directory defaults to `/path/to/references/gwaslab/`; override with `--ref-dir`. Prints a summary via `gl.check_downloaded_ref()` on completion.
 - 🛠️**Updated**: `README.md` — added a `📥 Reference file management` section with a full reference-file inventory table (keyword, filename, default status), usage instructions, and a note about Dropbox/NCBI accessibility on HPC. Added `gwaslab.download_refs.py` to the HPC helper-scripts file table.
 
 ## 2026-03-16 🛠️ Updated environment.yml and installation instructions
-- 🛠️**Updated**: `environment.yml` — overhauled to reflect the full dependency set required by `gwaslab.process.py`. Upgraded Python from `3.11` to `3.12`. Moved all Python packages to the `pip:` block with pinned or bounded versions: `numpy>=1.21.2,<2`, `adjusttext==0.8`, `matplotlib>=3.8,<3.9`, `pandas>=1.3,!=1.5`, `pysam==0.22.1`, `scikit-allel>=1.3.5`, `scipy>=1.12`, `seaborn>=0.12`, `h5py>=3.10.0`, `pyarrow`, `polars>=1.27.0`, `sumstats-liftover==1.1.0`, `jupyter==1.0.0`, `gwaslab`, `pyliftover`, `tqdm`. `bcftools` retained as a conda dependency (bioconda channel) rather than a pip package. Replaced `defaults` channel with `nodefaults` to avoid the Anaconda commercial repository, which is not permitted at many academic institutions; all packages are sourced exclusively from `conda-forge` and `bioconda`.
+- 🛠️**Updated**: `environment.yml` — overhauled to reflect the full dependency set required by `gwas_process.py`. Upgraded Python from `3.11` to `3.12`. Moved all Python packages to the `pip:` block with pinned or bounded versions: `numpy>=1.21.2,<2`, `adjusttext==0.8`, `matplotlib>=3.8,<3.9`, `pandas>=1.3,!=1.5`, `pysam==0.22.1`, `scikit-allel>=1.3.5`, `scipy>=1.12`, `seaborn>=0.12`, `h5py>=3.10.0`, `pyarrow`, `polars>=1.27.0`, `sumstats-liftover==1.1.0`, `jupyter==1.0.0`, `gwaslab`, `pyliftover`, `tqdm`. `bcftools` retained as a conda dependency (bioconda channel) rather than a pip package. Replaced `defaults` channel with `nodefaults` to avoid the Anaconda commercial repository, which is not permitted at many academic institutions; all packages are sourced exclusively from `conda-forge` and `bioconda`.
 - 🛠️**Updated**: `README.md` — replaced the requirements and installation sections. Now documents Python 3.12 and `bcftools` as requirements; provides two installation paths (Option A: `mamba env create -f environment.yml`; Option B: manual `mamba create` + `pip install`); updated verification command to import `gwaslab` and `polars`; updated troubleshooting guidance for dependency conflicts and bioconda `bcftools`.
 
 ## 2026-03-16 🛠️ Two-tier resource model for gwaslab.process.submit_staged.sh
 - 🛠️**Updated**: `gwas_list.txt` — added two new columns: `MEM_LIGHT` (COL10) and `TIME_LIGHT` (COL11) for the moderate pipeline stages (`process-normalize`, `process-check-ref`, `qc`). The existing `MEM` (COL8) and `TIME` (COL9) columns are unchanged and continue to control the heavy VCF-sweep stages (`process-infer-strand`, `process-assign-rsid`, `process-check-af`). Note added to header: `MEM_LIGHT` should be set higher for studies with many columns or complex allele structure (e.g. the AF multi-ancestry meta-analysis required 128G at `process-check-ref` despite having fewer variants than EUR studies that passed at 64G).
-- 🛠️**Updated**: `gwaslab.process.submit_staged.sh` — replaced per-stage fixed defaults with two script-level fallback defaults (`MEM_LIGHT_DEFAULT=64G`, `MEM_HEAVY_DEFAULT=128G`). Per-study `MEM_LIGHT`/`TIME_LIGHT` are read from COL10/COL11 and applied to all light-tier stages (`process-normalize`, `process-check-ref`, `qc`); if absent the fallbacks are used. Report table now shows both tiers alongside the job chain.
+- 🛠️**Updated**: `gwas_process.submit_staged.sh` — replaced per-stage fixed defaults with two script-level fallback defaults (`MEM_LIGHT_DEFAULT=64G`, `MEM_HEAVY_DEFAULT=128G`). Per-study `MEM_LIGHT`/`TIME_LIGHT` are read from COL10/COL11 and applied to all light-tier stages (`process-normalize`, `process-check-ref`, `qc`); if absent the fallbacks are used. Report table now shows both tiers alongside the job chain.
 - 🛠️**Updated**: Active entries in `gwas_list.txt` — `MEM_LIGHT`/`TIME_LIGHT` assigned per study: `32G/12h` for standard EUR studies; `64G/24h` for PAN and large EUR studies; `128G/24h` for AF (known to require higher memory at `process-check-ref`).
 
 ## 2026-03-16 🆕 Fine-grained process sub-stages, staged submit, and cleanup (v1.3.0)
 - 🛠️**Updated**: Bumped version to `1.3.0` (`2026-03-16`).
-- 🆕**Added**: Five `--stage process-*` sub-stages to `gwaslab.process.py`, splitting the monolithic process stage by memory profile. Each sub-stage saves a pickle checkpoint so subsequent stages can be submitted as independent SLURM jobs with their own resources:
+- 🆕**Added**: Five `--stage process-*` sub-stages to `gwas_process.py`, splitting the monolithic process stage by memory profile. Each sub-stage saves a pickle checkpoint so subsequent stages can be submitted as independent SLURM jobs with their own resources:
     - `process-normalize`    — `basic_check` + `remove_dup` + `liftover` → `{stem}.normalize.pkl` (medium)
     - `process-check-ref`    — `check_ref` + `flip_allele_stats` + `fix_id` → `{stem}.checkref.pkl` (medium)
     - `process-infer-strand` — `infer_strand2` + `flip_allele_stats` → `{stem}.inferstrand.pkl` (high — 1KG VCF sweep)
@@ -315,12 +326,12 @@ This document tracks changes to the codebase. Each entry should include a brief 
 - 🛠️**Updated**: `main()` — added guard that exits with an error if `--stage process-assign-rsid` is used without `--dbsnp`.
 - 🛠️**Updated**: `main()` — `_pickle_required_stages` guard extended to cover all process sub-stages that require a prior-stage checkpoint.
 - 🛠️**Updated**: Header comment in `main()` documents the full checkpoint chain: `preprocess → normalize → checkref → inferstrand → assignrsid → checkaf → qc → cojo`.
-- 🆕**Added**: `gwaslab.process.submit_staged.sh` — new script that submits one SLURM job per stage per study with `--dependency=afterok` chaining. If a stage fails, SLURM cancels all downstream stages for that study automatically; other studies are unaffected. `MEM` and `TIME` from `gwas_list.txt` are applied to the two heaviest stages (`process-infer-strand` and `process-assign-rsid`); all other stages use fixed resource defaults defined at the top of the script. `process-assign-rsid` is omitted when `--dbsnp` is absent from `WORKER_FLAGS`.
-- 🆕**Added**: `gwaslab.process.cleanup.sh` — removes all intermediate checkpoint files after a successful run. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `.log`, `PLOTS/`) are never touched. Supports `--study NAME`, `--all`, or `--config gwas_list.txt` scope; `--dry-run` prints what would be deleted without removing; `--keep-raw-pkl` preserves the final raw pickle; `--remove-qc-pkl` also removes the QC pickle (kept by default).
+- 🆕**Added**: `gwas_process.submit_staged.sh` — new script that submits one SLURM job per stage per study with `--dependency=afterok` chaining. If a stage fails, SLURM cancels all downstream stages for that study automatically; other studies are unaffected. `MEM` and `TIME` from `gwas_list.txt` are applied to the two heaviest stages (`process-infer-strand` and `process-assign-rsid`); all other stages use fixed resource defaults defined at the top of the script. `process-assign-rsid` is omitted when `--dbsnp` is absent from `WORKER_FLAGS`.
+- 🆕**Added**: `gwas_process.cleanup.sh` — removes all intermediate checkpoint files after a successful run. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `.log`, `PLOTS/`) are never touched. Supports `--study NAME`, `--all`, or `--config gwas_list.txt` scope; `--dry-run` prints what would be deleted without removing; `--keep-raw-pkl` preserves the final raw pickle; `--remove-qc-pkl` also removes the QC pickle (kept by default).
 
 ## 2026-03-16 🆕 Pipeline staging in gwaslab.process.py (v1.2.0)
 - 🛠️**Updated**: Bumped version to `1.2.0` (`2026-03-16`).
-- 🆕**Added**: `--stage` flag to `gwaslab.process.py` with four stages: `preprocess`, `process`, `qc`, and `cojo` (plus `all`, the default, which preserves the existing end-to-end behaviour). Each stage can be submitted as a separate SLURM job with its own `--mem` and `--time`, allowing resource-light stages to run at `64G / 48h` while memory-intensive steps (`process`: `check_ref`, `infer_strand2`, `assign_rsid`) can be given `128G–256G / 96h` independently.
+- 🆕**Added**: `--stage` flag to `gwas_process.py` with four stages: `preprocess`, `process`, `qc`, and `cojo` (plus `all`, the default, which preserves the existing end-to-end behaviour). Each stage can be submitted as a separate SLURM job with its own `--mem` and `--time`, allowing resource-light stages to run at `64G / 48h` while memory-intensive steps (`process`: `check_ref`, `infer_strand2`, `assign_rsid`) can be given `128G–256G / 96h` independently.
 - 🆕**Added**: `save_preprocess_checkpoint()` — writes `{stem}.preprocess.parquet` (BROTLI-compressed standardised DataFrame) and `{stem}.preprocess.json` (detected build metadata) as the handoff from `--stage preprocess` to `--stage process`.
 - 🆕**Added**: `load_preprocess_checkpoint()` — reads the parquet + JSON checkpoint written by `--stage preprocess` and restores the `reference`, `build_num`, and `input_build` so subsequent stages use identical file stems.
 - 🆕**Added**: `import json` to top-level imports (previously absent; required by the new checkpoint metadata functions).
@@ -332,7 +343,7 @@ This document tracks changes to the codebase. Each entry should include a brief 
 ## 2026-03-16 🛠️ Memory efficiency improvements in gwaslab.process.py (v1.1.0)
 - 🛠️**Updated**: Bumped version to `1.1.0` (`2026-03-16`).
 - 🆕**Added**: `import gc` (previously commented out) to enable explicit garbage collection at stage boundaries.
-- 🆕**Added**: `--no-pickle` flag to `gwaslab.process.py`. When set, `.pkl` files are skipped for both raw and QC outputs, reducing peak memory and disk usage on the save step. The gwaslab `.log` file is still written regardless. Note: `--only-qc` requires a pickle from a prior run, so it is incompatible with `--no-pickle`.
+- 🆕**Added**: `--no-pickle` flag to `gwas_process.py`. When set, `.pkl` files are skipped for both raw and QC outputs, reducing peak memory and disk usage on the save step. The gwaslab `.log` file is still written regardless. Note: `--only-qc` requires a pickle from a prior run, so it is incompatible with `--no-pickle`.
 - 🛠️**Updated**: `save_raw_outputs()` and `save_qc_outputs()` — eliminated the parquet read-back pattern (`pd.read_parquet(parquet_path)`) that was used to generate the TSV.GZ. Both functions now write the TSV directly from the in-memory `gwas_obj.data` / `gwas_obj_qc.data`, avoiding a full extra copy of the data just to write one file.
 - 🛠️**Updated**: `main()` — added `del gwas_data; gc.collect()` immediately after `plot_raw_histograms()` (the last use of the raw DataFrame). This frees the raw pandas DataFrame before the heavy processing steps (`check_ref`, `infer_strand2`, `assign_rsid`, `check_af2`), preventing two full-size DataFrames from coexisting in RAM throughout the pipeline.
 - 🛠️**Updated**: `main()` — added `del gwas_obj; gc.collect()` immediately after `apply_qc()` returns `gwas_obj_qc`. The unfiltered object is freed before saving QC outputs and generating QC plots, so only one copy of the data is in memory at a time during the QC stage.
@@ -341,21 +352,21 @@ This document tracks changes to the codebase. Each entry should include a brief 
 ## 2026-03-15 🛠️ Overhaul of SLURM submission and GWAS list
 - 🛠️**Updated**: The `gwas_list.txt` file to use semicolons (`;`) as the field delimiter instead of tabs, avoiding parsing issues when paths or values contain whitespace.
 - 🆕**Added**: Two new columns to `gwas_list.txt`: `MEM` (COL8, SLURM memory per job, e.g. `64G` or `128G`) and `TIME` (COL9, SLURM time limit per job, e.g. `48:00:00`), allowing resource requirements to be set individually per dataset.
-- 🛠️**Updated**: `gwaslab.process.submit.sh` to submit one independent SLURM job per dataset instead of a single array job. Memory (`--mem`) and time (`--time`) are now read from the config file and passed to each `sbatch` call individually, so datasets with different resource needs no longer share a single limit. Each job receives its own `--job-name`, `--output`, and `--error` derived from the dataset name.
-- 🛠️**Updated**: `gwaslab.process.array_for_submit.sh` to act as a single-dataset worker script. Removed array job logic (`SLURM_ARRAY_TASK_ID`), removed fixed `--mem`, `--time`, `--output`, and `--error` SBATCH directives (these are now set dynamically by `gwaslab.process.submit.sh`). The script now accepts a semicolon-delimited config line as its first argument and parses it directly.
+- 🛠️**Updated**: `gwas_process.submit.sh` to submit one independent SLURM job per dataset instead of a single array job. Memory (`--mem`) and time (`--time`) are now read from the config file and passed to each `sbatch` call individually, so datasets with different resource needs no longer share a single limit. Each job receives its own `--job-name`, `--output`, and `--error` derived from the dataset name.
+- 🛠️**Updated**: `gwas_process.array_for_submit.sh` to act as a single-dataset worker script. Removed array job logic (`SLURM_ARRAY_TASK_ID`), removed fixed `--mem`, `--time`, `--output`, and `--error` SBATCH directives (these are now set dynamically by `gwas_process.submit.sh`). The script now accepts a semicolon-delimited config line as its first argument and parses it directly.
 
 ## 2025-03-12 🛠️ Updates to GWAS list
 - 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
     - AFGen Roselli 2018 dataset for allele frequencies (AF) with b38 positions.
     - GLGC Graham 2021 datasets for HDL, LDL, TC, TG, and non-HDL traits in European populations.
-- 🧰**Fixed**: Issue with time of the SLURM job in `gwaslab.process.array_for_submit.sh` to allow for longer processing times, especially for larger GWAS datasets. Updated the time limit from 1 hour to 4 hours to accommodate the increased computational demands of processing multiple large GWAS datasets.
+- 🧰**Fixed**: Issue with time of the SLURM job in `gwas_process.array_for_submit.sh` to allow for longer processing times, especially for larger GWAS datasets. Updated the time limit from 1 hour to 4 hours to accommodate the increased computational demands of processing multiple large GWAS datasets.
 
 ## 2025-03-12 🛠️ Updates to GWAS list
 - 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
     - ISGC GigaStroke datasets for ALLSTROKE, IS, CES, LAS, and SVD subtypes.
     - CHARGE cIMT (Franceschini 2018) and CHARGE Plaque (Franceschini 2018) datasets.
 - 🛠️**Updated**: The `gwas_list.txt` file to ensure consistency in formatting and correct file paths.
-- 🛠️**Updated**: Changed the SLURM parameters for `gwaslab.process.array_for_submit.sh`. 
+- 🛠️**Updated**: Changed the SLURM parameters for `gwas_process.array_for_submit.sh`. 
 
 ## 2025-03-12 🆕 New functions
 - 🆕**Added**: A notebook to test drive some functions and option using `gwaslab`. 
@@ -373,14 +384,14 @@ This document tracks changes to the codebase. Each entry should include a brief 
     - Generate plots for both the full dataset and the QC-filtered dataset.
     - Extract lead SNPs from the QC-filtered dataset.
     - Ensure the `stem` variable is defined for both normal and --only-qc paths, allowing consistent file naming across different branches of the code.
-    - Updated plotting functions in `gwaslab.process.py` to include verbose logging and ensure that plots are saved with the correct DPI settings.
+    - Updated plotting functions in `gwas_process.py` to include verbose logging and ensure that plots are saved with the correct DPI settings.
     - Handles the case where a pickle file was created and the --only-qc flag is used to regenerate plots without re-running the full pipeline.
 - 🛠️**Updated**: The `LICENSE` file to correct the copyright year.
 - 🛠️**Updated**: The `.gitignore` file to include new directories and files that should be ignored by git.
 - 🛠️**Updated**: The `CHANGES.md` file to document the new functions and updates made to the codebase.
 - 🛠️**Updated**: The `README.md` file to reflect the new functionality and provide instructions for using the new script and notebook.
-- 🛠️**Updated**: The `gwaslab.process.py` file to include the new script for processing GWAS summary statistics and to ensure that the `stem` variable is defined in all relevant branches of the code.
+- 🛠️**Updated**: The `gwas_process.py` file to include the new script for processing GWAS summary statistics and to ensure that the `stem` variable is defined in all relevant branches of the code.
 - 🆕**Added**: Scripts for submitting GWAS processing jobs:
-    - `gwaslab.process.submit.sh`: A shell script to submit a GWAS processing job to a cluster using `sbatch`.
-    - `gwaslab.process.array_for_submit.sh`: A shell script to submit an array of GWAS processing jobs for multiple datasets or parameters. This is controlled by the `gwaslab.process.submit.sh` script, which can be configured to run multiple instances of the processing script with different arguments.
-    - `gwas_list.txt`: A text file containing a list of GWAS datasets to be processed. This file is used by the `gwaslab.process.array_for_submit.sh` script to determine which datasets to process in the array job. Each line in the file should specify a GWAS dataset, and the processing script will read this file to know which datasets to run on.
+    - `gwas_process.submit.sh`: A shell script to submit a GWAS processing job to a cluster using `sbatch`.
+    - `gwas_process.array_for_submit.sh`: A shell script to submit an array of GWAS processing jobs for multiple datasets or parameters. This is controlled by the `gwas_process.submit.sh` script, which can be configured to run multiple instances of the processing script with different arguments.
+    - `gwas_list.txt`: A text file containing a list of GWAS datasets to be processed. This file is used by the `gwas_process.array_for_submit.sh` script to determine which datasets to process in the array job. Each line in the file should specify a GWAS dataset, and the processing script will read this file to know which datasets to run on.

@@ -40,7 +40,7 @@
 # Usage examples:
 #
 #   # Minimal — run full default pipeline
-#   python3 gwaslab_process.py \
+#   python3 gwas_process.py \
 #       --gwas    MyStudy \
 #       --input   MyStudy.parsed.txt.gz \
 #       --dir     /data/results/MyStudy \
@@ -49,7 +49,7 @@
 #       --build   19
 #
 #   # Disable liftover and QC; produce COJO with rsID SNP column + CHR/BP cols
-#   python3 gwaslab_process.py \
+#   python3 gwas_process.py \
 #       --gwas    MyStudy \
 #       --input   MyStudy.parsed.txt.gz \
 #       --dir     /data/results/MyStudy \
@@ -61,9 +61,9 @@
 
 
 # ============================================================
-VERSION_NAME = "gwaslab_process"
-VERSION      = "1.4.21"
-VERSION_DATE = "2026-03-23"
+VERSION_NAME = "gwas_process"
+VERSION      = "1.4.22"
+VERSION_DATE = "2026-03-27"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -137,7 +137,7 @@ def setup_logging(log_path: str) -> logging.Logger:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        prog="gwaslab_process.py",
+        prog="gwas_process.py",
         description=(
             f"GWASLab Cohort Processing Pipeline  v{VERSION}  ({VERSION_DATE})\n"
             "Standardise, harmonise, and QC GWAS summary statistics."
@@ -145,7 +145,7 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Example:\n"
-            "  python3 gwaslab_process.py \\\n"
+            "  python3 gwas_process.py \\\n"
             "      --gwas MyStudy \\\n"
             "      --input MyStudy.parsed.txt.gz \\\n"
             "      --directory /data/results/MyStudy \\\n"
@@ -2401,7 +2401,7 @@ def main() -> None:
     ensure_dir(plots_loc)
 
     # ── Logging ────────────────────────────────────────────────────────────────
-    log_path = os.path.join(output_loc, f"{args.gwas}.gwaslab_process.log")
+    log_path = os.path.join(output_loc, f"{args.gwas}.gwas_process.log")
     setup_logging(log_path)
 
     logging.info("=" * 60)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gwaslab.process.submit_staged.sh — submit a chained per-study SLURM pipeline
+# gwas_process.submit_staged.sh — submit a chained per-study SLURM pipeline
 #
 # For each active dataset in the config file this script submits SLURM jobs
 # chained with --dependency=afterok so that:
@@ -47,8 +47,8 @@
 # upper bounds; tune down once you have baseline RSS measurements per study.
 #
 # Usage:
-#   bash gwaslab.process.submit_staged.sh gwas_list.txt
-#   bash gwaslab.process.submit_staged.sh gwas_list.txt --partition=highmem
+#   bash gwas_process.submit_staged.sh gwas_list.txt
+#   bash gwas_process.submit_staged.sh gwas_list.txt --partition=highmem
 #
 # Any extra arguments after the config file are forwarded to every sbatch call
 # (e.g. --partition, --account, --reservation).
@@ -62,7 +62,7 @@ set -euo pipefail
 # Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKER_SCRIPT="${SCRIPT_DIR}/gwaslab.process.array_for_submit.sh"
+WORKER_SCRIPT="${SCRIPT_DIR}/gwas_process.array_for_submit.sh"
 CONF="${SCRIPT_DIR}/gwas2cojo.conf"
 if [[ ! -f "${CONF}" ]]; then
     echo "ERROR: ${CONF} not found." >&2
@@ -78,7 +78,7 @@ LOG_BASE="${OUT_BASE}"   # submit_staged.sh uses LOG_BASE for SLURM output paths
 export GWAS2COJO_CONF="${CONF}"
 
 # ── Submission log (tee stdout+stderr to a timestamped file) ──────────────────
-SUBMIT_LOG="${LOG_BASE}/gwaslab.process.submit_staged_$(date +%Y%m%d_%H%M%S).log"
+SUBMIT_LOG="${LOG_BASE}/gwas_process.submit_staged_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "${LOG_BASE}"
 exec > >(tee -a "${SUBMIT_LOG}") 2>&1
 echo "Submission log: ${SUBMIT_LOG}"
@@ -109,7 +109,7 @@ if [[ "${WORKER_FLAGS}" == *"--dbsnp"* ]]; then USE_DBSNP=1; fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Arguments
 # ─────────────────────────────────────────────────────────────────────────────
-CONFIG="${1:?Usage: bash gwaslab.process.submit_staged.sh <config.txt> [extra sbatch args]}"
+CONFIG="${1:?Usage: bash gwas_process.submit_staged.sh <config.txt> [extra sbatch args]}"
 shift   # remaining args forwarded to every sbatch call
 
 # ── Validate ──────────────────────────────────────────────────────────────────
