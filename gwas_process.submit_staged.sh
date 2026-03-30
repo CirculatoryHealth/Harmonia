@@ -94,7 +94,7 @@ MAIL_TYPE="FAIL" # NONE | BEGIN | END | FAIL | ALL
 # EMAIL is loaded from gwas2cojo.conf
 
 # ── Fixed (trivial) stage resources — not per-study configurable ──────────────
-MEM_PREPROCESS="32G";  TIME_PREPROCESS="00:30:00"  # CSV load + standardise only
+MEM_PREPROCESS="32G";  TIME_PREPROCESS="02:00:00"  # CSV load + standardise only
 MEM_SPLIT="16G";       TIME_SPLIT="00:30:00"        # parquet split only
 
 # ── Script-level fallback defaults (used when config COL10/COL11 are absent) ─
