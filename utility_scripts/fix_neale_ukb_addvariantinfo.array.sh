@@ -15,7 +15,7 @@
 #
 # Submit:
 #   sbatch fix_neale_ukb_addvariantinfo.array.sh [--data-dir <dir>] [--email <addr>]
-#   sbatch fix_neale_ukb_addvariantinfo.array.sh --data-dir /hpc/ukbiobank/neale/data \
+#   sbatch fix_neale_ukb_addvariantinfo.array.sh --data-dir /hpc/dhl_ec/data/_gwas_datasets/_UKBB_Neale \
 #       --email s.w.vanderlaan-2@umcutrecht.nl
 #
 # ─────────────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ if [[ -n "${EMAIL}" && -n "${SLURM_JOB_ID:-}" ]]; then
     scontrol update JobId="${SLURM_JOB_ID}" MailUser="${EMAIL}"
 fi
 
-VARIANTS="${DATA_DIR}/../information/variants.tsv.bgz"
+VARIANTS="${DATA_DIR}/variants.tsv.bgz"
 OUT_DIR="${DATA_DIR}"
 
 # ── File list (one per array task) ───────────────────────────────────────────

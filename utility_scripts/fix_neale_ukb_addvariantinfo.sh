@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-VARIANTS="${DATA_DIR}/../information/variants.tsv.bgz"
+VARIANTS="${DATA_DIR}/variants.tsv.bgz"
 OUT_DIR="${DATA_DIR}"
 
 if [[ $# -eq 0 ]]; then
