@@ -16,7 +16,7 @@
 set -euo pipefail
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
-DATA_DIR="/ukbiobank/neale/data"
+DATA_DIR="/hpc/dhl_ec/data/_gwas_datasets/_UKBB_Neale"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -66,7 +66,7 @@ for gwas_file in "$@"; do
         cmd = "zcat " variants
         while ((cmd | getline line) > 0) {
             n = split(line, a, "\t")
-            if (a[1] == "variant") next          # skip header
+            if (a[1] == "variant") continue       # skip header
             vinfo[a[1]] = a[6] "\t" a[2] "\t" a[3] "\t" a[4] "\t" a[5] "\t" a[10]
         }
         close(cmd)
