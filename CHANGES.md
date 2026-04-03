@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-03 ✨ gwas_process.py — --add-chrpos flag + make_chrpos_hdf5.py utility (v1.4.24)
+- **New** (`gwas_process.py`): `--add-chrpos` flag assigns CHR and POS from rsID at the preprocess stage for datasets that contain only rsIDs (e.g. MVP CAD files). Must be added per-study via `EXTRA_FLAGS` (COL12) in `gwas_list.txt`; not set globally.
+- **New** (`gwas_process.py`): `assign_chrpos_from_hdf5()` implements the lookup directly on the pandas DataFrame using pre-built per-chromosome HDF5 files in `--ref`. Uses the same modulo-10 group structure as gwaslab's `rsid_to_chrpos2()`. Parallel lookup via `ThreadPoolExecutor`. When CHR is absent, searches all chromosome files; when CHR is present, restricts to matching files.
+- **New** (`utility_scripts/make_chrpos_hdf5.py`): one-time setup script wrapping `gl.process_vcf_to_hfd5()`. Reads `REF_DIR` from `gwas2cojo.conf`, discovers the best available dbSNP VCF (`v157` preferred, `v151` fallback) via gwaslab's `get_path()`, and writes HDF5 files into `REF_DIR`. Options: `--ref-dir`, `--build hg19|hg38|all`, `--threads`, `--complevel`, `--overwrite`.
+- **Usage**: run `make_chrpos_hdf5.py --build hg19` once, then add `--add-chrpos` to `EXTRA_FLAGS` for affected studies. Multiple flags in `EXTRA_FLAGS` are space-separated (e.g. `--add-chrpos --keep-multiallelic`).
+- **Files**: `gwas_process.py` (v1.4.23 → v1.4.24), `utility_scripts/make_chrpos_hdf5.py` (new, v1.0.0).
+
 ## 2026-04-03 ⚡ gwas_process.py — vectorise EAF fill + check.py EAF reporting (v1.4.23 / check v1.2.6)
 - **Fix** (`gwas_process.py`): `check_and_fill_eaf()` rewritten to fetch per chromosome via tabix rather than issuing one tabix query per variant. For a 3.5 M-variant file across 22 chromosomes this reduces I/O from ~3.5 M individual tabix calls to ~22, cutting runtime from hours to seconds and eliminating preprocess TIMELIMIT kills.
 - **How**: for each chromosome, one tabix range-fetch covers all positions in that contig; results are loaded into a `(pos, ref, alt) → AF` dict; per-variant AF is resolved by dict lookup (O(1)) with automatic allele-flip when effect/other alleles are swapped.
