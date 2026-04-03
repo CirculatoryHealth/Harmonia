@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.22"
-VERSION_DATE = "2026-03-27"
+VERSION      = "1.4.23"
+VERSION_DATE = "2026-04-03"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -1530,10 +1530,13 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
     """
     Check for an EAF column and fill missing values (or create the column)
     by looking up allele frequencies from a tabix-indexed VCF.
+
+    Lookups are done per chromosome (one tabix fetch per contig) rather than
+    per variant, reducing I/O from O(n_variants) to O(n_chromosomes).
     """
     logging.info("\n===== Checking and filling EAF =====")
     import pysam
- 
+
     EAF_ALIASES = [
         "eaf", "effect_allele_frequency", "raf", "af", "allele_frequency",
         "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
@@ -1566,48 +1569,72 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
     logging.info("Opening reference VCF for EAF lookup: %s", ref_path)
     tbx = pysam.TabixFile(ref_path)
 
-    def lookup_af(chrom, pos, ea, nea):
-        """Look up AF for a single variant; returns NaN if not found."""
-        try:
-            for rec in tbx.fetch(str(chrom), int(pos) - 1, int(pos)):
-                fields = rec.split("\t")
-                ref, alt = fields[3], fields[4]
-                if "," in alt:  # skip multi-allelic
-                    continue
-                info = dict(f.split("=") for f in fields[7].split(";") if "=" in f)
-                af   = float(info.get("AF", "nan"))
-                if alt == ea and ref == nea:
-                    return af
-                elif alt == nea and ref == ea:
-                    return 1.0 - af
-        except Exception:
-            pass
-        return np.nan
-
+    # Determine which rows need filling
     if eaf_col is not None:
-        n_missing = gwas_data[eaf_col].isna().sum()
+        fill_mask = gwas_data[eaf_col].isna()
+        n_missing = int(fill_mask.sum())
         logging.info("Filling %s missing EAF values in '%s' from reference VCF.",
                      f"{n_missing:,}", eaf_col)
-        mask = gwas_data[eaf_col].isna()
-        gwas_data.loc[mask, eaf_col] = [
-            lookup_af(r[chrom_col], r[pos_col], r[ea_col], r[nea_col])
-            for _, r in gwas_data[mask].iterrows()
-        ]
-        n_still = gwas_data[eaf_col].isna().sum()
+        target = gwas_data.loc[fill_mask, [chrom_col, pos_col, ea_col, nea_col]].copy()
+    else:
+        fill_mask = pd.Series(True, index=gwas_data.index)
+        logging.info("Retrieving EAF for all %s variants from reference VCF.",
+                     f"{len(gwas_data):,}")
+        target = gwas_data[[chrom_col, pos_col, ea_col, nea_col]].copy()
+
+    target.columns = ["chrom", "pos", "ea", "nea"]
+    target["pos"] = pd.to_numeric(target["pos"], errors="coerce")
+    af_result = pd.Series(np.nan, index=target.index)
+
+    # One tabix fetch per chromosome — builds a pos→(ref,alt,af) dict per contig
+    for chrom, grp in target.groupby("chrom", sort=False):
+        chrom_str = str(chrom)
+        pos_min   = int(grp["pos"].min()) - 1
+        pos_max   = int(grp["pos"].max())
+
+        # Build lookup: (pos, ref, alt) → af
+        vcf_af: dict = {}
+        try:
+            for rec in tbx.fetch(chrom_str, pos_min, pos_max):
+                fields = rec.split("\t")
+                if "," in fields[4]:   # skip multi-allelic
+                    continue
+                info = dict(f.split("=") for f in fields[7].split(";") if "=" in f)
+                try:
+                    af = float(info["AF"])
+                except (KeyError, ValueError):
+                    continue
+                vcf_af[(int(fields[1]), fields[3], fields[4])] = af
+        except ValueError:
+            pass  # contig not in VCF
+
+        if not vcf_af:
+            continue
+
+        for idx, row in grp.iterrows():
+            pos, ea, nea = int(row["pos"]), str(row["ea"]), str(row["nea"])
+            af = vcf_af.get((pos, nea, ea))        # ref=nea, alt=ea → use AF directly
+            if af is not None:
+                af_result.at[idx] = af
+                continue
+            af = vcf_af.get((pos, ea, nea))        # ref=ea, alt=nea → flip
+            if af is not None:
+                af_result.at[idx] = 1.0 - af
+
+    tbx.close()
+
+    if eaf_col is not None:
+        gwas_data.loc[fill_mask, eaf_col] = af_result
+        n_still = int(gwas_data[eaf_col].isna().sum())
         logging.info("EAF filled for %s variants; %s still missing.",
                      f"{n_missing - n_still:,}", f"{n_still:,}")
     else:
-        logging.info("Retrieving EAF for all %s variants from reference VCF.",
-                     f"{len(gwas_data):,}")
-        gwas_data["EAF"] = [
-            lookup_af(r[chrom_col], r[pos_col], r[ea_col], r[nea_col])
-            for _, r in gwas_data.iterrows()
-        ]
-        n_still = gwas_data["EAF"].isna().sum()
+        gwas_data["EAF"] = af_result
+        n_found = int(af_result.notna().sum())
+        n_still = int(af_result.isna().sum())
         logging.info("EAF retrieved: %s found, %s still missing.",
-                     f"{gwas_data['EAF'].notna().sum():,}", f"{n_still:,}")
+                     f"{n_found:,}", f"{n_still:,}")
 
-    tbx.close()
     return gwas_data
 
 def apply_fixed_n(gwas_data: pd.DataFrame,

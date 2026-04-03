@@ -24,8 +24,8 @@
 #
 # ============================================================
 VERSION_NAME = "gwas_process_check"
-VERSION      = "1.2.5"
-VERSION_DATE = "2026-03-27"
+VERSION      = "1.2.6"
+VERSION_DATE = "2026-04-03"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -212,6 +212,21 @@ def _metrics_preprocess(text):
     build = _first(text, r"\[INFO\] Build\s+:\s+(\S+)")
     if build:
         parts.append(f"build {build}")
+
+    # EAF fill summary
+    if "EAF column" in text and "present and complete" in text:
+        parts.append("EAF: complete")
+    elif "EAF lookup skipped" in text:
+        parts.append("EAF: not filled")
+    elif "EAF retrieved:" in text:
+        found   = _int(text, r"EAF retrieved:\s*([\d,]+) found")
+        missing = _int(text, r"EAF retrieved:.*?([\d,]+) still missing")
+        parts.append(f"EAF filled {found:,} from ref ({missing:,} still missing)")
+    elif "EAF filled for" in text:
+        filled  = _int(text, r"EAF filled for\s*([\d,]+) variants")
+        missing = _int(text, r"EAF filled for.*?([\d,]+) still missing")
+        parts.append(f"EAF filled {filled:,} from ref ({missing:,} still missing)")
+
     return "  |  ".join(parts) if parts else ""
 
 

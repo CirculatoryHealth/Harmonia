@@ -2,6 +2,15 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-03 ⚡ gwas_process.py — vectorise EAF fill + check.py EAF reporting (v1.4.23 / check v1.2.6)
+- **Fix** (`gwas_process.py`): `check_and_fill_eaf()` rewritten to fetch per chromosome via tabix rather than issuing one tabix query per variant. For a 3.5 M-variant file across 22 chromosomes this reduces I/O from ~3.5 M individual tabix calls to ~22, cutting runtime from hours to seconds and eliminating preprocess TIMELIMIT kills.
+- **How**: for each chromosome, one tabix range-fetch covers all positions in that contig; results are loaded into a `(pos, ref, alt) → AF` dict; per-variant AF is resolved by dict lookup (O(1)) with automatic allele-flip when effect/other alleles are swapped.
+- **New** (`gwas_process.check.py`): `_metrics_preprocess()` now parses EAF fill log lines from the preprocess `.out` file and surfaces them in the check summary row:
+  - `EAF: complete` — EAF column present and fully populated
+  - `EAF: not filled` — `--fill-eaf` not set or suppressed
+  - `EAF filled N from ref (M still missing)` — partial or full fill from reference VCF
+- **Files**: `gwas_process.py` (v1.4.22 → v1.4.23), `gwas_process.check.py` (v1.2.5 → v1.2.6).
+
 ## 2026-03-27 🔁 rename: gwaslab.process.* → gwas_process.*
 - **Rename**: all pipeline scripts renamed from `gwaslab.process.<name>` to `gwas_process.<name>` for consistency and brevity:
   - `gwas_process.py` → `gwas_process.py`
