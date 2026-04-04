@@ -14,12 +14,15 @@
 # Run once per build. Writes output into REF_DIR (from gwas2cojo.conf).
 #
 # Submit:
-#   sbatch make_chrpos_hdf5.sh [--build hg19|hg38|all] [--email addr]
+#   sbatch make_chrpos_hdf5.sh [--build hg19|hg38|all] [--vcf PATH] [--email addr]
 #
 # Examples:
 #   sbatch make_chrpos_hdf5.sh
 #   sbatch make_chrpos_hdf5.sh --build hg38
 #   sbatch make_chrpos_hdf5.sh --build all --email s.w.vanderlaan-2@umcutrecht.nl
+#   # When the dbSNP VCF is GCF-named and auto-detection fails:
+#   sbatch make_chrpos_hdf5.sh --build hg19 \
+#       --vcf /hpc/dhl_ec/data/references/gwaslab/GCF_000001405.25.gz
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -28,12 +31,14 @@ set -euo pipefail
 # ── Defaults ──────────────────────────────────────────────────────────────────
 BUILD="hg19"
 EMAIL=""
+VCF=""
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --build)  BUILD="$2";  shift 2 ;;
         --email)  EMAIL="$2";  shift 2 ;;
+        --vcf)    VCF="$2";    shift 2 ;;
         --) shift; break ;;
         -*) echo "ERROR: unknown option: $1" >&2; exit 1 ;;
         *) break ;;
@@ -81,12 +86,21 @@ echo "Job          : ${SLURM_JOB_ID:-local}"
 echo "Build        : ${BUILD}"
 echo "REF_DIR      : ${REF_DIR}"
 echo "Threads      : ${SLURM_CPUS_PER_TASK:-8}"
+if [[ -n "${VCF}" ]]; then
+echo "VCF override : ${VCF}"
+fi
 echo "========================================================"
+
+VCF_ARG=()
+if [[ -n "${VCF}" ]]; then
+    VCF_ARG=(--vcf "${VCF}")
+fi
 
 python "${ROOTDIR}/utility_scripts/make_chrpos_hdf5.py" \
     --ref-dir  "${REF_DIR}"               \
     --build    "${BUILD}"                  \
     --threads  "${SLURM_CPUS_PER_TASK:-8}" \
-    --complevel 3
+    --complevel 3                          \
+    "${VCF_ARG[@]}"
 
 echo "Done."

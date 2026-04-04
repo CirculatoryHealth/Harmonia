@@ -12,12 +12,17 @@ Usage
 -----
     python make_chrpos_hdf5.py [--ref-dir DIR] [--build hg19|hg38|all]
                                [--threads N] [--complevel 0-9] [--overwrite]
+                               [--vcf /path/to/dbsnp.vcf.gz]
 
     # Use REF_DIR from gwas2cojo.conf (default):
     python make_chrpos_hdf5.py --build hg19
 
     # Override reference directory:
     python make_chrpos_hdf5.py --ref-dir /hpc/data/references/gwaslab --build hg19
+
+    # Specify the VCF directly (when auto-detection fails, e.g. GCF-named files):
+    python make_chrpos_hdf5.py --build hg19 \
+        --vcf /hpc/data/references/gwaslab/GCF_000001405.25.gz
 
     # Regenerate (overwrite existing HDF5 files):
     python make_chrpos_hdf5.py --build hg19 --overwrite
@@ -39,8 +44,8 @@ Runtime
 
 # ── Version ───────────────────────────────────────────────────────────────────
 VERSION_NAME = "make_chrpos_hdf5"
-VERSION      = "1.0.0"
-VERSION_DATE = "2026-04-03"
+VERSION      = "1.1.0"
+VERSION_DATE = "2026-04-04"
 
 import argparse
 import os
@@ -77,37 +82,91 @@ _DBSNP_KEYS = {
     "hg38": ["dbsnp_v157_hg38", "dbsnp_v151_hg38"],
 }
 
+# ── GCF accession prefixes per build ─────────────────────────────────────────
+# NCBI names dbSNP VCF files after the RefSeq assembly accession.
+# GCF_000001405.25 = GRCh37.p13 (hg19)
+# GCF_000001405.40 = GRCh38.p14 (hg38, latest)
+# GCF_000001405.39 = GRCh38.p13 (hg38, older)
+_DBSNP_GCF_PREFIXES = {
+    "hg19": ["GCF_000001405.25"],
+    "hg38": ["GCF_000001405.40", "GCF_000001405.39"],
+}
 
-def _find_vcf(ref_dir: str, build: str) -> str:
-    """Return path to the best available dbSNP VCF for the given build."""
+
+def _find_vcf(ref_dir: str, build: str, vcf_override: str = "") -> str:
+    """Return path to the best available dbSNP VCF for the given build.
+
+    Detection order:
+      1. ``--vcf`` direct override (skips all auto-detection).
+      2. gwaslab key lookup (dbsnp_v157_*/dbsnp_v151_*) via get_path().
+      3. GCF accession glob in ref_dir (GCF_000001405.25*.gz for hg19, etc.).
+      4. Classic NCBI name ``00-All.vcf.gz`` in ref_dir (build-ambiguous;
+         logged as a warning).
+    """
+    # ── 1. Direct path override ───────────────────────────────────────────────
+    if vcf_override:
+        if os.path.isfile(vcf_override):
+            print(f"  Using --vcf override: {vcf_override}")
+            return vcf_override
+        print(f"ERROR: --vcf file not found: {vcf_override}", file=sys.stderr)
+        sys.exit(1)
+
+    # ── 2. gwaslab key lookup ─────────────────────────────────────────────────
     try:
-        import gwaslab as gl
         from gwaslab.bd.bd_download import set_default_directory, get_path
         set_default_directory(ref_dir)
+        for key in _DBSNP_KEYS[build]:
+            try:
+                path = get_path(key, verbose=False)
+                if path and os.path.isfile(path):
+                    print(f"  Found dbSNP VCF (gwaslab key '{key}'): {path}")
+                    return path
+            except Exception:
+                continue
     except ImportError:
         print("ERROR: gwaslab is not installed.", file=sys.stderr)
         sys.exit(1)
 
-    for key in _DBSNP_KEYS[build]:
+    # ── 3. GCF accession pattern fallback ────────────────────────────────────
+    # Files in ref_dir downloaded by NCBI are named after the assembly accession
+    # (e.g. GCF_000001405.25.gz) rather than gwaslab's internal key names.
+    for prefix in _DBSNP_GCF_PREFIXES.get(build, []):
         try:
-            path = get_path(key, verbose=False)
-            if path and os.path.isfile(path):
-                print(f"  Found dbSNP VCF ({key}): {path}")
-                return path
-        except Exception:
-            continue
+            candidates = [
+                f for f in os.listdir(ref_dir)
+                if f.startswith(prefix) and f.endswith(".gz")
+                and not f.endswith(".gz.tbi")
+            ]
+        except OSError:
+            candidates = []
+        for fname in sorted(candidates):          # deterministic: pick shortest/oldest
+            path = os.path.join(ref_dir, fname)
+            print(f"  Found dbSNP VCF (GCF pattern '{prefix}'): {path}")
+            return path
+
+    # ── 4. Classic 00-All.vcf.gz fallback ────────────────────────────────────
+    fallback = os.path.join(ref_dir, "00-All.vcf.gz")
+    if os.path.isfile(fallback):
+        print(f"  WARNING: using 00-All.vcf.gz — verify this file is {build}.",
+              file=sys.stderr)
+        print(f"  Found dbSNP VCF (00-All fallback): {fallback}")
+        return fallback
 
     print(f"ERROR: no dbSNP VCF found for {build} in {ref_dir}", file=sys.stderr)
-    print(f"       Run: python gwas_process.download_refs.py --build {build[2:]}", file=sys.stderr)
+    print(f"       Tried gwaslab keys: {_DBSNP_KEYS[build]}", file=sys.stderr)
+    print(f"       Tried GCF prefixes: {_DBSNP_GCF_PREFIXES.get(build, [])}", file=sys.stderr)
+    print(f"       Tried fallback    : {fallback}", file=sys.stderr)
+    print(f"       Use --vcf /path/to/dbsnp_{build}.vcf.gz to specify directly.",
+          file=sys.stderr)
     sys.exit(1)
 
 
 def make_hdf5(ref_dir: str, build: str, threads: int, complevel: int,
-              overwrite: bool) -> None:
+              overwrite: bool, vcf_override: str = "") -> None:
     """Generate HDF5 files for one build."""
     import gwaslab as gl
 
-    vcf_path = _find_vcf(ref_dir, build)
+    vcf_path = _find_vcf(ref_dir, build, vcf_override=vcf_override)
 
     print(f"\n{'=' * 60}")
     print(f"Build        : {build}")
@@ -150,7 +209,18 @@ def main() -> None:
                    help="HDF5 compression level 0-9 (default: 3).")
     p.add_argument("--overwrite", action="store_true",
                    help="Overwrite existing HDF5 files (default: skip existing).")
+    p.add_argument("--vcf",      default="", metavar="PATH",
+                   help="Direct path to the dbSNP VCF (.vcf.gz).  Bypasses automatic "
+                        "detection (gwaslab key lookup + GCF pattern scan).  Useful "
+                        "when the file is named differently from gwaslab's conventions "
+                        "(e.g. GCF_000001405.25.gz or 00-All.vcf.gz).  "
+                        "Not compatible with --build all.")
     args = p.parse_args()
+
+    if args.vcf and args.build == "all":
+        print("ERROR: --vcf cannot be combined with --build all "
+              "(--vcf specifies a single file for a single build).", file=sys.stderr)
+        sys.exit(1)
 
     if not os.path.isdir(args.ref_dir):
         print(f"ERROR: ref-dir does not exist: {args.ref_dir}", file=sys.stderr)
@@ -159,11 +229,12 @@ def main() -> None:
     builds = ["hg19", "hg38"] if args.build == "all" else [args.build]
     for build in builds:
         make_hdf5(
-            ref_dir   = args.ref_dir,
-            build     = build,
-            threads   = args.threads,
-            complevel = args.complevel,
-            overwrite = args.overwrite,
+            ref_dir      = args.ref_dir,
+            build        = build,
+            threads      = args.threads,
+            complevel    = args.complevel,
+            overwrite    = args.overwrite,
+            vcf_override = args.vcf,
         )
 
     print("\nDone. HDF5 files are ready for use with gwas_process.py --add-chrpos.")
