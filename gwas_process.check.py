@@ -24,8 +24,8 @@
 #
 # ============================================================
 VERSION_NAME = "gwas_process_check"
-VERSION      = "1.2.6"
-VERSION_DATE = "2026-04-03"
+VERSION      = "1.2.7"
+VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -399,7 +399,7 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
             n_auto     = sum(1 for c in chroms if c is not None and 1 <= c <= N_AUTOSOMAL)
             n_non_auto = sum(1 for c in chroms if c is not None and c > N_AUTOSOMAL)
             n_done      = 0
-            n_auto_done = 0   # autosomal chromosomes that completed
+            n_auto_done = 0
             tot_warn    = 0
             tot_err     = 0
             snips       = []
@@ -417,24 +417,24 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
                         n_auto_done += 1
                 chr_texts.append(out_text)
 
-            # Autosome-only when (a) no non-autosomal log files exist, OR (b) the
-            # split stage only produced 22 chromosomes — the submit script still
-            # arrays over all 26, so non-autosomal jobs run but find no input data.
-            split_autosome_only = (n_split_chr is not None and n_split_chr == N_AUTOSOMAL)
-            autosome_only = (n_non_auto == 0 and n_auto == N_AUTOSOMAL) or split_autosome_only
-
-            # Effective counts: when autosome-only, only the 22 autosomes matter
-            if autosome_only:
-                eff_done  = n_auto_done
-                eff_total = N_AUTOSOMAL
+            # Use the split stage chromosome count as ground truth for eff_total.
+            # SLURM always arrays over all 26 tasks; tasks for chromosomes absent
+            # from the data exit 0 gracefully without a "done" marker — so comparing
+            # n_done against n_split_chr (not n_total=26) avoids false warnings.
+            if n_split_chr is not None:
+                eff_total = n_split_chr
+                eff_done  = n_done        # done jobs == chromosomes that had data
             else:
-                eff_done  = n_done
                 eff_total = n_total
+                eff_done  = n_done
 
-            if autosome_only and eff_done == N_AUTOSOMAL:
+            autosome_only = (
+                (n_split_chr is not None and n_split_chr == N_AUTOSOMAL) or
+                (n_split_chr is None and n_non_auto == 0 and n_auto == N_AUTOSOMAL)
+            )
+
+            if eff_done == eff_total and eff_total > 0:
                 status = "✓ done"
-            elif eff_done == eff_total:
-                status = f"✓ {eff_done}/{eff_total} chr"
             elif eff_done == 0:
                 status = f"✗ 0/{eff_total} chr"
                 any_error = True
@@ -443,9 +443,9 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
                 any_error = True
 
             if stage == "checkref":
-                # When non-autosomal log files exist but are empty (no data),
-                # restrict aggregation to autosomal texts to avoid skewing stats.
-                if split_autosome_only and n_non_auto > 0:
+                # Restrict aggregation to chromosomes that had data (avoid skewing
+                # match-rate stats with empty runs for absent chromosomes).
+                if autosome_only and n_non_auto > 0:
                     auto_texts = [t for c, t in zip(chroms, chr_texts)
                                   if c is not None and 1 <= c <= N_AUTOSOMAL]
                     metric = _metrics_checkref_agg(auto_texts)
@@ -453,6 +453,8 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
                     metric = _metrics_checkref_agg(chr_texts)
             elif autosome_only:
                 metric = f"{N_AUTOSOMAL} autosomes complete"
+            elif eff_done == eff_total and eff_total > 0:
+                metric = f"{eff_total} chromosomes complete"
             else:
                 metric = f"{eff_done}/{eff_total} complete"
 

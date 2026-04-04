@@ -2,6 +2,11 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-04 🐛 check.py — array stage chromosome count uses split ground truth (v1.2.7)
+- **Fix**: array stages (`checkref`, `inferstrand`, `assignrsid`, `checkaf`) now use the chromosome count reported by the split stage (`n_split_chr`) as the expected total (`eff_total`) rather than counting SLURM log files. SLURM always arrays over all 26 tasks regardless of how many chromosomes are in the data; tasks for absent chromosomes exit 0 without a "done" marker, previously causing false `⚠ 23/26` warnings for datasets with only autosomes + chrX.
+- **Behaviour**: if split reports N chromosomes and all N array tasks complete, status shows `✓ done` with metric `N chromosomes complete`. A warning is only raised when `n_done < n_split_chr` (genuine missing or failed tasks).
+- **Files**: `gwas_process.check.py` (v1.2.6 → v1.2.7).
+
 ## 2026-04-03 ✨ gwas_process.py — --add-chrpos flag + make_chrpos_hdf5.py utility (v1.4.24)
 - **New** (`gwas_process.py`): `--add-chrpos` flag assigns CHR and POS from rsID at the preprocess stage for datasets that contain only rsIDs (e.g. MVP CAD files). Must be added per-study via `EXTRA_FLAGS` (COL12) in `gwas_list.txt`; not set globally.
 - **New** (`gwas_process.py`): `assign_chrpos_from_hdf5()` implements the lookup directly on the pandas DataFrame using pre-built per-chromosome HDF5 files in `--ref`. Uses the same modulo-10 group structure as gwaslab's `rsid_to_chrpos2()`. Parallel lookup via `ThreadPoolExecutor`. When CHR is absent, searches all chromosome files; when CHR is present, restricts to matching files.
