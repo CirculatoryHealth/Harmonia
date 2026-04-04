@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.25"
+VERSION      = "1.4.28"
 VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -394,7 +394,20 @@ def resolve_column(df: pd.DataFrame, aliases: list) -> str | None:
 
 
 def reformat_output(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename GWASLab internal column names back to MetaGWASToolKit convention."""
+    """Rename GWASLab internal column names back to MetaGWASToolKit convention.
+
+    For case/control studies (detected by the presence of a non-empty N_cases
+    column), OR and 95% confidence interval columns are derived from Beta and SE
+    using the delta method:
+        OR             = exp(Beta)
+        OR_lower_95CI  = exp(Beta − 1.96 × SE)
+        OR_upper_95CI  = exp(Beta + 1.96 × SE)
+
+    These columns are appended immediately after SE and P so that the output TSV
+    carries the effect size in both log-OR (Beta) and OR+CI form.  For
+    quantitative traits no OR columns are added.
+    """
+    df = df.copy()
     df = df.rename(columns={
         "POS":  "BP",
         "EA":   "EffectAllele",
@@ -408,11 +421,32 @@ def reformat_output(df: pd.DataFrame) -> pd.DataFrame:
         df["BetaMinor"] = df["Beta"]
     if "MAF" not in df.columns and "EAF" in df.columns:
         df["MAF"] = df["EAF"]
+
+    # ── OR + 95% CI for case/control studies ─────────────────────────────────
+    # Detected by N_cases being present and having at least one non-missing value.
+    # Beta at this point is ln(OR) (the OR→BETA conversion in check_or_vs_beta()
+    # runs at preprocess time, so BETA/Beta is always log-scale here).
+    _n_cases = pd.to_numeric(df.get("N_cases", pd.Series(dtype=float)),
+                             errors="coerce")
+    is_case_control = _n_cases.notna().any() and (_n_cases > 0).any()
+
+    if is_case_control and "Beta" in df.columns and "SE" in df.columns:
+        beta = pd.to_numeric(df["Beta"], errors="coerce")
+        se   = pd.to_numeric(df["SE"],   errors="coerce")
+        df["OR"]             = np.exp(beta)
+        df["OR_lower_95CI"]  = np.exp(beta - 1.96 * se)
+        df["OR_upper_95CI"]  = np.exp(beta + 1.96 * se)
+        logging.debug(
+            "reformat_output: OR + 95%% CI columns added "
+            "(case/control study, %s variants).", f"{len(df):,}"
+        )
+
     desired = [
         "VariantID", "MarkerOriginal", "rsID", "CHR", "BP", "Strand",
         "EffectAllele", "OtherAllele", "MinorAllele", "MajorAllele",
         "EAF", "MAF", "MAC", "HWE_P", "Info",
         "Beta", "BetaMinor", "SE", "P",
+        "OR", "OR_lower_95CI", "OR_upper_95CI",
         "N", "N_cases", "N_controls", "Imputed", "DAF",
     ]
     df = df[[c for c in desired if c in df.columns]]
@@ -632,7 +666,25 @@ def write_cojo(gwas_obj, phenotype: str, population: str,
     add_pos   : prepend CHR and BP columns immediately after SNP
     suffix    : optional filename tag, e.g. 'qc'
     """
-    df = gwas_obj.data   # read-only — no in-place modifications below
+    df = gwas_obj.data.copy()   # work on a copy — OR→BETA conversion may be added below
+
+    # OR → BETA conversion for case/control studies that report odds ratios.
+    # GCTA-COJO requires a linear-scale effect (b = log-OR for binary traits).
+    # If BETA is absent but OR is present, derive BETA = ln(OR) in-place on the
+    # copy. Variants with OR ≤ 0 (invalid) are set to NaN and will be dropped
+    # downstream by the non-finite filter.
+    if "BETA" not in df.columns and "OR" in df.columns:
+        logging.info(
+            "COJO: BETA absent but OR present — computing BETA = ln(OR) for COJO output."
+        )
+        or_vals = pd.to_numeric(df["OR"], errors="coerce")
+        invalid = (or_vals <= 0) | ~np.isfinite(or_vals)
+        if invalid.any():
+            logging.warning(
+                "COJO OR→BETA: %d variant(s) with OR ≤ 0 or non-finite set to NaN.",
+                int(invalid.sum()),
+            )
+        df["BETA"] = np.where(invalid, np.nan, np.log(or_vals))
 
     # Build the SNP identifier column
     if snpid_fmt == "rsid":
@@ -664,15 +716,27 @@ def write_cojo(gwas_obj, phenotype: str, population: str,
             )
             return
 
+    # Drop rows where BETA or SE is non-finite (can arise from OR→BETA conversion
+    # of invalid OR values, or upstream data issues).
+    pre_len = len(df)
+    df = df[np.isfinite(df["BETA"].astype(float)) & np.isfinite(df["SE"].astype(float))]
+    if len(df) < pre_len:
+        logging.warning(
+            "COJO: dropped %d variant(s) with non-finite BETA or SE (kept %s).",
+            pre_len - len(df), f"{len(df):,}",
+        )
+    # snp_col was built before the drop — realign its index
+    snp_col = snp_col.loc[df.index]
+
     cojo = pd.DataFrame({
-        "SNP":  snp_col,
-        "A1":   df["EA"],
-        "A2":   df["NEA"],
-        "freq": df["EAF"],
-        "b":    df["BETA"],
-        "se":   df["SE"],
-        "p":    df["P"],
-        "n":    df["N"],
+        "SNP":  snp_col.values,
+        "A1":   df["EA"].values,
+        "A2":   df["NEA"].values,
+        "freq": df["EAF"].values,
+        "b":    df["BETA"].values,
+        "se":   df["SE"].values,
+        "p":    df["P"].values,
+        "n":    df["N"].values,
     })
 
     if add_pos:
@@ -1949,36 +2013,67 @@ def standardise_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
 
 def check_or_vs_beta(gwas_data: pd.DataFrame) -> pd.DataFrame:
     """
-    Detect OR columns that are actually BETA (effect size) values.
+    Normalise OR columns to BETA (log-OR) at preprocess time.
 
-    ORs must be strictly positive.  If the standardised OR column contains any
-    negative values it cannot be a true odds ratio — the source file mislabels
-    a BETA/log-odds column as OR.  In that case the column is renamed to BETA
-    and a warning is logged so the user knows a correction was applied.
-    If both OR and BETA are already present the check is skipped.
+    Two situations are handled:
+
+    1. Mislabelled OR — the column contains negative values, which are impossible
+       for a true odds ratio.  The source file likely stores log-OR (= BETA) under
+       the name "OR".  Action: rename OR → BETA with a warning.
+
+    2. Genuine OR — all non-missing values are strictly positive.  GCTA-COJO,
+       LDSC, and all downstream gwaslab operations expect BETA (linear-scale effect
+       size).  Action: compute BETA = ln(OR) and drop the OR column.  Variants with
+       OR ≤ 0 or non-finite OR are set to NaN and will be excluded by the standard
+       QC filters downstream.
+
+    If BETA is already present (regardless of whether OR is also present) the
+    function is a no-op — the existing BETA column takes precedence.
+
+    Why convert here rather than at write_cojo()?
+    gwaslab's flip_allele_stats() flips BETA by negation, which is mathematically
+    identical to taking ln(1/OR) = −ln(OR).  Converting before gwaslab processes
+    the data ensures that allele-flip, strand-inference, and all output writers
+    (COJO, LDSC, raw) all see a consistent BETA column without special casing.
     """
     if "OR" not in gwas_data.columns:
         return gwas_data
     if "BETA" in gwas_data.columns:
-        logging.debug("Both OR and BETA columns present — skipping OR-vs-BETA check.")
+        logging.debug("BETA column already present — skipping OR→BETA conversion.")
         return gwas_data
 
-    or_vals = pd.to_numeric(gwas_data["OR"], errors="coerce")
+    or_vals    = pd.to_numeric(gwas_data["OR"], errors="coerce")
     n_negative = int((or_vals < 0).sum())
     n_valid    = int(or_vals.notna().sum())
 
     if n_negative > 0:
+        # ── Case 1: mislabelled OR (log-OR stored as OR) ─────────────────────
         pct = 100 * n_negative / n_valid if n_valid else 0
         logging.warning(
             "OR column contains %d negative value(s) (%.1f%% of non-missing). "
             "ORs must be strictly positive — this column is almost certainly a "
-            "BETA (log-odds / effect size) that was mislabelled 'OR' in the source "
-            "file.  Renaming OR → BETA and continuing.",
+            "BETA (log-odds / effect size) mislabelled as 'OR' in the source file. "
+            "Renaming OR → BETA and continuing.",
             n_negative, pct,
         )
         gwas_data = gwas_data.rename(columns={"OR": "BETA"})
     else:
-        logging.info("OR column looks valid (all non-missing values > 0).")
+        # ── Case 2: genuine OR — convert to BETA = ln(OR) ────────────────────
+        invalid = (or_vals <= 0) | ~np.isfinite(or_vals)
+        n_invalid = int(invalid.sum())
+        if n_invalid:
+            logging.warning(
+                "OR→BETA conversion: %d variant(s) with OR ≤ 0 or non-finite "
+                "set to NaN (will be excluded by downstream QC).",
+                n_invalid,
+            )
+        gwas_data["BETA"] = np.where(invalid, np.nan, np.log(or_vals))
+        gwas_data = gwas_data.drop(columns=["OR"])
+        logging.info(
+            "OR column converted to BETA = ln(OR) (%s variants; %d set to NaN). "
+            "OR column removed.",
+            f"{n_valid:,}", n_invalid,
+        )
 
     return gwas_data
 

@@ -2,6 +2,29 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-04 ✨ gwas_process.py — OR + 95% CI columns in TSV output for case/control studies (v1.4.28)
+- **New**: `reformat_output()` now detects case/control studies (N_cases present and non-zero) and appends three derived columns immediately after SE and P in the output TSV:
+  - `OR` = exp(Beta)
+  - `OR_lower_95CI` = exp(Beta − 1.96 × SE)
+  - `OR_upper_95CI` = exp(Beta + 1.96 × SE)
+- Because OR→BETA conversion happens at preprocess time (v1.4.27), `Beta` in all output files is already ln(OR), so these back-transformations are exact.
+- Applies to both raw pre-QC (`.tsv.gz`) and QC-filtered (`.qc.tsv.gz`) outputs. COJO and LDSC outputs are unaffected (they require Beta in linear scale by design). Parquet/pickle internal formats are also unaffected.
+- For quantitative traits (no N_cases) the output is unchanged.
+- **Files**: `gwas_process.py` (v1.4.27 → v1.4.28).
+
+## 2026-04-04 🐛 gwas_process.py — OR→BETA conversion at preprocess time (v1.4.27 supersedes v1.4.26)
+- **Root cause identified**: `check_or_vs_beta()` (called during preprocess) only handled the *mislabelled* OR case (negative values → rename OR to BETA). When OR values were genuinely positive it logged "OR column looks valid" and left the column as `OR`. gwaslab preserves `OR` as-is through normalize → checkref → inferstrand → checkaf → merge, so `BETA` was never populated, and `write_cojo()` rightly skipped output.
+- **Fix** (`check_or_vs_beta()`): genuine positive OR is now converted to `BETA = ln(OR)` and the `OR` column is dropped immediately at preprocess time. This means BETA flows correctly through the entire pipeline (gwaslab's `flip_allele_stats()` negates BETA, which is mathematically identical to taking ln(1/OR) = −ln(OR)), and COJO/LDSC/raw outputs all work without special casing.
+- **Safety net retained** (`write_cojo()`): the OR→BETA fallback added in v1.4.26 remains in place as a guard for edge cases where OR survives to merge (e.g. old checkpoints written before this fix).
+- **Affected studies**: any case/control study where the source file stores odds ratios (PGC iPSYCH ASD, PGC BIP OConnell2025, and likely ICH, AAA, TAA, IA, Migraine). Studies with `.withBETA_N` files (BIP_EUR_Stahl2019, CD/IBD/UC Liu2015) and UKBB Neale files (which publish log-OR as BETA) are unaffected.
+- **Files**: `gwas_process.py` (v1.4.26 → v1.4.27).
+
+## 2026-04-04 🐛 gwas_process.py — COJO OR→BETA conversion for case/control studies (v1.4.26)
+- **Bug**: `write_cojo()` required a `BETA` column and silently skipped COJO output when the study used odds ratios (OR). Affected OR-based case/control studies (e.g. ASD_EUR_Grove2019, BIP_EUR) which had no `BETA` column after gwaslab processing.
+- **Fix**: if `BETA` is absent but `OR` is present, `write_cojo()` now derives `BETA = ln(OR)` on a working copy of the DataFrame before building the COJO table. Variants with `OR ≤ 0` or non-finite OR are set to `NaN` and filtered out with a warning.
+- **Safety**: a non-finite filter (`np.isfinite(BETA) & np.isfinite(SE)`) is applied to the COJO output regardless of whether OR→BETA conversion was performed, guarding against any upstream data issues.
+- **Files**: `gwas_process.py` (v1.4.25 → v1.4.26).
+
 ## 2026-04-04 🐛 gwas_process.py — fix infer_ancestry hg38 reference not found (v1.4.25)
 - **Bug**: `run_infer_ancestry()` used gwaslab's key-based file lookup (`1kg_hm3_hg38_eaf`) without first telling gwaslab where to look. gwaslab searches its own default cache; if the file was placed in `REF_DIR` manually (or via our download helper rather than gwaslab's internal helper), the lookup fails with `Reference file '1kg_hm3_hg38_eaf' not found` even when the file is physically present.
 - **Fix**: `run_infer_ancestry()` now accepts an optional `ref_dir` keyword argument. When provided and the directory exists, `gwaslab.bd.bd_download.set_default_directory(ref_dir)` is called before `infer_ancestry()` so gwaslab resolves the HapMap3 EAF reference (`PAN.hapmap3.hg38.EAF.tsv.gz` / `PAN.hapmap3.hg19.EAF.tsv.gz`) from the correct location. Both call sites pass `ref_dir=args.ref`.
