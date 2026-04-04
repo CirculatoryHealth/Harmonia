@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.29"
+VERSION      = "1.4.30"
 VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -831,26 +831,40 @@ def write_ldsc(gwas_obj, phenotype: str, population: str,
     except Exception as exc:
         logging.warning("LDSC: filter_region_out(high_ld=True) failed (%s) — skipping step.", exc)
 
-    # 5. Quality thresholds: INFO > 0.9 and MAF > 0.01
-    # INFO filter only applied when column is present; MAF is derived from EAF.
+    # 5. Quality thresholds: INFO > 0.9 and EAF > 0.01.
+    # EAF is required for LDSC (becomes the Frq column).  If EAF is absent or
+    # entirely NaN, the filter `EAF > 0.01 & EAF < 0.99` silently removes every
+    # variant (NaN comparisons return False in pandas), producing a useless 0-
+    # variant LDSC file.  We detect this up-front and bail out with an error
+    # instead of writing an empty file.
     cols = set(ldsc_obj.data.columns)
-    if "INFO" in cols and "EAF" in cols:
-        ldsc_filter = "INFO > 0.9 & EAF > 0.01 & EAF < 0.99"
-    elif "EAF" in cols:
-        ldsc_filter = "EAF > 0.01 & EAF < 0.99"
-        logging.info("LDSC: INFO column absent — applying MAF filter only.")
-    else:
-        ldsc_filter = None
-        logging.warning("LDSC: neither EAF nor INFO column present — skipping quality filter.")
+    eaf_usable = (
+        "EAF" in cols and
+        pd.to_numeric(ldsc_obj.data["EAF"], errors="coerce").notna().any()
+    )
+    if not eaf_usable:
+        logging.error(
+            "LDSC: EAF column is %s — LDSC output requires allele frequencies "
+            "(Frq column). Skipping LDSC output. "
+            "Run with --fill-eaf or ensure the source file contains EAF data.",
+            "absent" if "EAF" not in cols else "all-NaN",
+        )
+        logging.info("[SAVE] LDSC  → skipped (no usable EAF)  (0 variants)")
+        return
 
-    if ldsc_filter:
-        try:
-            ldsc_obj = ldsc_obj.filter_value(expr=ldsc_filter)
-            logging.info("LDSC: after quality filter (%s): %s variants.",
-                         ldsc_filter, f"{len(ldsc_obj.data):,}")
-        except Exception as exc:
-            logging.warning("LDSC: filter_value('%s') failed (%s) — skipping step.",
-                            ldsc_filter, exc)
+    if "INFO" in cols:
+        ldsc_filter = "INFO > 0.9 & EAF > 0.01 & EAF < 0.99"
+    else:
+        ldsc_filter = "EAF > 0.01 & EAF < 0.99"
+        logging.info("LDSC: INFO column absent — applying EAF filter only.")
+
+    try:
+        ldsc_obj = ldsc_obj.filter_value(expr=ldsc_filter)
+        logging.info("LDSC: after quality filter (%s): %s variants.",
+                     ldsc_filter, f"{len(ldsc_obj.data):,}")
+    except Exception as exc:
+        logging.warning("LDSC: filter_value('%s') failed (%s) — skipping step.",
+                        ldsc_filter, exc)
 
     # 6. Write in LDSC format via gwaslab to_format()
     tag      = f".{suffix}" if suffix else ""

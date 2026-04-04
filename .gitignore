@@ -11,5 +11,7 @@ _drafts/*
 data/*
 
 # Ignore the local configuration and study list files, which should never be committed with real paths
+# (these files contain HPC file system paths that expose server locations)
 gwas2cojo.conf
 gwas_list.txt
+gwas_list_*.txt

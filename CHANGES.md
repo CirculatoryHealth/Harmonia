@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-04 🐛 gwas_process.py — LDSC skips output when EAF is absent or all-NaN (v1.4.30)
+- **Bug**: `write_ldsc()` applied `EAF > 0.01 & EAF < 0.99` even when EAF was all-NaN, silently removing every variant and writing a useless 0-variant LDSC file. Same root cause as the `apply_qc()` EAF/DAF bug (v1.4.29) — NaN comparisons always return False in pandas.
+- **Different fix from apply_qc()**: for LDSC, EAF is genuinely required (it becomes the `Frq` column). Skipping the filter would produce an LDSC file with all-NaN frequencies, which is equally useless. Instead, `write_ldsc()` now detects all-NaN or absent EAF up-front, logs an ERROR explaining the cause and remediation (`--fill-eaf`), and returns without writing a file.
+- **Studies affected**: `HF_EUR_Aragam2018` and `NICM_EUR_Aragam2018` used `--no-fill-eaf` and have no EAF in the source → will now clearly log the reason instead of writing an empty LDSC file. `T1D_EUR_Chiou2021` had wrong BUILD (19 instead of 38 for a GWAS Catalog harmonised file) → double liftover corrupted coordinates → EAF fill failed → near-0 LDSC variants; fix is BUILD=38 + full rerun.
+- **Files**: `gwas_process.py` (v1.4.29 → v1.4.30).
+
 ## 2026-04-04 🐛 gwas_process.py — QC wipes all variants when EAF/DAF is all-NaN (v1.4.29)
 - **Bug 1 (EAF)**: `build_qc_filter_expr()` always included the EAF filter regardless of whether EAF had any non-NaN values. In pandas, `NaN >= 0.005` evaluates to `False`, so an all-NaN EAF column caused every variant to fail the filter. All other filter terms (BETA, SE, INFO, DAF) were already guarded with `if col in cols else None`; EAF was not.
 - **Bug 2 (DAF)**: `apply_qc()` passed `else 0` (not `else None`) when DAF column was absent, which would generate the impossible expression `DAF < 0 & DAF > 0` had the column not existed. Now passes `None`.
