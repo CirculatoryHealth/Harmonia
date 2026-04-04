@@ -2,6 +2,14 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-04 🐛 gwas_process.py — QC wipes all variants when EAF/DAF is all-NaN (v1.4.29)
+- **Bug 1 (EAF)**: `build_qc_filter_expr()` always included the EAF filter regardless of whether EAF had any non-NaN values. In pandas, `NaN >= 0.005` evaluates to `False`, so an all-NaN EAF column caused every variant to fail the filter. All other filter terms (BETA, SE, INFO, DAF) were already guarded with `if col in cols else None`; EAF was not.
+- **Bug 2 (DAF)**: `apply_qc()` passed `else 0` (not `else None`) when DAF column was absent, which would generate the impossible expression `DAF < 0 & DAF > 0` had the column not existed. Now passes `None`.
+- **Root cause for CRP_EUR_Said2022**: EAF is mostly/entirely NaN in the harmonised input file and EAF fill could not recover it. The all-NaN EAF caused both the EAF filter and the DAF filter (DAF is derived from EAF) to remove all 10.6M variants.
+- **Fix**: `apply_qc()` uses `_col_usable(col)` — column present AND has at least one non-NaN value — as the guard for every numeric filter (EAF, DAF, BETA, SE, INFO). `build_qc_filter_expr()` now accepts `eaf: float | None` and returns `None` when no usable filter criterion exists (all columns absent or all-NaN).
+- **New**: when `expr` is `None` (no usable filters), all variants are retained with a WARNING. When QC removes 100% of variants, an ERROR is logged explicitly pointing to EAF/DAF as the likely culprit.
+- **Files**: `gwas_process.py` (v1.4.28 → v1.4.29).
+
 ## 2026-04-04 ✨ gwas_process.py — OR + 95% CI columns in TSV output for case/control studies (v1.4.28)
 - **New**: `reformat_output()` now detects case/control studies (N_cases present and non-zero) and appends three derived columns immediately after SE and P in the output TSV:
   - `OR` = exp(Beta)

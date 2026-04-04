@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.28"
+VERSION      = "1.4.29"
 VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -537,11 +537,18 @@ def assert_bgzf(path: str, label: str = "file") -> None:
         sys.exit(1)
 
 
-def build_qc_filter_expr(eaf: float, beta: float | None,
+def build_qc_filter_expr(eaf: float | None, beta: float | None,
                           se: float | None, info: float | None,
-                          daf: float | None) -> str:
-    """Construct a gwaslab filter expression from QC thresholds."""
-    filters = [f"(EAF >= {eaf} & EAF < {1 - eaf})"]
+                          daf: float | None) -> str | None:
+    """Construct a gwaslab filter expression from QC thresholds.
+
+    Any argument passed as None is omitted from the expression (column absent
+    or entirely NaN — filtering on it would remove all variants).
+    Returns None when no usable filter criterion exists.
+    """
+    filters = []
+    if eaf is not None:
+        filters.append(f"(EAF >= {eaf} & EAF < {1 - eaf})")
     if beta is not None:
         filters.append(f"(BETA >= {-beta} & BETA <= {beta})")
     if se is not None:
@@ -550,7 +557,7 @@ def build_qc_filter_expr(eaf: float, beta: float | None,
         filters.append(f"(INFO >= {info})")
     if daf is not None and daf > 0:
         filters.append(f"(DAF < {daf} & DAF > {-daf})")
-    return " & ".join(filters)
+    return " & ".join(filters) if filters else None
 
 
 def normalise_build(build: str) -> str:
@@ -2486,32 +2493,53 @@ def apply_qc(gwas_obj, eaf_min: float, beta_max: float, se_max: float,
     if "DAF" in cols and daf_max > 0:
         gwas_obj.data["DAF"] = gwas_obj.data["DAF"].fillna(0.0)
 
-    # Only include a filter term when the column is actually present in the
-    # data — pandas query() raises UndefinedVariableError for absent columns.
-    optional_filters = [
-        ("BETA", beta_max,  f"--beta-max {beta_max}"),
-        ("SE",   se_max,    f"--se-max {se_max}"),
-        ("INFO", info_min,  f"--info-min {info_min}"),
-        ("DAF",  daf_max,   f"--daf-max {daf_max}"),
-    ]
-    for col, val, flag in optional_filters:
-        if col not in cols:
+    # ── Per-column filter guards ───────────────────────────────────────────────
+    # A filter is only included when the column is present AND has at least one
+    # non-NaN value.  Filtering on an all-NaN column evaluates to False for every
+    # row (NaN comparisons always return False in pandas), wiping out all variants.
+    def _col_usable(col: str) -> bool:
+        return col in cols and gwas_obj.data[col].notna().any()
+
+    for col, flag in [("BETA", f"--beta-max {beta_max}"),
+                      ("SE",   f"--se-max {se_max}"),
+                      ("INFO", f"--info-min {info_min}"),
+                      ("EAF",  f"--eaf-min {eaf_min}"),
+                      ("DAF",  f"--daf-max {daf_max}")]:
+        if not _col_usable(col):
+            reason = "not present in data" if col not in cols else "all-NaN"
             logging.warning(
-                "QC: column '%s' not present in data — skipping %s filter.", col, flag,
+                "QC: column '%s' is %s — skipping %s filter.", col, reason, flag,
             )
 
     expr = build_qc_filter_expr(
-        eaf_min,
-        beta_max  if "BETA" in cols else None,
-        se_max    if "SE"   in cols else None,
-        info_min  if "INFO" in cols else None,
-        daf_max   if "DAF"  in cols else 0,
+        eaf_min   if _col_usable("EAF")  else None,
+        beta_max  if _col_usable("BETA") else None,
+        se_max    if _col_usable("SE")   else None,
+        info_min  if _col_usable("INFO") else None,
+        daf_max   if _col_usable("DAF")  else None,
     )
-    logging.info("QC filter expression: %s", expr)
+
     n_before_numeric = len(gwas_obj.data)
-    gwas_obj_qc = gwas_obj.filter_value(expr=expr)
-    logging.info("Variants after numeric QC: %d (removed %d).",
-                 len(gwas_obj_qc.data), n_before_numeric - len(gwas_obj_qc.data))
+    if expr is None:
+        logging.warning(
+            "QC: no usable numeric filter columns — skipping numeric QC step. "
+            "All %s variants retained.", f"{n_before_numeric:,}",
+        )
+        gwas_obj_qc = gwas_obj
+    else:
+        logging.info("QC filter expression: %s", expr)
+        gwas_obj_qc = gwas_obj.filter_value(expr=expr)
+        n_after = len(gwas_obj_qc.data)
+        n_removed = n_before_numeric - n_after
+        logging.info("Variants after numeric QC: %s (removed %s).",
+                     f"{n_after:,}", f"{n_removed:,}")
+        if n_before_numeric > 0 and n_after == 0:
+            logging.error(
+                "QC removed ALL %s variants. This usually means a key QC column "
+                "(EAF, DAF, BETA, SE) is entirely NaN. Check --fill-eaf and the "
+                "preprocess log for EAF fill statistics.",
+                f"{n_before_numeric:,}",
+            )
 
     # ── STATUS filter ─────────────────────────────────────────────────────────
     if "STATUS" in gwas_obj_qc.data.columns:
