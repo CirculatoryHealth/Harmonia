@@ -2,6 +2,11 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-04 🐛 gwas_process.py — fix infer_ancestry hg38 reference not found (v1.4.25)
+- **Bug**: `run_infer_ancestry()` used gwaslab's key-based file lookup (`1kg_hm3_hg38_eaf`) without first telling gwaslab where to look. gwaslab searches its own default cache; if the file was placed in `REF_DIR` manually (or via our download helper rather than gwaslab's internal helper), the lookup fails with `Reference file '1kg_hm3_hg38_eaf' not found` even when the file is physically present.
+- **Fix**: `run_infer_ancestry()` now accepts an optional `ref_dir` keyword argument. When provided and the directory exists, `gwaslab.bd.bd_download.set_default_directory(ref_dir)` is called before `infer_ancestry()` so gwaslab resolves the HapMap3 EAF reference (`PAN.hapmap3.hg38.EAF.tsv.gz` / `PAN.hapmap3.hg19.EAF.tsv.gz`) from the correct location. Both call sites pass `ref_dir=args.ref`.
+- **Files**: `gwas_process.py` (v1.4.24 → v1.4.25).
+
 ## 2026-04-04 🐛 make_chrpos_hdf5.sh — fix gwas2cojo.conf not found in SLURM spool
 - **Bug**: SLURM copies the script to its spool directory before execution, making `BASH_SOURCE[0]` resolve to `/var/spool/slurmd/jobN/slurm_script` rather than the original script location. The conf lookup `${SCRIPT_DIR}/../gwas2cojo.conf` therefore failed with `ERROR: gwas2cojo.conf not found`.
 - **Fix**: conf resolution now follows a three-step fallback:

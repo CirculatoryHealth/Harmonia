@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.24"
-VERSION_DATE = "2026-04-03"
+VERSION      = "1.4.25"
+VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -1144,7 +1144,7 @@ def run_merge(stem: str, output_loc: str, reference: str,
 
         if not args.no_infer_ancestry:
             run_infer_ancestry(gwas_obj_qc, args.population, build_num,
-                               output_loc, stem_out)
+                               output_loc, stem_out, ref_dir=args.ref)
     else:
         if args.leads:
             extract_leads(gwas_obj, args.gwas, args.population,
@@ -1309,7 +1309,8 @@ def run_check_af(gwas_obj, vcf: str, n_cores: int) -> object:
 
 
 def run_infer_ancestry(gwas_obj, population: str, build: str,
-                       output_loc: str, stem: str) -> dict:
+                       output_loc: str, stem: str,
+                       ref_dir: str = "") -> dict:
     """
     Infer ancestry from allele frequencies and compare with the declared population.
 
@@ -1329,6 +1330,11 @@ def run_infer_ancestry(gwas_obj, population: str, build: str,
     NOTE: infer_ancestry requires EAF to be present and non-trivially filled.
     If EAF is all-NaN (e.g. the study had no EAF column and --fill-eaf was not
     used), the step is skipped gracefully.
+
+    ref_dir: path to the gwaslab reference directory (REF_DIR from gwas2cojo.conf).
+             When provided, gl.set_default_directory() is called so gwaslab can
+             resolve the HapMap3 EAF file by its key name even if the file was not
+             downloaded through gwaslab's own download helper.
     """
     import json
 
@@ -1349,6 +1355,19 @@ def run_infer_ancestry(gwas_obj, population: str, build: str,
         logging.warning("infer_ancestry skipped — EAF column is all-NaN.")
         _log_ancestry_result(result)
         return result
+
+    # Point gwaslab at our local reference directory so it can resolve the EAF
+    # file by key name (e.g. 1kg_hm3_hg38_eaf → PAN.hapmap3.hg38.EAF.tsv.gz).
+    # Without this call, gwaslab searches its default cache and fails even when
+    # the file is already present in REF_DIR.
+    if ref_dir and os.path.isdir(ref_dir):
+        try:
+            import gwaslab as gl
+            from gwaslab.bd.bd_download import set_default_directory
+            set_default_directory(ref_dir)
+            logging.info("infer_ancestry: gwaslab reference directory set to %s", ref_dir)
+        except Exception as _exc:
+            logging.debug("infer_ancestry: could not set gwaslab default directory: %s", _exc)
 
     logging.info("infer_ancestry: using reference '%s', %d variants with valid EAF.",
                  eaf_key, n_eaf_valid)
@@ -3108,7 +3127,7 @@ def main() -> None:
 
         if not args.no_infer_ancestry:
             run_infer_ancestry(gwas_obj_qc, args.population, build_num,
-                               output_loc, stem)
+                               output_loc, stem, ref_dir=args.ref)
 
         if stage == "qc":
             logging.info("Stage 'qc' complete.")
