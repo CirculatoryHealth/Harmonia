@@ -46,13 +46,31 @@ if [[ -n "${EMAIL}" && -n "${SLURM_JOB_ID:-}" ]]; then
 fi
 
 # ── Load gwas2cojo.conf ───────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONF="${SCRIPT_DIR}/../gwas2cojo.conf"
+# Resolution order:
+#   1. GWAS2COJO_CONF env var (explicit override)
+#   2. SLURM_SUBMIT_DIR — the directory where sbatch was called (SLURM sets this
+#      automatically; gwas2cojo.conf lives alongside gwas_process.py there)
+#   3. BASH_SOURCE fallback — works for direct local invocation but fails when
+#      SLURM copies the script to its spool directory
+if [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
+    CONF="${GWAS2COJO_CONF}"
+elif [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/gwas2cojo.conf" ]]; then
+    CONF="${SLURM_SUBMIT_DIR}/gwas2cojo.conf"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CONF="${SCRIPT_DIR}/../gwas2cojo.conf"
+fi
 if [[ ! -f "${CONF}" ]]; then
-    echo "ERROR: gwas2cojo.conf not found at ${CONF}" >&2; exit 1
+    echo "ERROR: gwas2cojo.conf not found (tried: ${CONF})" >&2
+    echo "       Submit from the gwas2cojo directory, or export GWAS2COJO_CONF=/path/to/gwas2cojo.conf" >&2
+    exit 1
 fi
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
+
+# Derive the installation root from PYTHON_SCRIPT so the Python helper script
+# is always found next to gwas_process.py, regardless of where sbatch was called.
+ROOTDIR="$(dirname "${PYTHON_SCRIPT}")"
 
 # ── Activate conda ────────────────────────────────────────────────────────────
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -65,7 +83,7 @@ echo "REF_DIR      : ${REF_DIR}"
 echo "Threads      : ${SLURM_CPUS_PER_TASK:-8}"
 echo "========================================================"
 
-python "${SCRIPT_DIR}/make_chrpos_hdf5.py" \
+python "${ROOTDIR}/utility_scripts/make_chrpos_hdf5.py" \
     --ref-dir  "${REF_DIR}"               \
     --build    "${BUILD}"                  \
     --threads  "${SLURM_CPUS_PER_TASK:-8}" \

@@ -2,6 +2,15 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-04 🐛 make_chrpos_hdf5.sh — fix gwas2cojo.conf not found in SLURM spool
+- **Bug**: SLURM copies the script to its spool directory before execution, making `BASH_SOURCE[0]` resolve to `/var/spool/slurmd/jobN/slurm_script` rather than the original script location. The conf lookup `${SCRIPT_DIR}/../gwas2cojo.conf` therefore failed with `ERROR: gwas2cojo.conf not found`.
+- **Fix**: conf resolution now follows a three-step fallback:
+  1. `GWAS2COJO_CONF` env var — explicit override
+  2. `${SLURM_SUBMIT_DIR}/gwas2cojo.conf` — SLURM always exports `SLURM_SUBMIT_DIR` as the directory where `sbatch` was called; submitting from the gwas2cojo root just works
+  3. `BASH_SOURCE` relative path — fallback for direct local invocation
+- **New**: after sourcing the conf, `ROOTDIR=$(dirname "${PYTHON_SCRIPT}")` derives the installation root from the already-known `PYTHON_SCRIPT` path, so the Python helper is always called as `${ROOTDIR}/utility_scripts/make_chrpos_hdf5.py` regardless of spool location.
+- **File**: `utility_scripts/make_chrpos_hdf5.sh`.
+
 ## 2026-04-04 🐛 check.py — array stage chromosome count uses split ground truth (v1.2.7)
 - **Fix**: array stages (`checkref`, `inferstrand`, `assignrsid`, `checkaf`) now use the chromosome count reported by the split stage (`n_split_chr`) as the expected total (`eff_total`) rather than counting SLURM log files. SLURM always arrays over all 26 tasks regardless of how many chromosomes are in the data; tasks for absent chromosomes exit 0 without a "done" marker, previously causing false `⚠ 23/26` warnings for datasets with only autosomes + chrX.
 - **Behaviour**: if split reports N chromosomes and all N array tasks complete, status shows `✓ done` with metric `N chromosomes complete`. A warning is only raised when `n_done < n_split_chr` (genuine missing or failed tasks).
