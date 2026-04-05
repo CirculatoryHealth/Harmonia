@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.30"
+VERSION      = "1.4.31"
 VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -1304,12 +1304,36 @@ def run_normalize(gwas_obj, reference: str, ref_loc: str,
 def run_check_ref(gwas_obj, reference: str, ref_loc: str) -> object:
     """
     process-check-ref: check_ref + flip_allele_stats + fix_id.
+
+    FASTA preference order (pyfaidx memory efficiency):
+      1. hg{build}.fa        — uncompressed + .fai index → true O(1) random access;
+                               pyfaidx creates the .fai on first use (one-time cost).
+      2. hg{build}.fa.gz     — plain gzip: pyfaidx must decompress the whole genome
+                               into memory to build an in-memory index (can exceed
+                               100 GB for hg38 regardless of variant count).
+    Always prefer the uncompressed FASTA when available.
     """
     fasta_build = normalise_build(reference)
-    fasta = os.path.join(ref_loc, f"hg{fasta_build}.fa.gz")
+    fasta_plain = os.path.join(ref_loc, f"hg{fasta_build}.fa")
+    fasta_gz    = os.path.join(ref_loc, f"hg{fasta_build}.fa.gz")
+
+    if os.path.isfile(fasta_plain):
+        fasta = fasta_plain
+        logging.info("Using uncompressed FASTA for check_ref (pyfaidx indexed access): %s", fasta)
+    elif os.path.isfile(fasta_gz):
+        fasta = fasta_gz
+        logging.warning(
+            "Uncompressed FASTA not found — falling back to %s. "
+            "pyfaidx may decompress the whole genome into RAM. "
+            "For large studies this can exceed 100 GB. "
+            "Prefer: bgzip -d %s && samtools faidx %s",
+            fasta_gz, fasta_gz, fasta_plain,
+        )
+    else:
+        fasta = None
 
     logging.info("\n===== Running check_ref =====")
-    if os.path.isfile(fasta):
+    if fasta:
         logging.info("Running check_ref with %s …", fasta)
         gwas_obj.check_ref(ref_seq=fasta)
         # Guard against OR = 0 causing FloatingPointError in flip_allele_stats.
@@ -1326,7 +1350,8 @@ def run_check_ref(gwas_obj, reference: str, ref_loc: str) -> object:
                 )
         gwas_obj.flip_allele_stats()
     else:
-        logging.warning("FASTA not found at '%s' — skipping check_ref.", fasta)
+        logging.warning("FASTA not found (tried %s and %s) — skipping check_ref.",
+                        fasta_plain, fasta_gz)
 
     logging.info("\n===== Running fix_id =====")
     gwas_obj.fix_id(fixid=True, forcefixid=True, overwrite=True)
@@ -2243,15 +2268,30 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
     # infer_strand/infer_strand2) only updates STATUS codes; the 
     # actual re-orientation of BETA/EAF/OR etc. is done by flip_allele_stats().
     logging.info("\n===== Running check_ref =====")
-    fasta_build = normalise_build(reference)
-    fasta = os.path.join(ref_loc, f"hg{fasta_build}.fa.gz")
-    if os.path.isfile(fasta):
+    fasta_build  = normalise_build(reference)
+    fasta_plain  = os.path.join(ref_loc, f"hg{fasta_build}.fa")
+    fasta_gz     = os.path.join(ref_loc, f"hg{fasta_build}.fa.gz")
+    if os.path.isfile(fasta_plain):
+        fasta = fasta_plain
+        logging.info("Using uncompressed FASTA (pyfaidx indexed access): %s", fasta)
+    elif os.path.isfile(fasta_gz):
+        fasta = fasta_gz
+        logging.warning(
+            "Uncompressed FASTA not found — falling back to %s. "
+            "pyfaidx may decompress the whole genome into RAM for plain-gzip files. "
+            "Prefer: bgzip -d %s && samtools faidx %s",
+            fasta_gz, fasta_gz, fasta_plain,
+        )
+    else:
+        fasta = None
+    if fasta:
         logging.info("Running check_ref with %s …", fasta)
         gwas_obj.check_ref(ref_seq=fasta)
         # gc.collect() # for debug of killed 9 signal
         gwas_obj.flip_allele_stats()
     else:
-        logging.warning("FASTA not found at '%s' — skipping check_ref.", fasta)
+        logging.warning("FASTA not found (tried %s and %s) — skipping check_ref.",
+                        fasta_plain, fasta_gz)
 
     # fix_id
     logging.info("\n===== Running fix_id =====")

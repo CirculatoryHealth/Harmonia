@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-04-05 🐛 gwas_process.py — check_ref: prefer uncompressed FASTA to avoid pyfaidx OOM (v1.4.31)
+- **Root cause**: `run_check_ref()` always used `hg{build}.fa.gz` (plain gzip) as the FASTA reference. pyfaidx cannot perform random-access on plain-gzip files — it decompresses and indexes the entire genome into RAM, which for hg38 (~3.2 billion bases as a Python in-memory structure) can exceed 100 GB regardless of variant count. Studies using hg38 as the target build (BUILD=38, or BUILD=19+liftover) hit this limit during `process-check-ref` even with only hundreds of thousands of per-chromosome variants.
+- **Fix**: both the per-chromosome path (`run_check_ref()`) and the legacy whole-genome path now prefer `hg{build}.fa` (uncompressed) over `hg{build}.fa.gz`. With the uncompressed FASTA and its `.fai` index, pyfaidx uses true O(1) random access with memory proportional only to the variants being processed. pyfaidx creates the `.fai` automatically on first use if absent (one-time cost). `.fa.gz` is retained as a fallback with a warning.
+- **Action required**: ensure `samtools faidx hg38.fa` has been run in REF_DIR so the `.fai` index exists (or let gwaslab/pyfaidx build it on first run). The uncompressed `hg38.fa` is already present in the reference directory alongside `hg38.fa.gz`.
+- **Affected studies**: any study using the hg38 FASTA for check_ref, including all BUILD=19+liftover studies (IL6, CAD, HF, NICM, etc.) and BUILD=38 studies (CRP, Migraine, T1D).
+- **Files**: `gwas_process.py` (v1.4.30 → v1.4.31).
+
 ## 2026-04-04 🐛 gwas_process.py — LDSC skips output when EAF is absent or all-NaN (v1.4.30)
 - **Bug**: `write_ldsc()` applied `EAF > 0.01 & EAF < 0.99` even when EAF was all-NaN, silently removing every variant and writing a useless 0-variant LDSC file. Same root cause as the `apply_qc()` EAF/DAF bug (v1.4.29) — NaN comparisons always return False in pandas.
 - **Different fix from apply_qc()**: for LDSC, EAF is genuinely required (it becomes the `Frq` column). Skipping the filter would produce an LDSC file with all-NaN frequencies, which is equally useless. Instead, `write_ldsc()` now detects all-NaN or absent EAF up-front, logs an ERROR explaining the cause and remediation (`--fill-eaf`), and returns without writing a file.
