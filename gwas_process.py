@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.31"
-VERSION_DATE = "2026-04-04"
+VERSION      = "1.4.32"
+VERSION_DATE = "2026-06-11"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -594,7 +594,8 @@ SUMSTATS_ALIASES = {
                          "freq_tested_allele_in_hrs", "raf", "af", "allele_frequency",
                          "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
                          "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur",
-                         "freq_a", "eaf_avg"]),
+                         "freq_a", "eaf_avg",
+                         "frq_u", "frq_a"]),  # PGC daner format (frq_u=controls, frq_a=cases)
     "beta":  ("BETA",  ["hm_beta", "beta", "effect_size", "effectsize", "effect",
                          "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b"]),
     "se":    ("SE",    ["se", "stderr", "standard_error", "sebeta",
@@ -1718,6 +1719,12 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
         target = gwas_data[[chrom_col, pos_col, ea_col, nea_col]].copy()
 
     target.columns = ["chrom", "pos", "ea", "nea"]
+    # Normalise allele case before lookup: the reference VCF stores alleles in
+    # uppercase (A/T/C/G) and the dict key uses them as-is.  Source files that
+    # encode alleles in lowercase (e.g. older meta-analysis files like
+    # AholaOlli2017) would otherwise produce 0 matches for every variant.
+    target["ea"]  = target["ea"].str.upper()
+    target["nea"] = target["nea"].str.upper()
     target["pos"] = pd.to_numeric(target["pos"], errors="coerce")
     af_result = pd.Series(np.nan, index=target.index)
 
