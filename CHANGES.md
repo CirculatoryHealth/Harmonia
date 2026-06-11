@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-11 ✨ utility_scripts/gwas_check_cojoldsc_output.sh — new script to check COJO and LDSC output files
+- **New utility**: `gwas_check_cojoldsc_output.sh` checks the presence and variant counts of COJO (`*.cojo` / `*.cojo.gz`) and LDSC (`*.ldsc.ldsc.tsv.gz`) output files for one or more gwas2cojo studies.
+- **Usage**: accepts study names as positional arguments or via `--list FILE`; `--base DIR` overrides the default base directory (`/hpc/dhl_ec/data/_gwas_datasets/gwas2cojo`).
+- **Output**: aligned table with `COJO_N` and `LDSC_N` variant counts per study; LDSC counts flagged ⚠ (< 100k, suspicious) or ✗ (< 1k, critically low); summary footer with per-category totals.
+- **Files**: `utility_scripts/gwas_check_cojoldsc_output.sh` (new).
+
 ## 2026-06-11 🐛 gwas_process.py — EAF lookup: normalise allele case before reference VCF matching (v1.4.32)
 - **Root cause**: `check_and_fill_eaf()` built its `(pos, ref, alt)` lookup dict directly from the reference VCF (uppercase alleles: A/T/C/G) and then queried it using allele strings taken verbatim from the GWAS data. Older meta-analysis files (e.g. AholaOlli2017 cytokine GWAS) store alleles in lowercase (a/t/c/g). Python dict lookups are case-sensitive, so every query returned `None` — 0 out of ~9.9M EAF values were filled despite 9.8M rsIDs being present and the reference VCF chromosome names matching correctly (confirmed via `tabix -l`).
 - **Diagnosis**: cross-referencing the `check_and_fill_eaf()` dict key construction (`fields[3]`, `fields[4]` from the VCF — always uppercase) against the per-row lookup (`str(row["ea"])`, `str(row["nea"])` — lowercase in affected files) confirmed a complete case mismatch. Chromosome-name format was ruled out as a secondary cause because the same reference VCF works correctly for other studies.
