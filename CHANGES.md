@@ -2,6 +2,21 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-11 🔧 utility_scripts/download_dbsnp_vcfs.sh — SLURM job to download all dbSNP VCF reference files
+- New script that downloads (or resumes) all three dbSNP VCF files needed by the pipeline: b157 hg38 (`GCF_000001405.40.gz`), b151 hg38 (`00-All.vcf.gz`, the current fallback), and b157 hg19 (`GCF_000001405.25.gz`)
+- Uses `wget --continue --tries=10 --read-timeout=120` to safely resume partial downloads (avoids the 20-second timeout that caused the original truncated downloads via gwaslab)
+- Verifies BGZF integrity with `bgzip -t` after each download; aborts on failure
+- Rebuilds `.tbi` with `tabix -p vcf` (never downloads the index — avoids the b156/b157 mismatch in gwaslab's `reference.json`)
+- Sources `gwas2cojo.conf` automatically; no hardcoded paths
+- Submit with: `sbatch utility_scripts/download_dbsnp_vcfs.sh`
+- Files: `utility_scripts/download_dbsnp_vcfs.sh` (new)
+
+## 2026-06-11 🔧 gwas_process.submit_staged.sh — TIME_PREPROCESS/MEM_PREPROCESS now overridable via env var
+- `MEM_PREPROCESS` and `TIME_PREPROCESS` are now set via `${VAR:-default}` so they can be overridden from the environment without editing the script
+- Example: `TIME_PREPROCESS="08:00:00" bash gwas_process.submit_staged.sh gwas_list_resubmit_preprocess_timeout.txt`
+- Needed for large files (AAA_Roychowdhury2023_PAN, IA_Bakker2020_PAN, MDD_PAN_PGC2025) that exceed the default 4-hour preprocess time limit
+- Files: `gwas_process.submit_staged.sh`
+
 ## 2026-06-11 🐛 gwas_process.py — dbsnp_vcf_path: self-healing fallback for broken b157 dbSNP index (v1.4.33)
 - **Root cause**: `dbsnp_vcf_path()` returned `GCF_000001405.40.gz` (dbSNP b157 hg38) for the rsID-assignment step (`process-assign-rsid`). Investigation revealed two compounding problems with that file on the HPC: (1) the download was truncated — only a fraction of chromosome 1 was downloaded (1.8 GB of an expected ~10–15 GB), confirmed by `tabix -l` returning only `NC_000001.11`; (2) the `.tbi` index was sourced from the b156 archive (a bug in gwaslab's `reference.json`), so the block offsets do not match the b157 VCF. Every bcftools query via `_extract_lookup_table_from_vcf_bcf()` returned 0 rows. Consequence: `sweep_mode=True` in `harmonize()` assigned **zero rsIDs** to all studies that lacked pre-existing rsIDs in their SNPID column, capping LDSC variant counts at ~84k (only variants with rsIDs already present in the source file).
 - **Additional context**: gwaslab attempted to pre-process the GCF files into HDF5 lookup shards on 2026-04-04; those runs logged `Total rows processed: 0` for the same reason. The HDF5 shards are empty but irrelevant to the CHR:POS→rsID assignment path used by this pipeline.
