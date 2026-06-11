@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.32"
+VERSION      = "1.4.33"
 VERSION_DATE = "2026-06-11"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -493,9 +493,46 @@ def ref_vcf_path(ref_dir: str, population: str, build: str) -> str | None:
 
 
 def dbsnp_vcf_path(ref_dir: str, build: str) -> str:
-    """Return the expected dbSNP VCF path for *build*."""
-    fname = "GCF_000001405.25.gz" if build == "19" else "GCF_000001405.40.gz"
-    return os.path.join(ref_dir, fname)
+    """Return the best available dbSNP VCF path for *build*.
+
+    Preference order
+    ----------------
+    hg38:
+      1. ``GCF_000001405.40.gz`` (dbSNP b157) when its ``.tbi`` is present and
+         larger than 1 MB — the minimum expected for a correctly indexed full
+         build (the broken b156-sourced index that caused zero rsID assignments
+         was only 207 KB).
+      2. ``00-All.vcf.gz`` (dbSNP b151) as a working fallback.  This covers all
+         HapMap3 / common SNPs; it is used automatically while the b157 file is
+         being re-downloaded.
+
+    hg19:
+      ``GCF_000001405.25.gz`` (dbSNP b157 hg19).  No ready fallback exists yet;
+      if the file or its index is absent, assign_rsid will log an error and
+      skip gracefully.
+
+    Background
+    ----------
+    The original ``GCF_000001405.40.gz`` download was truncated at ~1.8 GB of
+    an expected ~10–15 GB and its ``.tbi`` was sourced from the b156 archive
+    (gwaslab reference.json bug), making every bcftools query return 0 rows.
+    Once a correct full b157 VCF is in place with a freshly built ``.tbi``
+    (``tabix -p vcf GCF_000001405.40.gz``), this function automatically
+    returns the b157 path again without any code change.
+    """
+    _1MB = 1_000_000
+
+    if build == "19":
+        return os.path.join(ref_dir, "GCF_000001405.25.gz")
+
+    # hg38 — prefer b157 when its index looks valid, otherwise use b151 fallback
+    b157 = os.path.join(ref_dir, "GCF_000001405.40.gz")
+    b157_tbi = b157 + ".tbi"
+    if (os.path.exists(b157) and os.path.exists(b157_tbi)
+            and os.path.getsize(b157_tbi) > _1MB):
+        return b157
+
+    return os.path.join(ref_dir, "00-All.vcf.gz")
 
 
 # BGZF EOF block — every valid BGZF file must end with these 28 bytes.
