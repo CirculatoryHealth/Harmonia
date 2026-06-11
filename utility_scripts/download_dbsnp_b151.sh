@@ -13,7 +13,7 @@
 # Usage: sbatch utility_scripts/download_dbsnp_b151.sh
 #
 # Set REF_DIR to the directory where your reference VCFs live.
-REF_DIR="/hpc/dhl_ec/data/_reference/gwaslab"   # ← adjust if needed
+REF_DIR="/hpc/dhl_ec/data/references/gwaslab"   # ← adjust if needed
 
 mkdir -p "${REF_DIR}"
 cd "${REF_DIR}"
