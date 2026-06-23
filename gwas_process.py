@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.33"
+VERSION      = "1.4.35"
 VERSION_DATE = "2026-06-11"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -641,7 +641,8 @@ SUMSTATS_ALIASES = {
                          "fixed-effects_p-value", "p-value", "p-value_gc",
                          "p.value", "p_fixed", "meta_pval"]),
     "n":     ("N",     ["n", "samplesize", "sample_size", "n_total", "ntotal", "n_samples",
-                         "totalsamplesize", "n_eff", "neff", "total_n"]),
+                         "totalsamplesize", "n_eff", "neff", "total_n",
+                         "n_total_sum", "n_analyzed"]),
     "rsid":  ("rsID",  ["hm_rsid", "rsid", "rs", "snp_id", "rs_id", "dbsnp_rs_id", "dbsnp_id"]),
     "info":  ("INFO",  ["info", "impinfo", "imputation_quality", "r2", "rsq",
                         "imp_qual"]),
@@ -2019,10 +2020,16 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
                                            "log_odds", "logor", "beta_fixed", "b"])
     p_col    = resolve_column(gwas_data, ["p", "pval", "p_value", "pvalue",
                                            "p-value", "p-value_gc", "p.value", "p_fixed"])
-    if se_col is not None:
+    se_all_nan = se_col is not None and gwas_data[se_col].isna().all()
+    if se_col is not None and not se_all_nan:
         logging.info("SE column found: '%s' — no back-calculation needed.", se_col)
     elif beta_col is not None and p_col is not None:
-        logging.info("SE not found — back-calculating from '%s' and '%s'.", beta_col, p_col)
+        if se_all_nan:
+            logging.warning("SE column '%s' is entirely NaN — dropping and back-calculating from '%s' and '%s'.",
+                            se_col, beta_col, p_col)
+            gwas_data = gwas_data.drop(columns=[se_col])
+        else:
+            logging.info("SE not found — back-calculating from '%s' and '%s'.", beta_col, p_col)
         z = np.abs(norm.ppf(gwas_data[p_col].clip(lower=1e-300) / 2))
         z = np.where(z == 0, np.nan, z)
         gwas_data["SE"] = np.abs(gwas_data[beta_col]) / z
@@ -2032,7 +2039,8 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
 
     # N derivation
     n_col        = resolve_column(gwas_data, ["n", "samplesize", "sample_size", "n_total",
-                                               "ntotal", "n_samples", "totalsamplesize", "n_eff", "neff"])
+                                               "ntotal", "n_samples", "totalsamplesize", "n_eff", "neff",
+                                               "n_total_sum", "n_analyzed"])
     ncase_col    = resolve_column(gwas_data, ["n_cases", "ncases", "cases", "n_case",
                                                "totalcases", "ncase", "n_events", "n_event",
                                                "nevents", "nevent"])

@@ -2,6 +2,23 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-23 🐛 gwas_process.py — SE back-calculation skipped when SE column exists but is all-NaN (v1.4.35)
+- **Root cause**: `correct_columns()` checked `if se_col is not None` to decide whether to skip the SE back-calculation from beta + p-value. Studies such as `Migraine_PAN_Choquet2021` have a `standard_error` column present in the harmonised file but all values are `NA` — so `se_col` is not None but the column is entirely useless.
+- **Fix**: added an `se_all_nan` guard: if `se_col` exists but `gwas_data[se_col].isna().all()`, the all-NaN column is dropped before back-calculating `SE = |β| / |Φ⁻¹(p/2)|`. Dropping is necessary because `standardise_columns()` runs immediately after and would rename `standard_error` → `SE`, overwriting the back-calculated values.
+- **Affected studies**: `Migraine_PAN_Choquet2021` (SE all-NaN in source); any harmonised GWAS Catalog file that includes a `standard_error` column with all-NA values.
+- **Files**: `gwas_process.py` (v1.4.34 → v1.4.35).
+
+## 2026-06-23 🐛 gwas_process.py — N column aliases missing n_total_sum and N_analyzed (v1.4.34)
+- **Root cause**: `COLUMN_ALIASES["n"]` and the `resolve_column` call in `correct_columns()` (merge-step N derivation) did not include `n_total_sum` (used by Wuttke 2019 eGFR files: `EGFRcrea_PAN_Wuttke2019`, `EGFRcrea_EUR_Wuttke2019`) or `N_analyzed` (used by Savage 2018 IQ: `IQ_EUR_Savage2018`). Both studies were processed without a sample-size column → `--cojo` was skipped at runtime.
+- **Fix**: added `n_total_sum` and `n_analyzed` to both alias lists. `Nca` / `Nco` (ANX_EUR_Strom2026) were already present in `OPTIONAL_OTHER_ALIASES` via `nca` / `nco` aliases and required no change.
+- **Action required**: rerun from `--stage preprocess` for the three affected studies once gwas_list.txt N values are confirmed so the new aliases are applied at load time.
+- **Files**: `gwas_process.py` (v1.4.33 → v1.4.34).
+
+## 2026-06-23 🐛 utility_scripts/gwas_check_cojoldsc_output.sh — wrong LDSC glob pattern
+- **Root cause**: the LDSC file glob was `*.ldsc.ldsc.tsv.gz` (doubled `ldsc` infix) but the actual output filename pattern written by `write_ldsc()` is `*.qc.ldsc.tsv.gz`.
+- **Fix**: corrected glob to `*.qc.ldsc.tsv.gz`.
+- **Files**: `utility_scripts/gwas_check_cojoldsc_output.sh`.
+
 ## 2026-06-11 🔧 utility_scripts/download_dbsnp_vcfs.sh — SLURM job to download all dbSNP VCF reference files
 - New script that downloads (or resumes) all three dbSNP VCF files needed by the pipeline: b157 hg38 (`GCF_000001405.40.gz`), b151 hg38 (`00-All.vcf.gz`, the current fallback), and b157 hg19 (`GCF_000001405.25.gz`)
 - Uses `wget --continue --tries=10 --read-timeout=120` to safely resume partial downloads (avoids the 20-second timeout that caused the original truncated downloads via gwaslab)

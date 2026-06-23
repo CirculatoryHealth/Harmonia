@@ -126,7 +126,7 @@ for S in "${STUDIES[@]}"; do
     fi
 
     # ── LDSC ──────────────────────────────────────────────────────────────────
-    LDSC_FILE=$(ls "${DIR}"/*.ldsc.ldsc.tsv.gz 2>/dev/null | head -1)
+    LDSC_FILE=$(ls "${DIR}"/*.qc.ldsc.tsv.gz 2>/dev/null | head -1)
 
     if [[ -n "$LDSC_FILE" ]]; then
         N_LDSC=$(count_variants "$LDSC_FILE")
