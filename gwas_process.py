@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.45"
+VERSION      = "1.4.46"
 VERSION_DATE = "2026-06-30"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -1648,15 +1648,30 @@ def detect_separator(path: str) -> str:
     """
     logging.info("\n===== Sniff out column separator =====")
     import gzip as _gzip
+    import zipfile as _zipfile
 
-    opener = _gzip.open if path.endswith(".gz") else open
-    with opener(path, "rt", encoding="utf-8", errors="replace") as fh:
-        for raw in fh:
-            line = raw.rstrip("\n\r")
-            if line:
-                break
-        else:
-            return "\t"  # empty file — fall back
+    if path.endswith(".zip"):
+        with _zipfile.ZipFile(path) as _zf:
+            _members = [m for m in _zf.namelist() if not m.endswith("/")]
+            if not _members:
+                return "\t"
+            if len(_members) > 1:
+                logging.warning("ZIP contains %d files; using first: %s", len(_members), _members[0])
+            with _zf.open(_members[0]) as _inner:
+                line = ""
+                for raw in _inner:
+                    line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
+                    if line:
+                        break
+    else:
+        opener = _gzip.open if path.endswith(".gz") else open
+        with opener(path, "rt", encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                line = raw.rstrip("\n\r")
+                if line:
+                    break
+            else:
+                return "\t"  # empty file — fall back
 
     candidates = [
         ("\t",      line.count("\t")),

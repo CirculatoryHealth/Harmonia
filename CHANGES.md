@@ -2,6 +2,13 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-30 🆕 gwas_process.py — ZIP file support for detect_separator and pd.read_csv (v1.4.46)
+- **Root cause**: `CytokineNetwork_EUR_Nath2019` input file is `MultivariateGWAS_CytokineNetwork_SummaryStatistics_GWASCatalog.zip`. The `detect_separator()` function only handled `.gz` and plain text — calling `open()` on a zip raised `FileNotFoundError` (or binary garbage). `pd.read_csv()` supports zip natively, so only `detect_separator()` needed fixing.
+- **Fix**: added a `.zip` branch to `detect_separator()` that opens the archive with `zipfile.ZipFile`, lists members, logs a warning if there are multiple files, then reads the header line of the first member to sniff the delimiter. The rest of the pipeline (pandas `read_csv`) handles zip decompression transparently.
+- **gwas_list.txt**: corrected `CytokineNetwork_EUR_Nath2019` path from `.csv` → `.zip`.
+- **Note**: the column header of the zip's inner file is unknown until first run; the pipeline will log all detected columns at preprocess time.
+- **Files**: `gwas_process.py` (v1.4.45 → v1.4.46), `gwas_list.txt`.
+
 ## 2026-06-30 🆕 gwas_process.py — CHR:POS SNPID extraction; BETA/SE from Z+EAF+N; BOLT-LMM aliases (v1.4.45)
 - **CHR:POS extraction from SNPID** (`_extract_chrpos_from_snpid()`): when SNPID is in `chr1:226621487` or `1:226621487` format and CHR/POS columns are absent, automatically extracts them. Detects format by checking ≥90% of SNPID values against a regex; handles `chr`-prefix and maps X/Y/MT to numeric codes. Called in both `correct_columns()` (new preprocess runs) and `make_sumstats_object()` (fallback for old parquets). Fixes `KeyError: 'POS'` in `remove_dup` for `PD_EUR_Nalls2019`.
 - **BETA/SE from Z-score + EAF + N** (in `run_merge()`): for Z-score–only meta-analyses (e.g. `AD_EUR_Wightman2021`) that have no BETA or SE in the source file, derives them after EAF has been filled from the reference VCF at the checkaf stage. Formula: `SE = 1/sqrt(2·EAF·(1−EAF)·N)`, `BETA = Z·SE`. This is the standard GWAS meta-analysis approximation. Enables COJO for Z-score studies where EAF and N are available.
