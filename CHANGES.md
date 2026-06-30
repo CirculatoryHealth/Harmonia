@@ -2,6 +2,11 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-30 🔧 gwas_process.py — Extended 95% CI column alias list (v1.4.41)
+- **Root cause**: the CI-based SE derivation added in v1.4.40 only recognised a subset of common CI column names (`ci_upper`, `ci_lower`, `upper_ci`, `lower_ci`, `ci.upper`, `ci.lower`, `ci_95_upper`, `ci_95_lower`, `95%ci_upper`, `95%ci_lower`). Common alternatives such as `highCI`/`lowCI`, `high_ci`/`low_ci`, `ci_high`/`ci_low`, `or_upper`/`or_lower`, `or_upper_95ci`/`or_lower_95ci`, and `conf_upper`/`conf_lower` were absent.
+- **Fix**: added the missing aliases to both CI resolver calls in `correct_columns()`. `resolve_column()` is case-insensitive, so `highCI`, `HighCI`, and `HIGHCI` all match the `"highci"` entry.
+- **Files**: `gwas_process.py` (v1.4.40 → v1.4.41).
+
 ## 2026-06-30 🆕 gwas_process.py — SE derived from 95% CI; OR-based studies now supported end-to-end (v1.4.40)
 - **Root cause**: GWAS Catalog harmonised files for OR-based studies (e.g. `OSA_PAN_Verma2024`, `RA_EUR_Verma2024`) provide `odds_ratio`, `ci_upper`, `ci_lower`, and `standard_error=NA`. Three gaps prevented processing: (1) `odds_ratio` not in any alias → never renamed to `OR` → `check_or_vs_beta()` was a no-op; (2) `standard_error` all-NA with no CI fallback → SE unavailable → COJO impossible; (3) `num_cases`/`num_controls` not in N-derivation alias lists → case/control N breakdown missed.
 - **Fix 1**: Added `"OR": ["odds_ratio", "or"]` to `OPTIONAL_OTHER_ALIASES` so `standardise_columns()` renames `odds_ratio` → `OR`, which `check_or_vs_beta()` then converts to `BETA = ln(OR)`.

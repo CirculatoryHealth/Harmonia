@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.40"
+VERSION      = "1.4.41"
 VERSION_DATE = "2026-06-30"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -2059,9 +2059,13 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     p_col    = resolve_column(gwas_data, ["p", "pval", "p_value", "pvalue",
                                            "p-value", "p-value_gc", "p.value", "p_fixed"])
     ci_upper_col = resolve_column(gwas_data, ["ci_upper", "ci_95_upper", "upper_ci",
-                                               "ci.upper", "95%ci_upper"])
+                                               "ci.upper", "95%ci_upper", "highci",
+                                               "high_ci", "ci_high", "or_upper",
+                                               "or_upper_95ci", "conf_upper"])
     ci_lower_col = resolve_column(gwas_data, ["ci_lower", "ci_95_lower", "lower_ci",
-                                               "ci.lower", "95%ci_lower"])
+                                               "ci.lower", "95%ci_lower", "lowci",
+                                               "low_ci", "ci_low", "or_lower",
+                                               "or_lower_95ci", "conf_lower"])
     se_all_nan = se_col is not None and gwas_data[se_col].isna().all()
     if se_col is not None and not se_all_nan:
         logging.info("SE column found: '%s' — no derivation needed.", se_col)
