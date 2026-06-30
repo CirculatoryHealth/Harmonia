@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.35"
-VERSION_DATE = "2026-06-11"
+VERSION      = "1.4.40"
+VERSION_DATE = "2026-06-30"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -634,7 +634,8 @@ SUMSTATS_ALIASES = {
                          "freq_a", "eaf_avg",
                          "frq_u", "frq_a"]),  # PGC daner format (frq_u=controls, frq_a=cases)
     "beta":  ("BETA",  ["hm_beta", "beta", "effect_size", "effectsize", "effect",
-                         "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b"]),
+                         "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b",
+                         "stdbeta", "std_beta"]),
     "se":    ("SE",    ["se", "stderr", "standard_error", "sebeta",
                          "fixed-effects_se", "log_odds_se", "se_gc", "se_fixed"]),
     "p":     ("P",     ["p", "pval", "p_value", "pvalue",
@@ -651,11 +652,12 @@ SUMSTATS_ALIASES = {
 OPTIONAL_OTHER_ALIASES = {
     "CAVEAT":         ["caveat"],
     "HWE_P":          ["hwe_p", "hwep", "hwe"],
+    "OR":             ["odds_ratio", "or"],
     "N_cases":        ["n_cases", "ncases", "cases", "n_case", "totalcases", "ncase",
-                       "n_events", "n_event", "nevents", "nevent", 
-                       "nca", "ncas"],
+                       "n_events", "n_event", "nevents", "nevent",
+                       "num_cases", "nca", "ncas"],
     "N_controls":     ["n_controls", "ncontrols", "controls", "n_control", "ncontrol",
-                       "nco", "ncon"],
+                       "num_controls", "nco", "ncon"],
     "MAF":            ["maf", "minor_allele_frequency", "minorallelefreq", "minor_af", 
                        "maf_1000g_eur", "minor_allele_freq_1000g_eur"],
     "MAC":            ["mac", "minor_allele_count"],
@@ -1218,6 +1220,21 @@ def run_merge(stem: str, output_loc: str, reference: str,
     del combined
     gc.collect()
 
+    # gwaslab's harmonize() drops the N (total) column for case/control studies
+    # that use per-variant Nca/Nco (PGC daner format), while keeping N_cases and
+    # N_controls as pass-through columns.  Re-derive N here so write_cojo() can
+    # find it.  This is a no-op when N survived or when --force-n was used.
+    _df = gwas_obj.data
+    if "N" not in _df.columns and "N_cases" in _df.columns and "N_controls" in _df.columns:
+        gwas_obj.data["N"] = (
+            pd.to_numeric(_df["N_cases"],   errors="coerce") +
+            pd.to_numeric(_df["N_controls"], errors="coerce")
+        )
+        logging.info(
+            "[merge] N re-derived from N_cases + N_controls (median=%.0f).",
+            gwas_obj.data["N"].median(),
+        )
+
     # Save raw (pre-QC) merged outputs
     save_raw_outputs(gwas_obj, args.gwas, args.population,
                      input_build, build_num, output_loc, added_n,
@@ -1712,6 +1729,7 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
     import pysam
 
     EAF_ALIASES = [
+        "hm_effect_allele_frequency",
         "eaf", "effect_allele_frequency", "raf", "af", "allele_frequency",
         "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
         "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur",
@@ -1724,11 +1742,15 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
         logging.info("EAF column '%s' present and complete — no lookup needed.", eaf_col)
         return gwas_data
 
-    chrom_col = resolve_column(gwas_data, ["chr", "chrom", "chromosome", "chr(gcf1405.25)"])
+    chrom_col = resolve_column(gwas_data, ["chr", "chrom", "chromosome", "chr(gcf1405.25)",
+                                            "chromosome(b37)", "chromosome(b38)",
+                                            "hm_chrom"])
     pos_col   = resolve_column(gwas_data, ["bp", "pos", "position", "base_pair_location",
                                             "bp_hg18", "bp_hg19", "start(gcf1405.25)",
                                             "position_b38", "position_hg38", "position_hg19",
-                                            "bp_b37", "bp_b38", "pos_b37", "pos_b38"])
+                                            "bp_b37", "bp_b38", "pos_b37", "pos_b38",
+                                            "position(b37)", "position(b38)",
+                                            "hm_pos"])
     ea_col    = resolve_column(gwas_data, ["effectallele", "ea", "a1", "allele1", "alt",
                                             "reference_allele", "effect_allele", "riskallele", "codedallele"])
     nea_col   = resolve_column(gwas_data, ["otherallele", "nea", "a2", "allele2", "ref",
@@ -1766,9 +1788,20 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
     target["pos"] = pd.to_numeric(target["pos"], errors="coerce")
     af_result = pd.Series(np.nan, index=target.index)
 
+    # Detect the chromosome naming convention used in the VCF (chr1 vs 1).
+    # hg38 1KG 30x VCFs use "chr1" while GWAS Catalog harmonised files use "1".
+    # Without normalisation every tabix fetch raises ValueError and is silently
+    # skipped, yielding 0 EAF fills.
+    vcf_uses_chr_prefix = any(c.startswith("chr") for c in tbx.contigs)
+    logging.info("VCF contig naming: %s", "chr-prefixed" if vcf_uses_chr_prefix else "bare numbers")
+
     # One tabix fetch per chromosome — builds a pos→(ref,alt,af) dict per contig
     for chrom, grp in target.groupby("chrom", sort=False):
         chrom_str = str(chrom)
+        if vcf_uses_chr_prefix and not chrom_str.startswith("chr"):
+            chrom_str = "chr" + chrom_str
+        elif not vcf_uses_chr_prefix and chrom_str.startswith("chr"):
+            chrom_str = chrom_str[3:]
         pos_min   = int(grp["pos"].min()) - 1
         pos_max   = int(grp["pos"].max())
 
@@ -2013,16 +2046,48 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     else:
         logging.warning("No P or log(P) column found.")
 
-    # SE back-calculation
+    # SE derivation — three strategies in priority order:
+    #   1. SE column present and non-empty  → use as-is
+    #   2. 95% CI columns present           → SE = (ln(upper)−ln(lower))/3.92 for OR-scale,
+    #                                          or (upper−lower)/3.92 for beta-scale
+    #   3. Beta + P present                 → back-calculate SE = |beta| / |Z|
     se_col   = resolve_column(gwas_data, ["se", "stderr", "standard_error", "sebeta",
                                            "log_odds_se", "se_gc", "se_fixed"])
     beta_col = resolve_column(gwas_data, ["beta", "effect_size", "effectsize", "effect",
-                                           "log_odds", "logor", "beta_fixed", "b"])
+                                           "log_odds", "logor", "beta_fixed", "b",
+                                           "stdbeta", "std_beta"])
     p_col    = resolve_column(gwas_data, ["p", "pval", "p_value", "pvalue",
                                            "p-value", "p-value_gc", "p.value", "p_fixed"])
+    ci_upper_col = resolve_column(gwas_data, ["ci_upper", "ci_95_upper", "upper_ci",
+                                               "ci.upper", "95%ci_upper"])
+    ci_lower_col = resolve_column(gwas_data, ["ci_lower", "ci_95_lower", "lower_ci",
+                                               "ci.lower", "95%ci_lower"])
     se_all_nan = se_col is not None and gwas_data[se_col].isna().all()
     if se_col is not None and not se_all_nan:
-        logging.info("SE column found: '%s' — no back-calculation needed.", se_col)
+        logging.info("SE column found: '%s' — no derivation needed.", se_col)
+    elif ci_upper_col is not None and ci_lower_col is not None:
+        # Derive SE from 95% CI.  For OR-based studies the CI bounds are on the OR scale
+        # so we apply the log transformation; otherwise we assume beta scale.
+        or_col_raw = resolve_column(gwas_data, ["odds_ratio", "or"])
+        if se_all_nan:
+            logging.warning(
+                "SE column '%s' is entirely NaN — dropping and deriving SE from 95%% CI.", se_col)
+            gwas_data = gwas_data.drop(columns=[se_col])
+        upper  = pd.to_numeric(gwas_data[ci_upper_col], errors="coerce")
+        lower  = pd.to_numeric(gwas_data[ci_lower_col], errors="coerce")
+        valid  = (upper > 0) & (lower > 0) & upper.notna() & lower.notna()
+        se_vals = pd.Series(np.nan, index=gwas_data.index, dtype=float)
+        if or_col_raw is not None:
+            se_vals[valid] = (np.log(upper[valid]) - np.log(lower[valid])) / 3.92
+            scale_note = "OR-scale CI → SE(log OR)"
+        else:
+            se_vals[valid] = (upper[valid] - lower[valid]) / 3.92
+            scale_note = "beta-scale CI → SE"
+        gwas_data["SE"] = se_vals
+        logging.info(
+            "SE derived from 95%% CI '%s'/'%s' (%s; n=%d, median SE=%.4f).",
+            ci_lower_col, ci_upper_col, scale_note, int(valid.sum()), float(se_vals.median()),
+        )
     elif beta_col is not None and p_col is not None:
         if se_all_nan:
             logging.warning("SE column '%s' is entirely NaN — dropping and back-calculating from '%s' and '%s'.",
@@ -2043,9 +2108,11 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
                                                "n_total_sum", "n_analyzed"])
     ncase_col    = resolve_column(gwas_data, ["n_cases", "ncases", "cases", "n_case",
                                                "totalcases", "ncase", "n_events", "n_event",
-                                               "nevents", "nevent"])
+                                               "nevents", "nevent", "num_cases",
+                                               "nca", "ncas"])
     ncontrol_col = resolve_column(gwas_data, ["n_controls", "ncontrols", "controls",
-                                               "n_control", "ncontrol"])
+                                               "n_control", "ncontrol", "num_controls",
+                                               "nco", "ncon"])
 
     if n_col is not None and ncase_col is not None and ncontrol_col is not None:
         logging.info("N, N_cases, and N_controls all present — no derivation needed.")

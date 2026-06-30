@@ -2,6 +2,46 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-30 🆕 gwas_process.py — SE derived from 95% CI; OR-based studies now supported end-to-end (v1.4.40)
+- **Root cause**: GWAS Catalog harmonised files for OR-based studies (e.g. `OSA_PAN_Verma2024`, `RA_EUR_Verma2024`) provide `odds_ratio`, `ci_upper`, `ci_lower`, and `standard_error=NA`. Three gaps prevented processing: (1) `odds_ratio` not in any alias → never renamed to `OR` → `check_or_vs_beta()` was a no-op; (2) `standard_error` all-NA with no CI fallback → SE unavailable → COJO impossible; (3) `num_cases`/`num_controls` not in N-derivation alias lists → case/control N breakdown missed.
+- **Fix 1**: Added `"OR": ["odds_ratio", "or"]` to `OPTIONAL_OTHER_ALIASES` so `standardise_columns()` renames `odds_ratio` → `OR`, which `check_or_vs_beta()` then converts to `BETA = ln(OR)`.
+- **Fix 2**: Added SE derivation from 95% CI as the priority fallback in `correct_columns()` (before the existing beta+p back-calculation). Formula: `SE(log OR) = (ln(ci_upper) − ln(ci_lower)) / 3.92` when an OR column is detected; `SE = (ci_upper − ci_lower) / 3.92` for beta-scale CI. Verified against Verma2024 data: p-value reproduced to 4 d.p.
+- **Fix 3**: Added `num_cases` / `num_controls` to N-derivation alias lists in `correct_columns()` and to `OPTIONAL_OTHER_ALIASES`.
+- **Affected studies**: `OSA_PAN_Verma2024`, `OSA_EUR_Verma2024`, `RA_PAN_Verma2024`, `RA_EUR_Verma2024`; also covers any future OR-based GWAS Catalog harmonised study with CI columns.
+- **Action required**: uncomment studies in `gwas_list.txt`, delete any prior output, and run from `--stage preprocess`.
+- **Files**: `gwas_process.py` (v1.4.39 → v1.4.40).
+
+## 2026-06-30 🐛 gwas_process.py — COJO skipped for PGC daner-format studies: N dropped by gwaslab harmonise() (v1.4.39)
+- **Root cause**: `correct_columns()` at preprocess correctly derives `N = Nca + Nco` and saves it to preprocess.parquet. However, gwaslab's `harmonize()` in the process-normalize stage drops the `N` column while keeping `N_cases` and `N_controls` as pass-through extra columns. All subsequent per-chromosome stages (checkref → inferstrand → assignrsid → checkaf) and the merge stage therefore have no `N`. `write_cojo()` guards on `"N" not in df.columns` and silently returns → no COJO written. Confirmed on `ANX_EUR_Strom2026`: normalize.pkl contained `['SNPID', 'NEA', 'INFO', 'ngt', 'Direction', 'N_cases', 'N_controls', 'Neff_half']` — N_cases and N_controls present, N absent.
+- **Fix**: in `run_merge()`, immediately after `make_sumstats_from_chrom_df()` creates the merged gwaslab object, re-derive `N = N_cases + N_controls` when N is absent but both components are present. This is a no-op when N survived normalisation (continuous-trait studies) or when `--force-n` was used.
+- **Affected studies**: all PGC daner-format studies with per-variant Nca/Nco columns: `ANX_EUR_Strom2026`, `BIP_EUR_OConnell2025`, `BIP_PAN_OConnell2025`, and any similar future study.
+- **Action required**: these studies do NOT need preprocess rerun — the per-chromosome checkaf parquets are intact and N_cases/N_controls are present. Resubmit only the merge stage: `--stage merge` (or `--stage process` if merge isn't a standalone stage).
+- **Files**: `gwas_process.py` (v1.4.38 → v1.4.39).
+
+## 2026-06-30 🐛 gwas_process.py — stdBeta not recognised as a beta column alias (v1.4.38)
+- **Root cause**: `COLUMN_ALIASES["beta"]` and `correct_columns()` `beta_col` resolver did not include `stdbeta` or `std_beta`. The Savage 2018 IQ GWAS (`IQ_EUR_Savage2018`) uses `stdBeta` (standardised beta in SD units) as its effect-size column. Without a matching alias, gwaslab standardisation and the COJO writer both failed to find a BETA column → COJO skipped. LDSC still worked because the pipeline filled EAF via VCF lookup and used the `Zscore` column directly for chi-square computation.
+- **Fix**: added `stdbeta` and `std_beta` to both alias locations.
+- **Affected study**: `IQ_EUR_Savage2018`; also covers any future study using standardised-beta nomenclature.
+- **Action required**: rerun from `--stage preprocess` so the new alias is applied at load time.
+- **Files**: `gwas_process.py` (v1.4.37 → v1.4.38).
+
+## 2026-06-30 🐛 gwas_process.py — fill_eaf missing aliases for GWAS Catalog harmonised column names (v1.4.37)
+- **Root cause**: `check_and_fill_eaf()` runs before `standardise_columns()`, so it sees raw source column names rather than standardised ones. Three alias gaps were found:
+  1. DIAMANTE T2D sumstat uses `chromosome(b37)` / `position(b37)` — absent from chrom/pos alias lists → `CHR=None, POS=None` → fill_eaf skipped entirely.
+  2. GWAS Catalog harmonised files (`.h.tsv.gz`) use `hm_chrom` / `hm_pos` as the authoritative harmonised coordinate columns — not in alias lists (resolved to the equivalent `chromosome` / `base_pair_location` fallbacks by coincidence, but `hm_chrom`/`hm_pos` should be preferred).
+  3. Harmonised EAF column `hm_effect_allele_frequency` not in the local `EAF_ALIASES` list — only `effect_allele_frequency` (the un-harmonised original) was detected; for ALS/Asthma/RA/etc. both are all-NA, but ordering preference matters for future studies.
+- **Fix**: added to `check_and_fill_eaf` alias lists: `hm_chrom`, `hm_pos` (first priority), `chromosome(b37)`, `chromosome(b38)`, `position(b37)`, `position(b38)`; added `hm_effect_allele_frequency` (first priority in `EAF_ALIASES`).
+- **Affected studies**: `T2D_PAN_Mahajan2022` (chromosome(b37) fix); all GWAS Catalog `.h.tsv.gz` studies benefit from `hm_chrom`/`hm_pos`/`hm_effect_allele_frequency` being explicitly recognised.
+- **Action required**: delete preprocess checkpoint and rerun `--stage preprocess` for affected studies.
+- **Files**: `gwas_process.py` (v1.4.36 → v1.4.37).
+
+## 2026-06-30 🐛 gwas_process.py — fill_eaf returns 0 matches for hg38 studies due to chr-prefix mismatch (v1.4.36)
+- **Root cause**: `check_and_fill_eaf()` passed the chromosome string from the GWAS data directly to `tabix.fetch()` without normalising it to match the VCF's contig naming convention. The 1KG 30x hg38 VCF uses `chr1`, `chr2`, … contig names (GRCh38 standard), but GWAS Catalog harmonised files (`.h.tsv.gz`) use bare numbers `1`, `2`, …. Every `tabix.fetch("1", …)` call raised `ValueError` (contig not found), which was silently caught with `except ValueError: pass`, so all chromosomes yielded 0 lookups. Studies that already had `hm_effect_allele_frequency` in the source were unaffected (they returned early before the fetch loop).
+- **Fix**: detect the VCF contig naming convention once from `tbx.contigs` (`vcf_uses_chr_prefix`), then normalise each chromosome string before the tabix fetch — prepending `chr` when the VCF is prefixed and the data is not, or stripping it in the reverse case.
+- **Affected studies**: any study on hg38 where the source file lacks an EAF column: `ALS_PAN_Rheenen2021`, `Asthma_PAN_Demenais2017`, `CRP_EUR_Said2022`, `Psoriasis_EUR_Dand2025`, `RA_EUR_Ishigaki2022`, `RA_PAN_Ishigaki2022`, `UKBB_LPa_PAN_Sinnot-Armstrong2021`. (8th study `T2D_PAN_Mahajan2022` is hg19 and may have a separate issue.)
+- **Action required**: delete preprocess output and rerun `--stage preprocess` for each affected study so fill_eaf re-executes with the corrected chromosome normalisation. LDSC should then produce variant counts comparable to other studies.
+- **Files**: `gwas_process.py` (v1.4.35 → v1.4.36).
+
 ## 2026-06-23 🐛 gwas_process.py — SE back-calculation skipped when SE column exists but is all-NaN (v1.4.35)
 - **Root cause**: `correct_columns()` checked `if se_col is not None` to decide whether to skip the SE back-calculation from beta + p-value. Studies such as `Migraine_PAN_Choquet2021` have a `standard_error` column present in the harmonised file but all values are `NA` — so `se_col` is not None but the column is entirely useless.
 - **Fix**: added an `se_all_nan` guard: if `se_col` exists but `gwas_data[se_col].isna().all()`, the all-NaN column is dropped before back-calculating `SE = |β| / |Φ⁻¹(p/2)|`. Dropping is necessary because `standardise_columns()` runs immediately after and would rename `standard_error` → `SE`, overwriting the back-calculated values.
