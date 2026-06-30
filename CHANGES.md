@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-06-30 🐛 gwas_process.py / gwas_check_cojoldsc_output.sh — LDSC output file double-named `.ldsc.ldsc.tsv.gz` (v1.4.42)
+- **Root cause**: `write_ldsc()` built `out_path` as `{stem}.qc.ldsc` (manually appending `.ldsc` to label the file type), then passed it to gwaslab's `to_format(fmt="ldsc")`. gwaslab itself appends `.ldsc.tsv.gz` to whatever path it receives, producing `{stem}.qc.ldsc.ldsc.tsv.gz` — a redundant double `.ldsc`. All studies in `_finished_2026` have this double-suffix. New runs after this fix will produce `{stem}.qc.ldsc.tsv.gz`.
+- **Fix (gwas_process.py)**: removed the trailing `.ldsc` from `out_path` in `write_ldsc()` so gwaslab's own suffix is the sole source of the `.ldsc` label.
+- **Fix (gwas_check_cojoldsc_output.sh)**: the LDSC file glob was `*.qc.ldsc.tsv.gz` which never matched the double-suffixed files (hence all LDSC counts showed MISS). Broadened to `*.ldsc.tsv.gz` so it matches both old (`*.qc.ldsc.ldsc.tsv.gz`) and new (`*.qc.ldsc.tsv.gz`) naming conventions.
+- **Files**: `gwas_process.py` (v1.4.41 → v1.4.42), `utility_scripts/gwas_check_cojoldsc_output.sh`.
+
 ## 2026-06-30 🔧 gwas_process.py — Extended 95% CI column alias list (v1.4.41)
 - **Root cause**: the CI-based SE derivation added in v1.4.40 only recognised a subset of common CI column names (`ci_upper`, `ci_lower`, `upper_ci`, `lower_ci`, `ci.upper`, `ci.lower`, `ci_95_upper`, `ci_95_lower`, `95%ci_upper`, `95%ci_lower`). Common alternatives such as `highCI`/`lowCI`, `high_ci`/`low_ci`, `ci_high`/`ci_low`, `or_upper`/`or_lower`, `or_upper_95ci`/`or_lower_95ci`, and `conf_upper`/`conf_lower` were absent.
 - **Fix**: added the missing aliases to both CI resolver calls in `correct_columns()`. `resolve_column()` is case-insensitive, so `highCI`, `HighCI`, and `HIGHCI` all match the `"highci"` entry.

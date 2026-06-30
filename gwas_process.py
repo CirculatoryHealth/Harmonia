@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.41"
+VERSION      = "1.4.42"
 VERSION_DATE = "2026-06-30"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -910,7 +910,7 @@ def write_ldsc(gwas_obj, phenotype: str, population: str,
     # 6. Write in LDSC format via gwaslab to_format()
     tag      = f".{suffix}" if suffix else ""
     stem_out = file_tag(phenotype, population, input_build, output_build, added_n)
-    out_path = os.path.join(output_loc, f"{stem_out}{tag}.ldsc")
+    out_path = os.path.join(output_loc, f"{stem_out}{tag}")
 
     try:
         ldsc_obj.to_format(path=out_path, fmt="ldsc", build=output_build,
