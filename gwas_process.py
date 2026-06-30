@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.42"
+VERSION      = "1.4.45"
 VERSION_DATE = "2026-06-30"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -90,6 +90,7 @@ Reference: http://opensource.org.
 # General-purpose packages
 import sys
 import os
+import re
 import json
 import argparse
 import gzip
@@ -620,11 +621,15 @@ SUMSTATS_ALIASES = {
     "pos":   ("POS",   ["hm_pos", "bp", "pos", "position",
                          "position(b37)", "base_pair_location", "bp_hg18", "bp_hg19",
                          "start(gcf1405.25)", "position_b38", "position_hg19", "position_hg38",
-                         "bp_b37", "bp_b38", "pos_b37", "pos_b38"]),
+                         "bp_b37", "bp_b38", "pos_b37", "pos_b38",
+                         "position_b37",           # BC Michailidou2017 / other hg19 files
+                         "posgrch37", "pos_grch37", "position_grch37"]),  # PGC-ALZ Wightman2021
     "ea":    ("EA",    ["hm_effect_allele", "effectallele", "ea", "a1", "allele1", "alt",
-                         "tested_allele", "reference_allele",
+                         "tested_allele", "testedallele",      # PGC-ALZ Wightman2021 (camelCase)
+                         "reference_allele",
                          "effect_allele", "riskallele", "codedallele"]),
     "nea":   ("NEA",   ["hm_other_allele", "otherallele", "noneffectallele", "nea",
+                         "a0", "allele0", "allele_0",          # BC Michailidou2017 / BOLT-LMM
                          "a2", "allele2", "ref",
                          "non_effect_allele", "other_allele", "noneffect_allele", "nonriskallele"]),
     "eaf":   ("EAF",   ["hm_effect_allele_frequency", "eaf", "effect_allele_frequency",
@@ -632,6 +637,7 @@ SUMSTATS_ALIASES = {
                          "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
                          "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur",
                          "freq_a", "eaf_avg",
+                         "a1freq", "a1_freq", "freq_a1",       # BOLT-LMM (LOY_EUR_Thompson2019)
                          "frq_u", "frq_a"]),  # PGC daner format (frq_u=controls, frq_a=cases)
     "beta":  ("BETA",  ["hm_beta", "beta", "effect_size", "effectsize", "effect",
                          "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b",
@@ -645,6 +651,8 @@ SUMSTATS_ALIASES = {
                          "totalsamplesize", "n_eff", "neff", "total_n",
                          "n_total_sum", "n_analyzed"]),
     "rsid":  ("rsID",  ["hm_rsid", "rsid", "rs", "snp_id", "rs_id", "dbsnp_rs_id", "dbsnp_id"]),
+    "z":     ("Z",     ["z", "zscore", "z_score", "zs", "z_stat", "zstatistic",
+                         "z.score", "tstat", "t_stat"]),   # e.g. PGC-ALZ Wightman2021
     "info":  ("INFO",  ["info", "impinfo", "imputation_quality", "r2", "rsq",
                         "imp_qual"]),
 }
@@ -1235,6 +1243,27 @@ def run_merge(stem: str, output_loc: str, reference: str,
             gwas_obj.data["N"].median(),
         )
 
+    # Z-score–only studies (e.g. PGC-ALZ Wightman2021): EAF has been filled from the
+    # reference VCF at the checkaf stage, so we can now derive BETA and SE.
+    # Formula: SE = 1 / sqrt(2 · EAF · (1−EAF) · N),  BETA = Z · SE
+    # This is the standard approximation used in GWAS meta-analysis tools.
+    _df = gwas_obj.data
+    _beta_missing = "BETA" not in _df.columns or pd.to_numeric(_df["BETA"], errors="coerce").isna().all()
+    if _beta_missing and "Z" in _df.columns and "EAF" in _df.columns and "N" in _df.columns:
+        _z   = pd.to_numeric(_df["Z"],   errors="coerce")
+        _eaf = pd.to_numeric(_df["EAF"], errors="coerce")
+        _n   = pd.to_numeric(_df["N"],   errors="coerce")
+        _valid = _eaf.between(1e-6, 1.0 - 1e-6) & _n.gt(0) & _z.notna()
+        _se = pd.Series(np.nan, index=_df.index, dtype=float)
+        _se[_valid] = 1.0 / np.sqrt(2.0 * _eaf[_valid] * (1.0 - _eaf[_valid]) * _n[_valid])
+        gwas_obj.data["BETA"] = _z * _se
+        gwas_obj.data["SE"]   = _se
+        logging.info(
+            "[merge] Z-score study: derived BETA and SE from Z, EAF, N "
+            "(n_valid=%d, median SE=%.5f).",
+            int(_valid.sum()), float(_se.dropna().median()),
+        )
+
     # Save raw (pre-QC) merged outputs
     save_raw_outputs(gwas_obj, args.gwas, args.population,
                      input_build, build_num, output_loc, added_n,
@@ -1317,6 +1346,18 @@ def run_normalize(gwas_obj, reference: str, ref_loc: str,
         int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum())
         if (not keep_multiallelic and _has_chr_pos) else 0
     )
+    # gwaslab's remove_dup calls -log10(P) internally; P=0 raises FloatingPointError.
+    # Clamp exact zeros to the smallest positive float64 before the call.
+    if "P" in gwas_obj.data.columns:
+        _zero_p = gwas_obj.data["P"] == 0
+        _n_zero_p = int(_zero_p.sum())
+        if _n_zero_p > 0:
+            logging.warning(
+                "Clamping %d P=0 values to float64 minimum (%.2e) before remove_dup "
+                "to prevent log10(0) FloatingPointError.",
+                _n_zero_p, np.finfo(float).tiny,
+            )
+            gwas_obj.data.loc[_zero_p, "P"] = np.finfo(float).tiny
     gwas_obj.remove_dup(mode=dup_mode, keep_col="P", keep="first")
     n_after = len(gwas_obj.data)
     if keep_multiallelic:
@@ -2011,6 +2052,45 @@ def apply_fixed_n(gwas_data: pd.DataFrame,
 
 # This function checks for the presence of key columns and attempts to correct or
 # derive them if possible.
+_CHRPOS_RE = re.compile(
+    r'^(?:chr)?([\dXYMT]+):(\d+)',
+    re.IGNORECASE,
+)
+
+def _extract_chrpos_from_snpid(gwas_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    When SNPID is in CHR:POS[:REF:ALT] format and CHR/POS are absent, extract them.
+    Handles both 'chr1:12345' and '1:12345' (with or without 'chr' prefix).
+    Safe no-op when CHR and POS already exist or SNPID is not in that format.
+    """
+    need_chr = "CHR" not in gwas_data.columns
+    need_pos = "POS" not in gwas_data.columns
+    if not (need_chr or need_pos):
+        return gwas_data
+    snpid_col = next((c for c in ("SNPID", "rsID") if c in gwas_data.columns), None)
+    if snpid_col is None:
+        return gwas_data
+    sample = gwas_data[snpid_col].dropna().astype(str).head(200)
+    frac_match = sample.str.match(r'^(?:chr)?(?:\d+|X|Y|MT|M):\d+', na=False).mean()
+    if frac_match < 0.9:
+        return gwas_data
+    extracted = gwas_data[snpid_col].astype(str).str.extract(_CHRPOS_RE, expand=True)
+    if need_chr:
+        raw = extracted[0].replace({"X": "23", "Y": "24", "MT": "25", "M": "25"}, regex=False)
+        gwas_data["CHR"] = pd.to_numeric(raw, errors="coerce")
+        logging.info(
+            "CHR extracted from %s (CHR:POS SNPID format; %d non-null values).",
+            snpid_col, int(gwas_data["CHR"].notna().sum()),
+        )
+    if need_pos:
+        gwas_data["POS"] = pd.to_numeric(extracted[1], errors="coerce")
+        logging.info(
+            "POS extracted from %s (CHR:POS SNPID format; %d non-null values).",
+            snpid_col, int(gwas_data["POS"].notna().sum()),
+        )
+    return gwas_data
+
+
 def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     """Correct / derive CAVEAT, P, SE, and N columns."""
     logging.info("\n===== Column Correction =====")
@@ -2135,6 +2215,9 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     else:
         logging.warning("Cannot derive N — insufficient sample size columns available "
                         "(N=%s, N_cases=%s, N_controls=%s).", n_col, ncase_col, ncontrol_col)
+
+    # If CHR or POS is still absent but SNPID is in CHR:POS format, extract them.
+    gwas_data = _extract_chrpos_from_snpid(gwas_data)
 
     logging.info("Column correction complete. Shape: %s", gwas_data.shape)
     return gwas_data
@@ -2276,11 +2359,20 @@ def make_sumstats_object(gwas_data: pd.DataFrame, reference: str) -> "gl.Sumstat
     logging.info("\n===== Creating Sumstats Object =====")
 
     other_cols = [c for c in OPTIONAL_OTHER_ALIASES if c in gwas_data.columns]
-    sumstats_kwargs = {
-        canonical: standard_name
-        for canonical, (standard_name, _) in SUMSTATS_ALIASES.items()
-        if standard_name in gwas_data.columns
-    }
+    # For old parquets whose SNPID encodes CHR:POS, extract coordinates if missing.
+    gwas_data = _extract_chrpos_from_snpid(gwas_data)
+    # Build gwaslab keyword-args by first looking for the canonical standard name in the
+    # DataFrame (fast path: parquet was created by the current version), then falling back
+    # to alias resolution so that old parquets whose columns were not yet renamed (e.g.
+    # 'PosGRCh37' instead of 'POS', or 'testedAllele' instead of 'EA') still work.
+    sumstats_kwargs = {}
+    for canonical, (standard_name, aliases) in SUMSTATS_ALIASES.items():
+        if standard_name in gwas_data.columns:
+            sumstats_kwargs[canonical] = standard_name
+        else:
+            matched = resolve_column(gwas_data, aliases)
+            if matched is not None:
+                sumstats_kwargs[canonical] = matched
 
     # EAF placeholder required by harmonize / infer_strand
     if "EAF" not in gwas_data.columns:
@@ -2327,6 +2419,18 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
         int(gwas_obj.data.duplicated(subset=["CHR", "POS"], keep=False).sum())
         if (not keep_multiallelic and _has_chr_pos) else 0
     )
+    # gwaslab's remove_dup calls -log10(P) internally; P=0 raises FloatingPointError.
+    # Clamp exact zeros to the smallest positive float64 before the call.
+    if "P" in gwas_obj.data.columns:
+        _zero_p = gwas_obj.data["P"] == 0
+        _n_zero_p = int(_zero_p.sum())
+        if _n_zero_p > 0:
+            logging.warning(
+                "Clamping %d P=0 values to float64 minimum (%.2e) before remove_dup "
+                "to prevent log10(0) FloatingPointError.",
+                _n_zero_p, np.finfo(float).tiny,
+            )
+            gwas_obj.data.loc[_zero_p, "P"] = np.finfo(float).tiny
     gwas_obj.remove_dup(mode=dup_mode, keep_col="P", keep="first")
     n_after = len(gwas_obj.data)
     if keep_multiallelic:
