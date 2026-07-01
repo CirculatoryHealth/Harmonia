@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=fix_migraine_choquet
+#SBATCH --output=fix_migraine_choquet_%j.out
+#SBATCH --error=fix_migraine_choquet_%j.err
+#SBATCH --time=01:00:00
+#SBATCH --mem=8G
+#SBATCH --cpus-per-task=1
+
+# Choquet2021 Migraine PAN — convert harmonised GWAS Catalog file (GRCh38) to a
+# standard TSV with BETA derived from ln(odds_ratio).
+#
+# The source file has standard_error=NA throughout and no CI columns. SE derivation
+# strategies 1 and 2 in gwas_process.py therefore both fail. Strategy 3 requires
+# BETA (not OR) and P. This script pre-converts OR→BETA so strategy 3 can run.
+# EAF is not reliable in the source; --fill-eaf covers it downstream.
+#
+# Source columns:
+#   chromosome  base_pair_location  effect_allele  other_allele
+#   odds_ratio  standard_error  effect_allele_frequency  p_value
+#   variant_id  hm_coordinate_conversion  hm_code  rsid
+#
+# Output columns (8):
+#   chromosome  base_pair_location  effect_allele  other_allele
+#   beta  p_value  variant_id  rsid
+#   (standard_error omitted — strategy 3 derives SE from BETA+P)
+#   (effect_allele_frequency omitted — --fill-eaf covers it)
+#   (hm_coordinate_conversion, hm_code dropped — harmonisation metadata)
+
+set -euo pipefail
+
+INDIR="/hpc/dhl_ec/data/_gwas_datasets/_Migraine/Choquet2021/harmonised"
+
+f="GCST90000016.h.tsv.gz"
+in="${INDIR}/${f}"
+out="${INDIR}/${f/.h.tsv.gz/.parsed.txt.gz}"
+
+if [[ ! -f "${in}" ]]; then
+    echo "ERROR: input file not found: ${in}" >&2
+    exit 1
+fi
+
+echo "→ ${f}"
+zcat "${in}" | awk 'BEGIN{FS=OFS="\t"; header=0}
+/^##/ { next }
+header==0 {
+    $1 = ($1 ~ /^#/) ? substr($1, 2) : $1
+    for(i=1;i<=NF;i++) h[$i]=i
+    print "chromosome","base_pair_location","effect_allele","other_allele","beta","p_value","variant_id","rsid"
+    header=1; next
+}
+{
+    or_val = $h["odds_ratio"]
+    beta = (or_val != "NA" && or_val != "" && or_val+0 > 0) ? log(or_val+0) : "NA"
+    print $h["chromosome"],$h["base_pair_location"],\
+          $h["effect_allele"],$h["other_allele"],\
+          beta,$h["p_value"],$h["variant_id"],$h["rsid"]
+}' | gzip > "${out}"
+echo "   Lines: $(zcat "${out}" | wc -l)"

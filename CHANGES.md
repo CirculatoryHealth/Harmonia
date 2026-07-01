@@ -2,6 +2,21 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-01 🔧 gwas_list.txt — 17 studies activated; Migraine fix script
+- **`fix_migraine_choquet.sh`** (new): Choquet2021 Migraine PAN harmonised file (`GCST90000016.h.tsv.gz`, GRCh38) has `standard_error=NA` throughout with no CI columns. The SE derivation in `gwas_process.py` strategies 1 and 2 both fail; strategy 3 (SE from BETA+P) requires BETA, not OR. This script pre-converts `odds_ratio → beta = log(OR)` in awk and writes 8 key columns to `GCST90000016.parsed.txt.gz`. The SE is then derived at runtime via strategy 3. EAF is omitted and filled by `--fill-eaf`.
+- **Activated in `gwas_list.txt`** (17 studies):
+  - `CAD_EUR_MVP` and `CAD_PAN_MVP` (MVP NatMed2022; `--add-chrpos`; withmultiallelic variants remain commented)
+  - `AAA_Roychowdhury2023_PAN`, `TAA_MVP2023_PAN`, `IA_Bakker2020_PAN` (⚠ preprocess TIMEOUT note preserved — large files; may need extended `TIME_PREPROCESS`)
+  - `MDD_PAN_PGC2025` (PGC Adams2025; ⚠ preprocess TIMEOUT note preserved)
+  - `OSA_PAN_Verma2024`, `OSA_EUR_Verma2024` (already pointed to `.parsed.txt.gz`)
+  - `RA_PAN_Verma2024`, `RA_EUR_Verma2024` (OR-based; CI→SE path handles missing SE)
+  - `PrCa_PAN_Wang2023`, `PrCa_EUR_Wang2023` (already pointed to `.parsed.txt.gz`)
+  - `Endometriosis_EUR_PujolGualdo2025` (N values verified: 233257/19588/213669)
+  - `AoM_PAN_Kentistou2024`, `AoM_EUR_Kentistou2024` (`meta_effect_allele`/`meta_other_allele` aliases added in v1.4.48)
+  - `Migraine_PAN_Choquet2021` (path changed from `.h.tsv.gz` → `.parsed.txt.gz`; run `fix_migraine_choquet.sh` on HPC first)
+  - `CytokineNetwork_EUR_Nath2019` (ZIP format supported since v1.4.46)
+- **Files**: `utility_scripts/fix_migraine_choquet.sh` (new), `gwas_list.txt`.
+
 ## 2026-07-01 🐛 gwas_process.py — SNPID synthesis from CHR:POS; PGC VCF parsing scripts (v1.4.49)
 - **BOLT-LMM P priority**: `resolve_column()` iterates aliases in list order; first match wins. With aliases ordered `p_bolt_lmm → p_bolt_lmm_inf → p_linreg`, `P_BOLT_LMM` is preferred when multiple BOLT-LMM P columns coexist in a file. Unmatched P columns remain in the DataFrame but are ignored downstream.
 - **SNPID synthesis from CHR:POS** (`standardise_columns()`): when SNPID is missing from the source file after alias resolution but CHR and POS are already standardised, gwas_process.py now synthesises `SNPID = CHR:POS`. This fixes `Pregnancy_EUR_Backman2021` (GCST90085228, no variant ID column) and any future studies with the same pattern. `Pregnancy_EUR_Backman2021` activated in `gwas_list.txt`.
