@@ -74,6 +74,24 @@ def _read_conf_ref_dir() -> str:
 
 DEFAULT_REF_DIR = _read_conf_ref_dir()
 
+# ── GRCh38 RefSeq accession → chromosome number mapping ──────────────────────
+# dbSNP b157 VCFs for GRCh38 have no ##contig header lines. gwaslab's
+# auto-detection therefore cannot distinguish hg38 from hg19 RefSeq IDs and
+# falls back to the hg19 mapping (NC_000001.10 → 1, etc.).  Passing this dict
+# explicitly tells bcftools to look for the hg38 accessions (NC_000001.11 etc.)
+# instead, which are the actual CHROM values in the GRCh38 data records.
+_REFSEQ_HG38 = {
+    "NC_000001.11": "1",  "NC_000002.12": "2",  "NC_000003.12": "3",
+    "NC_000004.12": "4",  "NC_000005.10": "5",  "NC_000006.12": "6",
+    "NC_000007.14": "7",  "NC_000008.11": "8",  "NC_000009.12": "9",
+    "NC_000010.11": "10", "NC_000011.10": "11", "NC_000012.12": "12",
+    "NC_000013.11": "13", "NC_000014.9":  "14", "NC_000015.10": "15",
+    "NC_000016.10": "16", "NC_000017.11": "17", "NC_000018.10": "18",
+    "NC_000019.10": "19", "NC_000020.11": "20", "NC_000021.9":  "21",
+    "NC_000022.11": "22", "NC_000023.11": "23", "NC_000024.10": "24",
+    "NC_012920.1":  "25",
+}
+
 # ── dbSNP VCF gwaslab keys per build ─────────────────────────────────────────
 # gwas_process.download_refs.py downloads these; we prefer v157 (newer), fall
 # back to v151 if v157 is not present.
@@ -177,12 +195,19 @@ def make_hdf5(ref_dir: str, build: str, threads: int, complevel: int,
     print(f"Overwrite    : {overwrite}")
     print(f"{'=' * 60}\n")
 
+    # For hg38, pass an explicit chr_dict so gwaslab uses the correct GRCh38
+    # RefSeq accession IDs. Without it, gwaslab auto-detection falls back to
+    # hg19 IDs (NC_000001.10 etc.) when the VCF has no ##contig header lines,
+    # causing bcftools to find 0 rows for every autosome.
+    chr_dict = _REFSEQ_HG38 if build == "hg38" else None
+
     gl.process_vcf_to_hfd5(
         vcf       = vcf_path,
         directory = ref_dir,
         complevel = complevel,
         threads   = threads,
         overwrite = overwrite,
+        chr_dict  = chr_dict,
     )
     print(f"\nHDF5 files written to: {ref_dir}")
 

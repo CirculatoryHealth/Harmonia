@@ -2,6 +2,12 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-01 🐛 make_chrpos_hdf5.py — hg38 HDF5 produced 0 rows due to RefSeq ID mismatch
+- **Root cause**: dbSNP b157 VCFs for GRCh38 (`GCF_000001405.40.gz`) have no `##contig` header lines. gwaslab's `process_vcf_to_hfd5()` auto-detects chromosome notation by scanning the header; with no contig lines it cannot distinguish hg38 from hg19 RefSeq IDs and falls back to the hg19 mapping (`NC_000001.10` → 1, etc.). bcftools then queries for `NC_000001.10` but the GRCh38 data records use `NC_000001.11` → 0 rows for every autosome. Only the mitochondrion (`NC_012920.1`, shared between builds) had data (9,229 rows). The hg19 VCF (`GCF_000001405.25.gz`) was unaffected because its data records genuinely use hg19 accessions.
+- **Fix**: added `_REFSEQ_HG38` dict (25 entries: `NC_000001.11→"1"` … `NC_012920.1→"25"`) to `make_chrpos_hdf5.py`. When `build == "hg38"`, this dict is passed as `chr_dict` to `gl.process_vcf_to_hfd5()`, overriding auto-detection. `chr_dict=None` for hg19 preserves the existing (working) auto-detection path.
+- **Action required**: delete the empty hg38 HDF5 files (`GCF_000001405.40.chr*.rsID_CHR_POS_mod10.h5`, all 280 bytes) and resubmit `sbatch make_chrpos_hdf5.sh --build hg38`.
+- **Files**: `utility_scripts/make_chrpos_hdf5.py`.
+
 ## 2026-07-01 🔧 gwas_list.txt — 17 studies activated; Migraine fix script
 - **`fix_migraine_choquet.sh`** (new): Choquet2021 Migraine PAN harmonised file (`GCST90000016.h.tsv.gz`, GRCh38) has `standard_error=NA` throughout with no CI columns. The SE derivation in `gwas_process.py` strategies 1 and 2 both fail; strategy 3 (SE from BETA+P) requires BETA, not OR. This script pre-converts `odds_ratio → beta = log(OR)` in awk and writes 8 key columns to `GCST90000016.parsed.txt.gz`. The SE is then derived at runtime via strategy 3. EAF is omitted and filled by `--fill-eaf`.
 - **Activated in `gwas_list.txt`** (17 studies):
