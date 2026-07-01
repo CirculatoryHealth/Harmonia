@@ -44,6 +44,9 @@ pip install \
     "h5py>=3.10.0" pyarrow "polars>=1.27.0" \
     "sumstats-liftover==1.1.0" "jupyter==1.0.0" \
     gwaslab
+
+# pytables is required for make_chrpos_hdf5.sh (--add-chrpos feature)
+mamba install -c conda-forge pytables
 ```
 
 Next, install `bcftools`. `bcftools` is used by some functions of `gwaslab` to manipulate VCF files. The `pip` wrapper is available but not recommended for HPC and macOS systems due to potential issues with system libraries. If you choose to use the `pip` wrapper, install it with:
@@ -62,8 +65,10 @@ pip install bcftools
 Check that the core modules load correctly:
 
 ```bash
-python -c "import numpy, gwaslab, pyliftover, polars; print('OK')"
+python -c "import numpy, gwaslab, pyliftover, polars, tables; print('OK')"
 ```
+
+> **Note:** `tables` (pytables) is required for `utility_scripts/make_chrpos_hdf5.sh` (the `--add-chrpos` feature that maps rsID-only studies to CHR:POS using pre-built HDF5 lookup tables). If it is missing, all chromosomes will fail with `Missing optional dependency 'pytables'`. Install with `mamba install -c conda-forge pytables`.
 
 If you see `OK`, the environment is ready.
 
@@ -96,6 +101,22 @@ If `pip install` reports conflicts, try installing inside the activated conda en
 ```bash
 mamba install -c conda-forge -c bioconda bcftools pysam h5py
 pip install "numpy>=1.21.2,<2" gwaslab "polars>=1.27.0" ...
+```
+
+### 📦 `pytables` missing — `--add-chrpos` / make_chrpos_hdf5 fails
+
+If `utility_scripts/make_chrpos_hdf5.sh` reports `Missing optional dependency 'pytables'` for every chromosome, the package is not installed in the active environment:
+
+```bash
+mamba install -n gwas2cojo -c conda-forge pytables
+# or
+conda install -n gwas2cojo -c conda-forge pytables
+```
+
+Then resubmit without `--overwrite` (no HDF5 files were actually written):
+
+```bash
+sbatch utility_scripts/make_chrpos_hdf5.sh --build all
 ```
 
 ### 🐍 Prefer `conda` instead of `mamba`?
@@ -239,7 +260,7 @@ You will need a reference to map the data to. You can create your own, or use th
 
 # 🔬 gwas_process.py — GWASLab Processing Pipeline
 
-`gwas_process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
+`gwas_process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library (v1.4.47). It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants. GRCh37/hg19 output is also supported via `--output-build 19` (hg38 inputs are reverse-lifted using `hg38ToHg19.over.chain.gz`).
 
 
 ## 🗺️ Pipeline overview
@@ -255,8 +276,9 @@ Steps run in order; individual steps can be toggled with the flags described bel
 | 5 | Plot raw input histograms | `preprocess` | `--figures` |
 | 6 | `basic_check` — flag malformed variants | `process-normalize` | always |
 | 7 | `remove_dup` — drop duplicate variants | `process-normalize` | always |
-| 8 | Liftover (hg18→hg38 or hg19→hg38) | `process-normalize` | `--liftover` |
-| 9 | `check_ref` against hg38 FASTA | `process-check-ref` | always |
+| 8a | Forward liftover (hg18→hg38 or hg19→hg38) | `process-normalize` | `--liftover` |
+| 8b | Reverse liftover (hg38→hg19) | `process-normalize` | `--output-build 19` |
+| 9 | `check_ref` against FASTA (build matches output) | `process-check-ref` | always |
 | 10 | `flip_allele_stats` — correct BETA/EAF for reference-flipped alleles | `process-check-ref` | always |
 | 11 | `fix_id` — normalise variant IDs | `process-check-ref` | always |
 | 12 | `infer_strand2` — resolve strand ambiguity from 1KG VCF (full sweep) | `process-infer-strand` | always |
@@ -384,7 +406,8 @@ python3 gwas_process.py \
 
 | Argument | Description |
 |----------|-------------|
-| `--liftover` | Lift coordinates to hg38 (hg18→hg38 or hg19→hg38). Requires `hg18ToHg38.over.chain.gz` in `--ref` for build 18. |
+| `--liftover` | Forward liftover to hg38 (hg18→hg38 or hg19→hg38). Requires `hg18ToHg38.over.chain.gz` in `--ref` for build 18. |
+| `--output-build {19,38}` | Target coordinate build. Set to `19` to reverse-liftover hg38 inputs to GRCh37/hg19 (requires `hg38ToHg19.over.chain.gz` in `--ref`). All downstream steps (check_ref, infer_strand, check_af, dbSNP) automatically use the matching hg19 reference files. |
 | `--dbsnp` | Assign rsIDs from a dbSNP VCF |
 | `--qc` | Apply QC filters and save a filtered output |
 | `--only-qc` | *(Deprecated — use `--stage qc`)* Reload from an existing pickle and run QC / plots / leads only |
@@ -581,9 +604,12 @@ nano gwas2cojo.conf
 |------|-------------|
 | `gwas2cojo.conf.example` | Site configuration template — copy to `gwas2cojo.conf` and fill in your paths |
 | `gwas_list.example.txt` | Study list template (3 example studies) — copy to `gwas_list.txt` and update paths |
-| `gwas_process.array_for_submit.sh` | SLURM worker — runs one `gwas_process.py` call for one study and one stage |
+| `gwas_process.array_for_submit.sh` | SLURM worker — runs one `gwas_process.py` call for one study and one stage; outputs hg38 |
+| `gwas_process.array_for_submit_b37.sh` | SLURM worker variant for GRCh37/hg19 output (`--output-build 19`; no forward liftover) |
 | `gwas_process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
-| `gwas_process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok` |
+| `gwas_process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok`; hg38 output |
+| `gwas_process.submit_staged_b37.sh` | Staged submit for GRCh37/hg19 output; uses `gwas_process.array_for_submit_b37.sh` |
+| `gwas_list_b37.txt` | Study list for the b37 output pipeline (completed studies active; in-progress commented out) |
 | `gwas_process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
 | `gwas_process.check.py` | Parse `*.out`/`*.err` log files and print a per-stage summary table with QC metrics and error/warning counts |
 | `gwas_process.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |

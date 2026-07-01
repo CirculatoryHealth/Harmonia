@@ -2,6 +2,35 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-01 🐛 gwas_process.py — SNPID synthesis from CHR:POS; PGC VCF parsing scripts (v1.4.49)
+- **BOLT-LMM P priority**: `resolve_column()` iterates aliases in list order; first match wins. With aliases ordered `p_bolt_lmm → p_bolt_lmm_inf → p_linreg`, `P_BOLT_LMM` is preferred when multiple BOLT-LMM P columns coexist in a file. Unmatched P columns remain in the DataFrame but are ignored downstream.
+- **SNPID synthesis from CHR:POS** (`standardise_columns()`): when SNPID is missing from the source file after alias resolution but CHR and POS are already standardised, gwas_process.py now synthesises `SNPID = CHR:POS`. This fixes `Pregnancy_EUR_Backman2021` (GCST90085228, no variant ID column) and any future studies with the same pattern. `Pregnancy_EUR_Backman2021` activated in `gwas_list.txt`.
+- **PGC VCF parsing scripts**: four new utility scripts for studies distributed in PGC VCF format (##-prefixed metadata + `#CHROM`-prefixed header line). Each script strips the VCF header, extracts needed columns, and writes `.parsed.txt.gz`. `gwas_list.txt` updated to use parsed files for all five studies:
+  - `fix_pgc_ptsd_nievergelt.sh`: PTSD EUR + PAN (Z-score format; CHROM/ID/POS/A1/A2/FREQ/NEFF/Z/P)
+  - `fix_pgc_scz_trubetskoy.sh`: SCZ EUR + PAN (BETA/SE format; FCON renamed to EAF; NEFFDIV2×2→NEFF for PAN)
+  - `fix_pgc_an_watson.sh`: AN EUR Watson2019 (BETA/SE format; REF/ALT alleles; NEFFDIV2×2→NEFF)
+  - `fix_t1d_mcgrail.sh`: T1D McGrail2026 (harmonised TSV; extracts 11 of 13 columns to prevent OOM; memory 256G→128G)
+- **Files**: `gwas_process.py` (v1.4.48 → v1.4.49), `utility_scripts/fix_pgc_ptsd_nievergelt.sh` (new), `utility_scripts/fix_pgc_scz_trubetskoy.sh` (new), `utility_scripts/fix_pgc_an_watson.sh` (new), `utility_scripts/fix_t1d_mcgrail.sh` (new), `gwas_list.txt`.
+
+## 2026-07-01 🔧 gwas_list.txt — CHIP_EUR_Kessler2022 parsing script; switch to parsed file path
+- **Root cause**: loading all 27 columns of `GCST90165267.h.tsv.gz` (UKB-scale, harmonised) caused OOM in the preprocess stage. `standard_error` is `NA` for all variants (Firth regression REGENIE output); `ci_upper`/`ci_lower` are always populated and the existing CI→SE path in `correct_columns()` handles them.
+- **Fix**: `utility_scripts/fix_chip_kessler.sh` (new) — same awk-based approach as `fix_osa_verma.sh`; extracts 14 columns (SNPID from `name`, rsid, chromosome, base_pair_location, effect_allele, other_allele, odds_ratio, standard_error, ci_upper, ci_lower, effect_allele_frequency, p_value, num_cases, num_controls) and writes `.parsed.txt.gz`. Memory requirement reduced from 256G → 128G for the HEAVY tier.
+- **Files**: `utility_scripts/fix_chip_kessler.sh` (new), `gwas_list.txt`.
+
+## 2026-07-01 🐛 gwas_process.py — BOLT-LMM P aliases, AoM EA/NEA aliases, column whitespace strip; BC parsing script (v1.4.48)
+- **BOLT-LMM P-value aliases** (`SUMSTATS_ALIASES["p"]` + two inline `resolve_column` calls in `correct_columns()`): added `p_bolt_lmm`, `p_bolt_lmm_inf`, and `p_linreg`. BOLT-LMM outputs these column names rather than the standard `P`; without aliasing, the LOY_EUR_Thompson2019 study (and any other BOLT-LMM run) failed at the P-value resolution step.
+- **AoM / Kentistou2024 EA and NEA aliases**: added `meta_effect_allele` → `EA` and `meta_other_allele` → `NEA` to `SUMSTATS_ALIASES`. The Menarche2024 / AoM meta-analysis file uses `Meta_effect_allele` and `Meta_other_allele` as allele column names.
+- **Column whitespace stripping** (`main()`, after `pd.read_csv()`): added `gwas_data.columns = [c.strip() for c in gwas_data.columns]` immediately after loading. Fixes the `' chr'` leading-space issue in `AD_EUR_Wightman2021` (PGCALZ2 file), where the first column header is stored with a leading space that prevented `resolve_column()` from matching the `chr` alias.
+- **BC parsing script** (`utility_scripts/fix_bc_michailidou.sh`): new awk-based script that splits the single multi-analysis `oncoarray_bcac_public_release_oct17.txt.gz` into three files (`bc_all`, `bc_erpos`, `bc_erneg`) with standard column names (SNPID, rsID, CHR, POS, NEA, EA, EAF, BETA, SE, P). Run before submitting BC studies. `gwas_list.txt` updated to replace the commented-out single BC entry with 3 active entries pointing to the parsed files.
+- **Files**: `gwas_process.py` (v1.4.47 → v1.4.48), `utility_scripts/fix_bc_michailidou.sh` (new), `gwas_list.txt`.
+
+## 2026-07-01 🆕 B37 output pipeline — gwas_process.py v1.4.47, new worker/submit/list files
+- **New flag `--output-build {19,38}`** in `gwas_process.py`: controls the target coordinate build for all pipeline output. When set to `19` and input data is in GRCh38, performs a reverse liftover (hg38→hg19) using `hg38ToHg19.over.chain.gz` from `--ref`. Runs after the existing forward liftover block so it works whether or not `--liftover` is also passed. `build_num` (used for file stems, VCF/FASTA selection, and checkpoints) is pre-adjusted in `main()` so all stages use the correct build from the start.
+- **`gwas_process.array_for_submit_b37.sh`** (new): SLURM worker script for hg19 output. Removes `--liftover` (no forward hg19→hg38 step) and adds `--output-build 19`. Output directory is `${OUT_BASE}/b37/${GWAS_NAME}`.
+- **`gwas_process.submit_staged_b37.sh`** (new): staged SLURM submit script that chains all 8 stages using the b37 worker. Submission log and all stage outputs land under `${OUT_BASE}/b37/`. Job names are prefixed `b37_` to distinguish them from the hg38 pipeline.
+- **`gwas_list_b37.txt`** (new): 13 completed studies (7 BUILD=38, 6 BUILD=19) active; 7 in-progress studies (PD, PrCa×2, OSA×2, CAD-MVP×2) commented out pending completion of current runs or HDF5 setup.
+- **Files**: `gwas_process.py` (v1.4.46 → v1.4.47), `gwas_process.array_for_submit_b37.sh` (new), `gwas_process.submit_staged_b37.sh` (new), `gwas_list_b37.txt` (new).
+
 ## 2026-07-01 🔧 gwas_list.txt — OSA and PrCa input paths updated to preprocessed files
 - **Root cause**: `OSA_EUR_Verma2024`, `OSA_PAN_Verma2024`, `PrCa_EUR_Wang2023`, and `PrCa_PAN_Wang2023` completed the pipeline but with near-zero variant output (915, 1,254, 3,590, and 4,183 variants respectively from inputs of 20–40M). For OSA: `standard_error` is `#NA` for all variants in the source file; without SE, all variants fail QC. For PrCa: indels dominate the file, producing ~6% checkref match rate and near-total variant loss. Pre-processing scripts (`fix_osa_verma.sh`, `fix_prca_wang.sh` in `utility_scripts/`) extract only the necessary columns; for OSA, `ci_upper`/`ci_lower` are passed through so `gwas_process.py`'s existing CI→SE path in `correct_columns()` derives SE automatically.
 - **Fix**: updated `gwas_list.txt` input paths from `.h.tsv.gz` → `.parsed.txt.gz` for all four studies. The `.parsed.txt.gz` files are generated by running the respective `utility_scripts/fix_*.sh` before submitting.

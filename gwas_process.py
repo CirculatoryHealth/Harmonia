@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.46"
-VERSION_DATE = "2026-06-30"
+VERSION      = "1.4.49"
+VERSION_DATE = "2026-07-01"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -198,7 +198,13 @@ def parse_args() -> argparse.Namespace:
     # ── Pipeline toggles ─────────────────────────────────────────────────────────
     tog = p.add_argument_group("pipeline step toggles")
     tog.add_argument("--liftover",     action="store_true",
-                   help="Lift over coordinates to the other build (hg19→hg38 or hg38→hg19).")
+                   help="Lift over coordinates to hg38 (hg18→hg38 or hg19→hg38).")
+    tog.add_argument("--output-build", choices=["19", "38"], default=None,
+                   dest="output_build",
+                   help="Target genome build for all pipeline outputs. "
+                        "Set to 19 to reverse-liftover hg38 inputs to GRCh37/hg19 "
+                        "(requires hg38ToHg19.over.chain.gz in --ref). "
+                        "Default: unchanged from input (or hg38 after --liftover).")
     tog.add_argument("--dbsnp",        action="store_true",
                    help="Assign rsIDs from a dbSNP VCF.")
     tog.add_argument("--qc",           action="store_true",
@@ -627,11 +633,13 @@ SUMSTATS_ALIASES = {
     "ea":    ("EA",    ["hm_effect_allele", "effectallele", "ea", "a1", "allele1", "alt",
                          "tested_allele", "testedallele",      # PGC-ALZ Wightman2021 (camelCase)
                          "reference_allele",
-                         "effect_allele", "riskallele", "codedallele"]),
+                         "effect_allele", "riskallele", "codedallele",
+                         "meta_effect_allele"]),               # AoM/Kentistou2024
     "nea":   ("NEA",   ["hm_other_allele", "otherallele", "noneffectallele", "nea",
                          "a0", "allele0", "allele_0",          # BC Michailidou2017 / BOLT-LMM
                          "a2", "allele2", "ref",
-                         "non_effect_allele", "other_allele", "noneffect_allele", "nonriskallele"]),
+                         "non_effect_allele", "other_allele", "noneffect_allele", "nonriskallele",
+                         "meta_other_allele"]),                 # AoM/Kentistou2024
     "eaf":   ("EAF",   ["hm_effect_allele_frequency", "eaf", "effect_allele_frequency",
                          "freq_tested_allele_in_hrs", "raf", "af", "allele_frequency",
                          "freq", "ref_allele_frequency", "effect_allele_freq", "caf",
@@ -646,7 +654,8 @@ SUMSTATS_ALIASES = {
                          "fixed-effects_se", "log_odds_se", "se_gc", "se_fixed"]),
     "p":     ("P",     ["p", "pval", "p_value", "pvalue",
                          "fixed-effects_p-value", "p-value", "p-value_gc",
-                         "p.value", "p_fixed", "meta_pval"]),
+                         "p.value", "p_fixed", "meta_pval",
+                         "p_bolt_lmm", "p_bolt_lmm_inf", "p_linreg"]),  # BOLT-LMM (e.g. LOY_EUR_Thompson2019)
     "n":     ("N",     ["n", "samplesize", "sample_size", "n_total", "ntotal", "n_samples",
                          "totalsamplesize", "n_eff", "neff", "total_n",
                          "n_total_sum", "n_analyzed"]),
@@ -1327,10 +1336,12 @@ def run_merge(stem: str, output_loc: str, reference: str,
 
 def run_normalize(gwas_obj, reference: str, ref_loc: str,
                   n_cores: int, do_liftover: bool, population: str,
-                  keep_multiallelic: bool = False) -> tuple:
+                  keep_multiallelic: bool = False,
+                  output_build: str = None) -> tuple:
     """
     process-normalize: basic_check + normalize_allele + remove_dup + liftover.
-    Returns (gwas_obj, reference) — reference may be updated to '38' after liftover.
+    Returns (gwas_obj, reference) — reference may be updated after liftover.
+    output_build: if '19', reverse-liftover hg38→hg19 after any forward liftover.
     """
     logging.info("\n===== Running basic_check =====")
     gwas_obj.basic_check(remove=True, verbose=True)
@@ -1394,6 +1405,21 @@ def run_normalize(gwas_obj, reference: str, ref_loc: str,
             logging.warning("Liftover skipped — unrecognised build '%s'.", reference)
     else:
         logging.info("Liftover skipped (--liftover not set).")
+
+    # Reverse liftover: --output-build 19 when data is currently hg38
+    if output_build == "19" and normalise_build(reference) == "38":
+        chain_rev = os.path.join(ref_loc, "hg38ToHg19.over.chain.gz")
+        if not os.path.isfile(chain_rev):
+            logging.error(
+                "hg38→hg19 reverse liftover requires 'hg38ToHg19.over.chain.gz' "
+                "in the reference directory:\n  %s", chain_rev,
+            )
+            sys.exit(1)
+        logging.info("Reverse-lifting from hg38 to hg19 (--output-build 19) using chain: %s …",
+                     chain_rev)
+        gwas_obj.liftover(chain_path=chain_rev, to_build="19", remove=True)
+        reference = "19"
+        logging.info("Reverse liftover complete. REFERENCE updated to '%s'.", reference)
 
     return gwas_obj, reference
 
@@ -2118,7 +2144,8 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
 
     # log(P) → P
     p_col    = resolve_column(gwas_data, ["p", "pval", "p_value", "pvalue",
-                                           "p-value", "p-value_gc", "p.value", "p_fixed"])
+                                           "p-value", "p-value_gc", "p.value", "p_fixed",
+                                           "p_bolt_lmm", "p_bolt_lmm_inf", "p_linreg"])
     logp_col = resolve_column(gwas_data, ["log_p", "logp", "log10p", "log10_p", "mlog10p",
                                            "log_pvalue", "log_p_value", "-log10p",
                                            "neg_log10_p", "neg_log_p", "p_log", "log(p)"])
@@ -2152,7 +2179,8 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
                                            "log_odds", "logor", "beta_fixed", "b",
                                            "stdbeta", "std_beta"])
     p_col    = resolve_column(gwas_data, ["p", "pval", "p_value", "pvalue",
-                                           "p-value", "p-value_gc", "p.value", "p_fixed"])
+                                           "p-value", "p-value_gc", "p.value", "p_fixed",
+                                           "p_bolt_lmm", "p_bolt_lmm_inf", "p_linreg"])
     ci_upper_col = resolve_column(gwas_data, ["ci_upper", "ci_95_upper", "upper_ci",
                                                "ci.upper", "95%ci_upper", "highci",
                                                "high_ci", "ci_high", "or_upper",
@@ -2270,6 +2298,12 @@ def standardise_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
         logging.info("Renamed %d column(s).", len(rename_map))
     else:
         logging.info("No columns needed renaming.")
+
+    # If SNPID is still missing but CHR and POS are now standardised, synthesise from coordinates.
+    if "snpid" in missing_required and "CHR" in gwas_data.columns and "POS" in gwas_data.columns:
+        gwas_data["SNPID"] = gwas_data["CHR"].astype(str) + ":" + gwas_data["POS"].astype(str)
+        missing_required.remove("snpid")
+        logging.info("SNPID absent — synthesised as CHR:POS (%d variants).", len(gwas_data))
 
     if missing_required:
         logging.warning("Missing required columns: %s. Sumstats creation may fail.", missing_required)
@@ -2408,7 +2442,8 @@ def make_sumstats_object(gwas_data: pd.DataFrame, reference: str) -> "gl.Sumstat
 def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
                    n_cores: int, do_liftover: bool, do_dbsnp: bool,
                    population: str = "EUR",
-                   keep_multiallelic: bool = False) -> tuple:
+                   keep_multiallelic: bool = False,
+                   output_build: str = None) -> tuple:
     """
     Run the core GWASLab processing steps.
     Returns (gwas_obj, reference) — reference may be updated after liftover.
@@ -2504,6 +2539,30 @@ def run_processing(gwas_obj, reference: str, ref_loc: str, vcf: str,
             )
     else:
         logging.info("Liftover skipped (--liftover not set).")
+
+    # Reverse liftover: --output-build 19 when data is currently hg38
+    if output_build == "19" and normalise_build(reference) == "38":
+        chain_rev = os.path.join(ref_loc, "hg38ToHg19.over.chain.gz")
+        if not os.path.isfile(chain_rev):
+            logging.error(
+                "hg38→hg19 reverse liftover requires 'hg38ToHg19.over.chain.gz' "
+                "in the reference directory:\n  %s", chain_rev,
+            )
+            sys.exit(1)
+        logging.info("Reverse-lifting from hg38 to hg19 (--output-build 19) using chain: %s …",
+                     chain_rev)
+        gwas_obj.liftover(chain_path=chain_rev, to_build="19", remove=True)
+        reference = "19"
+        logging.info("Reverse liftover complete. REFERENCE updated to '%s'.", reference)
+        new_vcf = ref_vcf_path(ref_loc, population, "19")
+        if new_vcf is not None and os.path.isfile(new_vcf):
+            logging.info("Reference VCF updated to hg19: %s", new_vcf)
+            vcf = new_vcf
+        else:
+            logging.warning(
+                "hg19 reference VCF not found: %s — continuing with previous VCF: %s",
+                new_vcf, vcf,
+            )
 
     # check_ref + flip
     # NOTE: flip_allele_stats() is still required — check_ref (like
@@ -3018,12 +3077,13 @@ def main() -> None:
     logging.info("Reference dir: %s", args.ref)
     logging.info("Output dir   : %s", output_loc)
     logging.info("Population   : %s", args.population)
-    logging.info("Build        : %s", args.build)
-    logging.info("Toggles      : liftover=%s  dbsnp=%s  qc=%s  "
+    logging.info("Build        : %s  →  output-build=%s",
+                 args.build, args.output_build if args.output_build else "(same as input)")
+    logging.info("Toggles      : liftover=%s  output-build=%s  dbsnp=%s  qc=%s  "
                  "only_qc=%s  fill_eaf=%s  no_fill_eaf=%s  add_chrpos=%s  "
                  "figures=%s  leads=%s  no_pickle=%s  filter_palindromic=%s  "
                  "infer_ancestry=%s  stage=%s  chrom=%s  threads=%d",
-                 args.liftover, args.dbsnp, args.qc,
+                 args.liftover, args.output_build, args.dbsnp, args.qc,
                  args.only_qc, args.fill_eaf, args.no_fill_eaf, args.add_chrpos,
                  args.figures, args.leads,
                  args.no_pickle, args.filter_palindromic,
@@ -3071,11 +3131,12 @@ def main() -> None:
         assert_bgzf(vcf, "Reference VCF")
         logging.info("Reference VCF : %s", vcf)
 
-    # If liftover is requested, output build will be hg38.  Update build_num
-    # before constructing stems/pkl_path so filenames are consistent across all
-    # stages even when run_processing has not yet executed.
+    # Pre-adjust build_num to the effective output build so that file stems and
+    # checkpoint paths are consistent across all stages before any processing runs.
     if args.liftover and build_num != "38":
         build_num = "38"
+    if args.output_build == "19" and build_num == "38":
+        build_num = "19"
 
     stem     = file_tag(args.gwas, args.population, input_build, build_num, added_n)
     pkl_path = os.path.join(output_loc, f"{stem}.pkl")
@@ -3154,6 +3215,7 @@ def main() -> None:
             input_path, sep=_sep, header=0,
             na_values=["NA"], dtype={"CHR": "string"}, engine=_engine,
         )
+        gwas_data.columns = [c.strip() for c in gwas_data.columns]
         logging.info("Loaded %s variants, %d columns.",
                      f"{len(gwas_data):,}", gwas_data.shape[1])
 
@@ -3235,6 +3297,7 @@ def main() -> None:
                 gwas_obj, REFERENCE, args.ref, args.threads,
                 args.liftover, args.population,
                 keep_multiallelic=args.keep_multiallelic,
+                output_build=args.output_build,
             )
             build_num = normalise_build(REFERENCE)
             stem      = file_tag(args.gwas, args.population, input_build, build_num, added_n)
@@ -3260,6 +3323,7 @@ def main() -> None:
                 args.threads, args.liftover, args.dbsnp,
                 population=args.population,
                 keep_multiallelic=args.keep_multiallelic,
+                output_build=args.output_build,
             )
             build_num = normalise_build(REFERENCE)
             vcf       = ref_vcf_path(args.ref, args.population, build_num)
