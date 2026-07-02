@@ -15,7 +15,8 @@
 # the entire record into the output).
 #
 # Source columns used (12 output columns):
-#   name                    → name   (chr:pos:EA:NEA format, always populated)
+#   name                    → SNPID  (chr:pos:EA:NEA format, always populated; renamed so
+#                                      gwas_process.py recognises it via the "snpid" alias)
 #   chromosome              → chromosome
 #   base_pair_location      → base_pair_location  (GRCh38/hg38 — harmonised)
 #   effect_allele           → effect_allele
@@ -44,7 +45,7 @@ echo "→ ${f}"
 zcat "${in}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
-    print "name","chromosome","base_pair_location",\
+    print "SNPID","chromosome","base_pair_location",\
           "effect_allele","other_allele",\
           "effect_allele_frequency",\
           "odds_ratio","ci_upper","ci_lower",\

@@ -62,7 +62,7 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.50"
+VERSION      = "1.4.51"
 VERSION_DATE = "2026-07-02"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
@@ -2174,16 +2174,21 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     else:
         logging.warning("No P or log(P) column found.")
 
-    # SE derivation — three strategies in priority order:
+    # SE derivation — four strategies in priority order:
     #   1. SE column present and non-empty  → use as-is
     #   2. 95% CI columns present           → SE = (ln(upper)−ln(lower))/3.92 for OR-scale,
     #                                          or (upper−lower)/3.92 for beta-scale
     #   3. Beta + P present                 → back-calculate SE = |beta| / |Z|
+    #   4. OR + P present (no Beta)         → derive beta = ln(OR), then SE = |beta| / |Z|
+    #      (Strategy 4 applies when SE is absent/all-NaN and no CI columns exist but the
+    #      file has an odds_ratio column.  Needed because check_or_vs_beta() runs AFTER
+    #      correct_columns(), so BETA is not yet available when SE derivation runs.)
     se_col   = resolve_column(gwas_data, ["se", "stderr", "standard_error", "sebeta",
                                            "log_odds_se", "se_gc", "se_fixed"])
     beta_col = resolve_column(gwas_data, ["beta", "effect_size", "effectsize", "effect",
                                            "log_odds", "logor", "beta_fixed", "b",
                                            "stdbeta", "std_beta"])
+    or_col_raw = resolve_column(gwas_data, ["odds_ratio", "or"])
     p_col    = resolve_column(gwas_data, ["p", "pval", "p_value", "pvalue",
                                            "p-value", "p-value_gc", "p.value", "p_fixed",
                                            "p_bolt_lmm", "p_bolt_lmm_inf", "p_linreg"])
@@ -2199,9 +2204,8 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
     if se_col is not None and not se_all_nan:
         logging.info("SE column found: '%s' — no derivation needed.", se_col)
     elif ci_upper_col is not None and ci_lower_col is not None:
-        # Derive SE from 95% CI.  For OR-based studies the CI bounds are on the OR scale
-        # so we apply the log transformation; otherwise we assume beta scale.
-        or_col_raw = resolve_column(gwas_data, ["odds_ratio", "or"])
+        # Strategy 2: derive SE from 95% CI.  For OR-based studies the CI bounds are on
+        # the OR scale so we apply the log transformation; otherwise assume beta scale.
         if se_all_nan:
             logging.warning(
                 "SE column '%s' is entirely NaN — dropping and deriving SE from 95%% CI.", se_col)
@@ -2222,6 +2226,7 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
             ci_lower_col, ci_upper_col, scale_note, int(valid.sum()), float(se_vals.median()),
         )
     elif beta_col is not None and p_col is not None:
+        # Strategy 3: BETA + P → SE = |beta| / |Z|
         if se_all_nan:
             logging.warning("SE column '%s' is entirely NaN — dropping and back-calculating from '%s' and '%s'.",
                             se_col, beta_col, p_col)
@@ -2231,9 +2236,23 @@ def correct_columns(gwas_data: pd.DataFrame) -> pd.DataFrame:
         z = np.abs(norm.ppf(gwas_data[p_col].clip(lower=1e-300) / 2))
         z = np.where(z == 0, np.nan, z)
         gwas_data["SE"] = np.abs(gwas_data[beta_col]) / z
-        logging.info("SE back-calculated and stored in column 'SE'.")
+        logging.info("SE back-calculated from BETA + P and stored in column 'SE'.")
+    elif or_col_raw is not None and p_col is not None:
+        # Strategy 4: OR + P only (no BETA, no CI) → beta = ln(OR), SE = |beta| / |Z|
+        # Applies when check_or_vs_beta() has not yet run (it runs after correct_columns).
+        if se_all_nan:
+            logging.warning("SE column '%s' is entirely NaN — dropping.", se_col)
+            gwas_data = gwas_data.drop(columns=[se_col])
+        else:
+            logging.info("SE not found — deriving from OR + P (strategy 4).")
+        or_vals = pd.to_numeric(gwas_data[or_col_raw], errors="coerce")
+        beta_from_or = np.where((or_vals > 0) & or_vals.notna(), np.log(or_vals), np.nan)
+        z = np.abs(norm.ppf(gwas_data[p_col].clip(lower=1e-300) / 2))
+        z = np.where(z == 0, np.nan, z)
+        gwas_data["SE"] = np.abs(beta_from_or) / z
+        logging.info("SE derived from OR + P (beta=ln(OR), SE=|beta|/|Z|) and stored in column 'SE'.")
     else:
-        logging.warning("SE not found and cannot be back-calculated — Beta and/or P column missing.")
+        logging.warning("SE not found and cannot be back-calculated — Beta, OR, and/or P column missing.")
 
     # N derivation
     n_col        = resolve_column(gwas_data, ["n", "samplesize", "sample_size", "n_total",

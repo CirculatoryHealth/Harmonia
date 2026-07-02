@@ -47,17 +47,19 @@ fi
 echo "Input : ${INPUT}"
 echo "──────────────────────────────────────────────────────────────"
 
+# Output headers: var_name is renamed to SNPID (gwas_process.py recognises "snpid" alias).
+# chr/position_b37/a0/a1 are kept verbatim (chr→CHR, position_b37→POS, a0→NEA, a1→EA).
+# Stat columns are renamed to standard aliases (effect_allele_frequency→EAF, beta→BETA,
+# standard_error→SE, p_value→P) regardless of which BC sub-analysis they come from.
+
 # ── combined (all-BC) ────────────────────────────────────────────
 OUT="${INDIR}/oncoarray_bcac_public_release_oct17.bc_all.txt.gz"
 echo "→ bc_all"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
-    print "var_name","chr","position_b37","a0","a1",\
-          "bcac_onco_icogs_gwas_eaf_controls",\
-          "bcac_onco_icogs_gwas_beta",\
-          "bcac_onco_icogs_gwas_se",\
-          "bcac_onco_icogs_gwas_P1df"
+    print "SNPID","chr","position_b37","a0","a1",\
+          "effect_allele_frequency","beta","standard_error","p_value"
     next
 }
 {
@@ -77,11 +79,8 @@ echo "→ bc_erpos"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
-    print "var_name","chr","position_b37","a0","a1",\
-          "bcac_onco_icogs_gwas_erpos_eaf_controls",\
-          "bcac_onco_icogs_gwas_erpos_beta",\
-          "bcac_onco_icogs_gwas_erpos_se",\
-          "bcac_onco_icogs_gwas_erpos_P1df"
+    print "SNPID","chr","position_b37","a0","a1",\
+          "effect_allele_frequency","beta","standard_error","p_value"
     next
 }
 {
@@ -101,11 +100,8 @@ echo "→ bc_erneg"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
-    print "var_name","chr","position_b37","a0","a1",\
-          "bcac_onco_icogs_gwas_erneg_eaf_controls",\
-          "bcac_onco_icogs_gwas_erneg_beta",\
-          "bcac_onco_icogs_gwas_erneg_se",\
-          "bcac_onco_icogs_gwas_erneg_P1df"
+    print "SNPID","chr","position_b37","a0","a1",\
+          "effect_allele_frequency","beta","standard_error","p_value"
     next
 }
 {

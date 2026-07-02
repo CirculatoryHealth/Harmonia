@@ -11,9 +11,11 @@
 # duplicated/appended extra columns to each data row, causing a preprocess Traceback.
 # This script regenerates a clean parsed file from the authoritative .h.tsv.gz source.
 #
-# standard_error and effect_allele_frequency are NA throughout; they are kept in
-# output so gwas_process.py can apply --fill-eaf and derive SE via strategy 3
-# (BETA+P back-calculation after converting odds_ratio → BETA internally).
+# standard_error is NA throughout and no CI columns exist.  SE derivation strategies
+# 1 and 2 in gwas_process.py both fail.  Strategy 4 (gwas_process.py v1.4.51) handles
+# this case: when only OR + P are present it derives beta = ln(OR) internally, then
+# back-calculates SE = |beta|/|Z|.  odds_ratio is therefore passed through as-is.
+# effect_allele_frequency is NA throughout; --fill-eaf covers it downstream.
 # rsid is the last column in the source and is affected by CRLF line endings;
 # it is dropped here (gwas_process.py re-assigns rsIDs via --dbsnp).
 # gsub(/\r/, ...) strips CRLF so the last real column parses correctly.
@@ -25,8 +27,8 @@
 #   effect_allele           → effect_allele
 #   other_allele            → other_allele
 #   odds_ratio              → odds_ratio
-#   standard_error          → standard_error  (NA throughout)
-#   effect_allele_frequency → effect_allele_frequency  (NA throughout)
+#   standard_error          → standard_error  (NA throughout; dropped by strategy 4)
+#   effect_allele_frequency → effect_allele_frequency  (NA throughout; --fill-eaf)
 #   p_value                 → p_value
 #   (hm_coordinate_conversion, hm_code, rsid dropped — metadata / CRLF issue)
 
