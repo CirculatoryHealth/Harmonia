@@ -2,6 +2,10 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-02 🔧 gwas_process.py — early INFO pre-filter at preprocess stage (v1.4.52)
+- Added an INFO pre-filter at the preprocess stage (after column standardisation, before per-chromosome splitting). When an `INFO` column is present and has at least one finite value, variants with `INFO < --info-min` are removed immediately. NaN INFO values (genotyped variants without imputation quality scores) are kept at this step. The `--info-min` threshold (default 0.4) was already applied at the QC stage; the new pre-filter fires unconditionally at preprocess time so low-quality imputed variants are dropped before the expensive SLURM array stages, reducing I/O and compute. Updated `--info-min` help text to document both application points.
+- **Files**: `gwas_process.py` (v1.4.51 → v1.4.52).
+
 ## 2026-07-02 🔧 gwas_process.cleanup.sh — compress logs/ → logs.tar.gz after archiving
 - After moving SLURM `*.out`/`*.err` files into `<study_dir>/logs/`, the cleanup script now compresses the directory to `logs.tar.gz` and removes the original `logs/` folder. The compression step runs unconditionally on any existing `logs/` directory (including pre-existing ones from a previous partial run), so it also fires when `--no-archive-logs` is passed. `--dry-run` reports the would-be compression without creating the archive.
 - **Files**: `gwas_process.cleanup.sh`.

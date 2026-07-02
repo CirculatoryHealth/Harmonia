@@ -340,7 +340,12 @@ def parse_args() -> argparse.Namespace:
     qct.add_argument("--se-max",   type=float, default=5.0,   metavar="F",
                      help="Maximum SE (default: 5.0).")
     qct.add_argument("--info-min", type=float, default=0.4,   metavar="F",
-                     help="Minimum INFO/imputation-quality score (default: 0.4).")
+                     help="Minimum INFO/imputation-quality score (default: 0.4). "
+                          "Applied twice: (1) early pre-filter at preprocess time "
+                          "(if INFO column is present) to trim low-quality imputed "
+                          "variants before per-chromosome stages; (2) again at the "
+                          "QC stage. NaN INFO values (genotyped variants) are kept "
+                          "at both steps. Set to 0 to disable.")
     qct.add_argument("--hwe-min",  type=float, default=1e-3,  metavar="F",
                      help="Minimum HWE p-value (default: 1e-3).")
     qct.add_argument("--mac-min",  type=int,   default=30,    metavar="N",
@@ -3270,6 +3275,31 @@ def main() -> None:
         gwas_data = correct_columns(gwas_data)
         gwas_data = standardise_columns(gwas_data)
         gwas_data = check_or_vs_beta(gwas_data)
+
+        # ── Early INFO pre-filter ─────────────────────────────────────────────
+        # Applied immediately after column standardisation so low-quality
+        # imputed variants are dropped before the expensive per-chromosome
+        # stages.  Only fires when an INFO column is present and has at least
+        # one finite value; NaN INFO (e.g. genotyped variants) are kept.
+        # Threshold: --info-min (default 0.4, shared with the QC-stage filter).
+        if "INFO" in gwas_data.columns and gwas_data["INFO"].notna().any():
+            _n_before = len(gwas_data)
+            gwas_data = gwas_data[
+                gwas_data["INFO"].isna() | (gwas_data["INFO"] >= args.info_min)
+            ].reset_index(drop=True)
+            _n_dropped = _n_before - len(gwas_data)
+            if _n_dropped:
+                logging.info(
+                    "INFO pre-filter (>= %.2f): removed %s of %s variants.",
+                    args.info_min, f"{_n_dropped:,}", f"{_n_before:,}",
+                )
+            else:
+                logging.info(
+                    "INFO pre-filter (>= %.2f): all %s variants pass.",
+                    args.info_min, f"{_n_before:,}",
+                )
+        else:
+            logging.info("INFO pre-filter: INFO column absent or all-NaN — skipping.")
 
         if args.figures:
             raw_stem = file_tag(args.gwas, args.population,
