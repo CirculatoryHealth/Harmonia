@@ -7,10 +7,10 @@
 #SBATCH --cpus-per-task=1
 
 # Kessler2022 CHIP — extract relevant columns from the harmonised GWAS Catalog file.
-# standard_error is NA throughout (Firth regression via REGENIE); gwas_process.py
-# will derive SE from ci_upper/ci_lower via the existing CI→SE path in correct_columns().
+# standard_error is NA throughout (Firth regression via REGENIE); it is intentionally
+# omitted from output — gwas_process.py derives SE from ci_upper/ci_lower instead.
 #
-# Source columns used:
+# Source columns used (13 output columns):
 #   name                    → SNPID  (chr:pos:EA:NEA format, always populated)
 #   rsid                    → rsid
 #   chromosome              → chromosome
@@ -18,7 +18,6 @@
 #   effect_allele           → effect_allele
 #   other_allele            → other_allele
 #   odds_ratio              → odds_ratio
-#   standard_error          → standard_error  (NA for all rows; CI→SE used instead)
 #   ci_upper                → ci_upper
 #   ci_lower                → ci_lower
 #   effect_allele_frequency → effect_allele_frequency
@@ -44,7 +43,7 @@ NR==1 {
     for(i=1;i<=NF;i++) h[$i]=i
     print "SNPID","rsid","chromosome","base_pair_location",\
           "effect_allele","other_allele",\
-          "odds_ratio","standard_error","ci_upper","ci_lower",\
+          "odds_ratio","ci_upper","ci_lower",\
           "effect_allele_frequency","p_value",\
           "num_cases","num_controls"
     next
@@ -52,7 +51,7 @@ NR==1 {
 {
     print $h["name"],$h["rsid"],$h["chromosome"],$h["base_pair_location"],\
           $h["effect_allele"],$h["other_allele"],\
-          $h["odds_ratio"],$h["standard_error"],$h["ci_upper"],$h["ci_lower"],\
+          $h["odds_ratio"],$h["ci_upper"],$h["ci_lower"],\
           $h["effect_allele_frequency"],$h["p_value"],\
           $h["num_cases"],$h["num_controls"]
 }' | gzip > "${out}"
