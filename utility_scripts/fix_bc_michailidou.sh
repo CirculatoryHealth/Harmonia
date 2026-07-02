@@ -11,9 +11,12 @@
 #   bc_erpos : ER-positive cases
 #   bc_erneg : ER-negative cases
 #
+# phase3_1kg_id (rsID) is intentionally dropped: values are malformed
+# (e.g. "rs376342519:10616:CCGCCGTTGCAAAGGCGCGCCG:C" or "1:11008:C:G"),
+# which causes gwaslab to fail. rsIDs are re-assigned downstream via --dbsnp.
+#
 # Source columns used (same NEA/EA/CHR/POS for all three analyses):
 #   var_name                              → SNPID
-#   phase3_1kg_id                         → rsID
 #   chr                                   → CHR
 #   position_b37                          → POS
 #   a0                                    → NEA (non-effect / reference allele)
@@ -50,11 +53,11 @@ echo "→ bc_all"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","rsID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
+    print "SNPID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
     next
 }
 {
-    print $h["var_name"],$h["phase3_1kg_id"],$h["chr"],$h["position_b37"],\
+    print $h["var_name"],$h["chr"],$h["position_b37"],\
           $h["a0"],$h["a1"],\
           $h["bcac_onco_icogs_gwas_eaf_controls"],\
           $h["bcac_onco_icogs_gwas_beta"],\
@@ -69,11 +72,11 @@ echo "→ bc_erpos"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","rsID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
+    print "SNPID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
     next
 }
 {
-    print $h["var_name"],$h["phase3_1kg_id"],$h["chr"],$h["position_b37"],\
+    print $h["var_name"],$h["chr"],$h["position_b37"],\
           $h["a0"],$h["a1"],\
           $h["bcac_onco_icogs_gwas_erpos_eaf_controls"],\
           $h["bcac_onco_icogs_gwas_erpos_beta"],\
@@ -88,11 +91,11 @@ echo "→ bc_erneg"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
     for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","rsID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
+    print "SNPID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
     next
 }
 {
-    print $h["var_name"],$h["phase3_1kg_id"],$h["chr"],$h["position_b37"],\
+    print $h["var_name"],$h["chr"],$h["position_b37"],\
           $h["a0"],$h["a1"],\
           $h["bcac_onco_icogs_gwas_erneg_eaf_controls"],\
           $h["bcac_onco_icogs_gwas_erneg_beta"],\

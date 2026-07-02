@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "gwas_process"
-VERSION      = "1.4.49"
-VERSION_DATE = "2026-07-01"
+VERSION      = "1.4.50"
+VERSION_DATE = "2026-07-02"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -630,10 +630,12 @@ SUMSTATS_ALIASES = {
                          "bp_b37", "bp_b38", "pos_b37", "pos_b38",
                          "position_b37",           # BC Michailidou2017 / other hg19 files
                          "posgrch37", "pos_grch37", "position_grch37"]),  # PGC-ALZ Wightman2021
-    "ea":    ("EA",    ["hm_effect_allele", "effectallele", "ea", "a1", "allele1", "alt",
+    "ea":    ("EA",    ["hm_effect_allele", "effect_allele",      # explicit names first
+                         "effectallele", "ea", "a1", "allele1",
                          "tested_allele", "testedallele",      # PGC-ALZ Wightman2021 (camelCase)
                          "reference_allele",
-                         "effect_allele", "riskallele", "codedallele",
+                         "riskallele", "codedallele",
+                         "alt",                                # VCF alt — fallback only; conflicts with effect_allele in GWAS-Catalog harmonised files
                          "meta_effect_allele"]),               # AoM/Kentistou2024
     "nea":   ("NEA",   ["hm_other_allele", "otherallele", "noneffectallele", "nea",
                          "a0", "allele0", "allele_0",          # BC Michailidou2017 / BOLT-LMM
@@ -1884,8 +1886,12 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
             chrom_str = "chr" + chrom_str
         elif not vcf_uses_chr_prefix and chrom_str.startswith("chr"):
             chrom_str = chrom_str[3:]
-        pos_min   = int(grp["pos"].min()) - 1
-        pos_max   = int(grp["pos"].max())
+        _pos_min = grp["pos"].min()
+        _pos_max = grp["pos"].max()
+        if pd.isna(_pos_min) or pd.isna(_pos_max):
+            continue
+        pos_min   = int(_pos_min) - 1
+        pos_max   = int(_pos_max)
 
         # Build lookup: (pos, ref, alt) → af
         vcf_af: dict = {}
