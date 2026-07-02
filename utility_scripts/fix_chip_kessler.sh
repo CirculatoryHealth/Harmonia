@@ -9,18 +9,21 @@
 # Kessler2022 CHIP — extract relevant columns from the harmonised GWAS Catalog file.
 # standard_error is NA throughout (Firth regression via REGENIE); it is intentionally
 # omitted from output — gwas_process.py derives SE from ci_upper/ci_lower instead.
+# rsid is also omitted; gwas_process.py re-assigns rsIDs via --dbsnp.
+# gsub(/\r/, "") strips CRLF from the source file (rsid is the last column and would
+# otherwise be stored as "rsid\r" in the awk hash, causing $h["rsid"]→$0 to dump
+# the entire record into the output).
 #
-# Source columns used (13 output columns):
-#   name                    → SNPID  (chr:pos:EA:NEA format, always populated)
-#   rsid                    → rsid
+# Source columns used (12 output columns):
+#   name                    → name   (chr:pos:EA:NEA format, always populated)
 #   chromosome              → chromosome
 #   base_pair_location      → base_pair_location  (GRCh38/hg38 — harmonised)
 #   effect_allele           → effect_allele
 #   other_allele            → other_allele
+#   effect_allele_frequency → effect_allele_frequency
 #   odds_ratio              → odds_ratio
 #   ci_upper                → ci_upper
 #   ci_lower                → ci_lower
-#   effect_allele_frequency → effect_allele_frequency
 #   p_value                 → p_value
 #   num_cases               → num_cases
 #   num_controls            → num_controls
@@ -40,19 +43,20 @@ fi
 echo "→ ${f}"
 zcat "${in}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
-    for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","rsid","chromosome","base_pair_location",\
+    for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
+    print "name","chromosome","base_pair_location",\
           "effect_allele","other_allele",\
+          "effect_allele_frequency",\
           "odds_ratio","ci_upper","ci_lower",\
-          "effect_allele_frequency","p_value",\
-          "num_cases","num_controls"
+          "p_value","num_cases","num_controls"
     next
 }
 {
-    print $h["name"],$h["rsid"],$h["chromosome"],$h["base_pair_location"],\
+    gsub(/\r$/, "")
+    print $h["name"],$h["chromosome"],$h["base_pair_location"],\
           $h["effect_allele"],$h["other_allele"],\
+          $h["effect_allele_frequency"],\
           $h["odds_ratio"],$h["ci_upper"],$h["ci_lower"],\
-          $h["effect_allele_frequency"],$h["p_value"],\
-          $h["num_cases"],$h["num_controls"]
+          $h["p_value"],$h["num_cases"],$h["num_controls"]
 }' | gzip > "${out}"
 echo "   Lines: $(zcat "${out}" | wc -l)"

@@ -52,11 +52,16 @@ OUT="${INDIR}/oncoarray_bcac_public_release_oct17.bc_all.txt.gz"
 echo "→ bc_all"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
-    for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
+    for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
+    print "var_name","chr","position_b37","a0","a1",\
+          "bcac_onco_icogs_gwas_eaf_controls",\
+          "bcac_onco_icogs_gwas_beta",\
+          "bcac_onco_icogs_gwas_se",\
+          "bcac_onco_icogs_gwas_P1df"
     next
 }
 {
+    gsub(/\r$/, "")
     print $h["var_name"],$h["chr"],$h["position_b37"],\
           $h["a0"],$h["a1"],\
           $h["bcac_onco_icogs_gwas_eaf_controls"],\
@@ -71,11 +76,16 @@ OUT="${INDIR}/oncoarray_bcac_public_release_oct17.bc_erpos.txt.gz"
 echo "→ bc_erpos"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
-    for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
+    for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
+    print "var_name","chr","position_b37","a0","a1",\
+          "bcac_onco_icogs_gwas_erpos_eaf_controls",\
+          "bcac_onco_icogs_gwas_erpos_beta",\
+          "bcac_onco_icogs_gwas_erpos_se",\
+          "bcac_onco_icogs_gwas_erpos_P1df"
     next
 }
 {
+    gsub(/\r$/, "")
     print $h["var_name"],$h["chr"],$h["position_b37"],\
           $h["a0"],$h["a1"],\
           $h["bcac_onco_icogs_gwas_erpos_eaf_controls"],\
@@ -90,11 +100,16 @@ OUT="${INDIR}/oncoarray_bcac_public_release_oct17.bc_erneg.txt.gz"
 echo "→ bc_erneg"
 zcat "${INPUT}" | awk 'BEGIN{FS=OFS="\t"}
 NR==1 {
-    for(i=1;i<=NF;i++) h[$i]=i
-    print "SNPID","CHR","POS","NEA","EA","EAF","BETA","SE","P"
+    for(i=1;i<=NF;i++) { gsub(/\r/, "", $i); h[$i]=i }
+    print "var_name","chr","position_b37","a0","a1",\
+          "bcac_onco_icogs_gwas_erneg_eaf_controls",\
+          "bcac_onco_icogs_gwas_erneg_beta",\
+          "bcac_onco_icogs_gwas_erneg_se",\
+          "bcac_onco_icogs_gwas_erneg_P1df"
     next
 }
 {
+    gsub(/\r$/, "")
     print $h["var_name"],$h["chr"],$h["position_b37"],\
           $h["a0"],$h["a1"],\
           $h["bcac_onco_icogs_gwas_erneg_eaf_controls"],\
