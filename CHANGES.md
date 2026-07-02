@@ -2,6 +2,10 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-02 🔧 gwas_process.cleanup.sh — compress logs/ → logs.tar.gz after archiving
+- After moving SLURM `*.out`/`*.err` files into `<study_dir>/logs/`, the cleanup script now compresses the directory to `logs.tar.gz` and removes the original `logs/` folder. The compression step runs unconditionally on any existing `logs/` directory (including pre-existing ones from a previous partial run), so it also fires when `--no-archive-logs` is passed. `--dry-run` reports the would-be compression without creating the archive.
+- **Files**: `gwas_process.cleanup.sh`.
+
 ## 2026-07-02 🐛 gwas_process.py — OR+P SE strategy 4 (v1.4.51)
 - **SE derivation strategy 4 — OR + P only** (`correct_columns()`): added a fourth SE-derivation path for files that contain `odds_ratio` and `p_value` but no `beta`, no `standard_error` (or all-NaN), and no CI columns. `correct_columns()` runs before `check_or_vs_beta()` (line 3251 vs 3253), so at the time SE derivation executes OR has not yet been converted to BETA — strategy 3 (BETA+P) cannot fire. Fix: when strategies 1–3 all fail but `or_col_raw` and `p_col` are both present, derive `beta = ln(OR)` then `SE = |beta| / |Z|` where `Z = Φ⁻¹(P/2)`. If an all-NaN SE column is present it is dropped first. Applies to `Migraine_PAN_Choquet2021` (OR + P; standard_error=NA; no CI).
 - **Files**: `gwas_process.py` (v1.4.50 → v1.4.51).

@@ -30,6 +30,7 @@
 # Log archiving (default: enabled):
 #   SLURM *.out / *.err files found in LOG_DIR (default: OUT_BASE) that belong to
 #   the study being cleaned are moved into ${OUT_BASE}/<STUDY>/logs/.
+#   The logs/ directory is then compressed to logs.tar.gz and removed.
 #   This keeps the submit directory tidy and preserves logs for gwas_process.check.py.
 #   Disable with --no-archive-logs.  Override the source dir with --log-dir PATH.
 #
@@ -219,8 +220,8 @@ cleanup_study() {
     fi
 
     # ── Archive SLURM *.out / *.err into <study_dir>/logs/ ────────────────────
+    local logs_dir="${study_dir%/}/logs"
     if [[ "${ARCHIVE_LOGS}" -eq 1 ]]; then
-        local logs_dir="${study_dir%/}/logs"
         local n_archived=0
         for f in "${LOG_DIR}/${study_name}_"*.out "${LOG_DIR}/${study_name}_"*.err; do
             [[ -f "${f}" ]] || continue
@@ -241,6 +242,17 @@ cleanup_study() {
             echo "    python gwas_process.check.py ${study_name} ${logs_dir}"
         elif [[ "${DRY_RUN}" -eq 0 ]]; then
             echo "  [${study_name}] No SLURM log files found in ${LOG_DIR} — nothing archived."
+        fi
+    fi
+
+    # ── Compress logs/ → logs.tar.gz ─────────────────────────────────────────
+    if [[ -d "${logs_dir}" ]]; then
+        if [[ "${DRY_RUN}" -eq 1 ]]; then
+            echo "  [DRY-RUN] would compress: ${logs_dir}/ → ${logs_dir}.tar.gz"
+        else
+            tar -czf "${logs_dir}.tar.gz" -C "${study_dir%/}" logs \
+                && rm -rf "${logs_dir}" \
+                && echo "  [COMPRESS] logs/ → ${logs_dir}.tar.gz"
         fi
     fi
 }
