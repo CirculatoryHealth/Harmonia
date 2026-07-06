@@ -2,6 +2,10 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-06 🔧 gwas_process.cleanup.sh — add --base flag to override OUT_BASE from conf
+- Added `--base <DIR>` argument that overrides the `OUT_BASE` path set by `gwas2cojo.conf`. Useful when studies are stored in a subdirectory (e.g. `b37/`) that differs from the default output base. The flag is parsed after the conf is sourced, so it takes precedence over the conf value without requiring a separate config file.
+- **Files**: `gwas_process.cleanup.sh`.
+
 ## 2026-07-02 🔧 gwas_process.py — early INFO pre-filter at preprocess stage (v1.4.52)
 - Added an INFO pre-filter at the preprocess stage (after column standardisation, before per-chromosome splitting). When an `INFO` column is present and has at least one finite value, variants with `INFO < --info-min` are removed immediately. NaN INFO values (genotyped variants without imputation quality scores) are kept at this step. The `--info-min` threshold (default 0.4) was already applied at the QC stage; the new pre-filter fires unconditionally at preprocess time so low-quality imputed variants are dropped before the expensive SLURM array stages, reducing I/O and compute. Updated `--info-min` help text to document both application points.
 - **Files**: `gwas_process.py` (v1.4.51 → v1.4.52).

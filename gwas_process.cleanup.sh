@@ -95,6 +95,7 @@ while [[ $# -gt 0 ]]; do
         --keep-raw-pkl)        KEEP_RAW_PKL=1;       shift ;;
         --keep-qc-pkl)         KEEP_QC_PKL=1;        shift ;;
         --no-archive-logs)     ARCHIVE_LOGS=0;       shift ;;
+        --base)             OUT_BASE="${2:?--base requires a path}"; shift 2 ;;
         --log-dir)          LOG_DIR="${2:?--log-dir requires a path}"; shift 2 ;;
         --help|-h)          usage ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
