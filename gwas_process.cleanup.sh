@@ -45,6 +45,11 @@
 #   bash gwas_process.cleanup.sh --study CAD_Aragam --no-archive-logs
 #   bash gwas_process.cleanup.sh --all --log-dir /path/to/slurm/logs
 #
+# Override the output base directory (default: OUT_BASE from gwas2cojo.conf):
+#   bash gwas_process.cleanup.sh --config gwas_list_b37.txt --base /path/to/b37
+#   bash gwas_process.cleanup.sh --study PE_EUR_Honigberg2023 --base /path/to/b37
+#   bash gwas_process.cleanup.sh --all --base /path/to/b37
+#
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
