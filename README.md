@@ -514,7 +514,7 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 
 # 📥 Reference file management
 
-`gwas_process.download_refs.py` downloads gwaslab reference files using gwaslab's built-in `gl.download_ref()` function. `.tbi` index files are fetched automatically alongside VCFs. The target directory and the set of files to download are controlled by arguments and `gwas2cojo.conf`.
+`harmonia.download_refs.py` downloads gwaslab reference files using gwaslab's built-in `gl.download_ref()` function. `.tbi` index files are fetched automatically alongside VCFs. The target directory and the set of files to download are controlled by arguments and `harmonia.conf`.
 
 ## Usage
 
@@ -522,33 +522,33 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 conda activate harmonia
 
 # EUR VCFs for both builds — most common case (default)
-python gwas_process.download_refs.py
+python harmonia.download_refs.py
 
 # EUR VCFs for hg38 only
-python gwas_process.download_refs.py --build hg38
+python harmonia.download_refs.py --build hg38
 
 # AFR VCFs for both builds
-python gwas_process.download_refs.py --ancestry AFR
+python harmonia.download_refs.py --ancestry AFR
 
 # All ancestry VCFs, hg19 only
-python gwas_process.download_refs.py --build hg19 --ancestry all
+python harmonia.download_refs.py --build hg19 --ancestry all
 
 # Everything for all ancestries and both builds
-python gwas_process.download_refs.py --build all --ancestry all
+python harmonia.download_refs.py --build all --ancestry all
 
 # Override the reference directory
-python gwas_process.download_refs.py --ref-dir /path/to/references/gwaslab/
+python harmonia.download_refs.py --ref-dir /path/to/references/gwaslab/
 ```
 
 | Argument | Default | Choices | Description |
 |----------|---------|---------|-------------|
-| `--ref-dir` | from `gwas2cojo.conf` | any path | Target directory for downloaded files |
+| `--ref-dir` | from `harmonia.conf` | any path | Target directory for downloaded files |
 | `--build` | `all` | `all`, `hg19`, `hg38` | Genome build(s) to download |
 | `--ancestry` | `EUR` | `EUR`, `PAN`, `AFR`, `EAS`, `AMR`, `SAS`, `all` | 1KG population VCF(s) to download |
 
 The default ancestry is `EUR` to avoid accidentally downloading all 12 large population VCFs. Non-ancestry-specific files (dbSNP VCFs, FASTA, recombination maps, GTFs, HapMap3 EAF, SNPID→rsID tables) are always included for the requested build(s).
 
-The reference directory defaults to `REF_DIR` from `gwas2cojo.conf`. If the conf is absent or `REF_DIR` is not set, a warning is printed and a placeholder path is used. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
+The reference directory defaults to `REF_DIR` from `harmonia.conf`. If the conf is absent or `REF_DIR` is not set, a warning is printed and a placeholder path is used. After completion, the script prints a summary of all downloaded references via `gl.check_downloaded_ref()`.
 
 ## Reference file inventory
 
@@ -581,38 +581,38 @@ For large-scale processing of many GWAS studies on a compute cluster, four helpe
 
 ## ⚙️ One-time site setup
 
-All HPC scripts read their paths and settings from a single file — **`gwas2cojo.conf`** — that lives next to the scripts. Configure it once; every script picks it up automatically.
+All HPC scripts read their paths and settings from a single file — **`harmonia.conf`** — that lives next to the scripts. Configure it once; every script picks it up automatically.
 
 ```bash
 # 1. Copy the template
-cp gwas2cojo.conf.example gwas2cojo.conf
+cp harmonia.conf.example harmonia.conf
 
-# 2. Open gwas2cojo.conf and fill in the five values:
+# 2. Open harmonia.conf and fill in the five values:
 #    PYTHON_SCRIPT  — absolute path to harmonia.py
 #    REF_DIR        — directory containing gwaslab reference files
 #    OUT_BASE       — base output directory (per-study subdirs + SLURM logs go here)
 #    CONDA_ENV      — conda environment name (default: harmonia)
 #    EMAIL          — your email address for SLURM failure notifications
-nano gwas2cojo.conf
+nano harmonia.conf
 ```
 
-`gwas2cojo.conf` and `gwas_list.txt` are both listed in `.gitignore` so your local settings and study list are never accidentally committed. `gwas2cojo.conf.example` and `gwas_list.example.txt` (with placeholder values) are the committed templates.
+`harmonia.conf` and `gwas_list.txt` are both listed in `.gitignore` so your local settings and study list are never accidentally committed. `harmonia.conf.example` and `gwas_list.example.txt` (with placeholder values) are the committed templates.
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `gwas2cojo.conf.example` | Site configuration template — copy to `gwas2cojo.conf` and fill in your paths |
+| `harmonia.conf.example` | Site configuration template — copy to `harmonia.conf` and fill in your paths |
 | `gwas_list.example.txt` | Study list template (3 example studies) — copy to `gwas_list.txt` and update paths |
-| `gwas_process.array_for_submit.sh` | SLURM worker — runs one `harmonia.py` call for one study and one stage; outputs hg38 |
-| `gwas_process.array_for_submit_b37.sh` | SLURM worker variant for GRCh37/hg19 output (`--output-build 19`; no forward liftover) |
-| `gwas_process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
-| `gwas_process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok`; hg38 output |
-| `gwas_process.submit_staged_b37.sh` | Staged submit for GRCh37/hg19 output; uses `gwas_process.array_for_submit_b37.sh` |
+| `harmonia.array_for_submit.sh` | SLURM worker — runs one `harmonia.py` call for one study and one stage; outputs hg38 |
+| `harmonia.array_for_submit_b37.sh` | SLURM worker variant for GRCh37/hg19 output (`--output-build 19`; no forward liftover) |
+| `harmonia.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
+| `harmonia.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok`; hg38 output |
+| `harmonia.submit_staged_b37.sh` | Staged submit for GRCh37/hg19 output; uses `harmonia.array_for_submit_b37.sh` |
 | `gwas_list_b37.txt` | Study list for the b37 output pipeline (completed studies active; in-progress commented out) |
-| `gwas_process.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
-| `gwas_process.check.py` | Parse `*.out`/`*.err` log files and print a per-stage summary table with QC metrics and error/warning counts |
-| `gwas_process.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |
+| `harmonia.cleanup.sh` | Remove intermediate checkpoint files after a successful run |
+| `harmonia.check.py` | Parse `*.out`/`*.err` log files and print a per-stage summary table with QC metrics and error/warning counts |
+| `harmonia.download_refs.py` | Download missing 1KG population reference VCFs using `gl.download_ref()` |
 
 ## Config file format (`gwas_list.txt`)
 
@@ -648,23 +648,23 @@ Example:
 
 ---
 
-## Option 1: Single full-pipeline job per study (`gwas_process.submit.sh`)
+## Option 1: Single full-pipeline job per study (`harmonia.submit.sh`)
 
 Submits one SLURM job per study running `--stage all`. The `MEM` and `TIME` from the config are used for the entire job. Suitable when you want simplicity over granular resource control.
 
 ```bash
-bash gwas_process.submit.sh gwas_list.txt
+bash harmonia.submit.sh gwas_list.txt
 ```
 
 Extra `sbatch` arguments can be appended:
 
 ```bash
-bash gwas_process.submit.sh gwas_list.txt --partition=highmem
+bash harmonia.submit.sh gwas_list.txt --partition=highmem
 ```
 
 ---
 
-## Option 2: Staged per-study chain (`gwas_process.submit_staged.sh`)
+## Option 2: Staged per-study chain (`harmonia.submit_staged.sh`)
 
 Submits SLURM jobs chained with `--dependency=afterok`. If a stage fails, SLURM automatically cancels all downstream stages for that study (`DependencyNeverSatisfied`). Other studies are completely independent and keep running.
 
@@ -700,7 +700,7 @@ Because each per-chr job sweeps only ~1/22 of the VCF region, the HEAVY tier mem
 ### Submit
 
 ```bash
-bash gwas_process.submit_staged.sh gwas_list.txt
+bash harmonia.submit_staged.sh gwas_list.txt
 ```
 
 Output shows the two-tier resources and the job IDs per study:
@@ -710,7 +710,7 @@ GWAS                    MEM_L    TIME_L      MEM_H    TIME_H      pre=... nrm=..
 CAD_Aragam              64G      24:00:00    128G     96:00:00    pre=1001 nrm=1002 spl=1003 chr=1004 ...
 ```
 
-A timestamped submission log is automatically written to `${LOG_BASE}/gwas_process.submit_staged_YYYYMMDD_HHMMSS.log`.
+A timestamped submission log is automatically written to `${LOG_BASE}/harmonia.submit_staged_YYYYMMDD_HHMMSS.log`.
 
 ### Monitor and cancel
 
@@ -722,7 +722,7 @@ sacct -j 1004 --format=JobID,State,Elapsed,MaxRSS        # check completed stage
 
 ---
 
-## Cleanup intermediate checkpoints (`gwas_process.cleanup.sh`)
+## Cleanup intermediate checkpoints (`harmonia.cleanup.sh`)
 
 After a successful run, intermediate files can be safely removed. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `PLOTS/`, `*.log`) are **never** touched.
 
@@ -737,55 +737,55 @@ After a successful run, intermediate files can be safely removed. Final outputs 
 | `*.pkl` (raw, non-QC, non-normalize) | check-af → merge handoff |
 | `*.qc.pkl` | QC-filtered pickle (data identical to `.qc.parquet`) |
 
-**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `gwas_process.check.py` (the Harmonia log checker).
+**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `harmonia.check.py` (the Harmonia log checker).
 
 ```bash
 # Always dry-run first to see what will be removed / archived
-bash gwas_process.cleanup.sh --study CAD_Aragam --dry-run
+bash harmonia.cleanup.sh --study CAD_Aragam --dry-run
 
 # Clean a single study
-bash gwas_process.cleanup.sh --study CAD_Aragam
+bash harmonia.cleanup.sh --study CAD_Aragam
 
 # Clean all studies under OUT_BASE
-bash gwas_process.cleanup.sh --all
+bash harmonia.cleanup.sh --all
 
 # Clean studies listed in a config file
-bash gwas_process.cleanup.sh --config gwas_list.txt
+bash harmonia.cleanup.sh --config gwas_list.txt
 
 # Retain specific pickles
-bash gwas_process.cleanup.sh --all --keep-normalize-pkl  # keep *.normalize.pkl
-bash gwas_process.cleanup.sh --all --keep-raw-pkl        # keep final raw *.pkl
-bash gwas_process.cleanup.sh --all --keep-qc-pkl         # keep *.qc.pkl
+bash harmonia.cleanup.sh --all --keep-normalize-pkl  # keep *.normalize.pkl
+bash harmonia.cleanup.sh --all --keep-raw-pkl        # keep final raw *.pkl
+bash harmonia.cleanup.sh --all --keep-qc-pkl         # keep *.qc.pkl
 
 # Skip log archiving, or specify a different log source directory
-bash gwas_process.cleanup.sh --all --no-archive-logs
-bash gwas_process.cleanup.sh --all --log-dir /path/to/slurm/logs
+bash harmonia.cleanup.sh --all --no-archive-logs
+bash harmonia.cleanup.sh --all --log-dir /path/to/slurm/logs
 ```
 
 After cleanup, check the archived logs with:
 
 ```bash
-python gwas_process.check.py CAD_Aragam ${OUT_BASE}/CAD_Aragam/logs/
+python harmonia.check.py CAD_Aragam ${OUT_BASE}/CAD_Aragam/logs/
 ```
 
 ---
 
-## 🩺 Check run status (`gwas_process.check.py`)
+## 🩺 Check run status (`harmonia.check.py`)
 
-After submitting jobs, use `gwas_process.check.py` to quickly verify whether a study completed correctly. It parses all `*.out` / `*.err` log files in the log directory and prints a per-stage summary with key QC metrics, warning counts, and a clear pass/fail status.
+After submitting jobs, use `harmonia.check.py` to quickly verify whether a study completed correctly. It parses all `*.out` / `*.err` log files in the log directory and prints a per-stage summary with key QC metrics, warning counts, and a clear pass/fail status.
 
 ```bash
 # Check one study in the current directory (where *.out/*.err files live)
-python gwas_process.check.py CAD_Aragam
+python harmonia.check.py CAD_Aragam
 
 # Check one study in a specific log directory
-python gwas_process.check.py CAD_Aragam /hpc/data/gwas2cojo
+python harmonia.check.py CAD_Aragam /hpc/data/gwas2cojo
 
 # Check every study found in the log directory
-python gwas_process.check.py --all /hpc/data/gwas2cojo
+python harmonia.check.py --all /hpc/data/gwas2cojo
 
 # Morning triage — only print studies with errors or missing stages
-python gwas_process.check.py --all /hpc/data/gwas2cojo --errors-only
+python harmonia.check.py --all /hpc/data/gwas2cojo --errors-only
 ```
 
 Example output for a healthy study:

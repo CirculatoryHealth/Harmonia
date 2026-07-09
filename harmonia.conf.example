@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# gwas2cojo.conf.example — site-specific configuration template
+# harmonia.conf.example — site-specific configuration template
 #
 # ── One-time setup ────────────────────────────────────────────────────────────
-# 1. Copy this file:   cp gwas2cojo.conf.example gwas2cojo.conf
-# 2. Edit gwas2cojo.conf and fill in the four paths + your email below.
+# 1. Copy this file:   cp harmonia.conf.example harmonia.conf
+# 2. Edit harmonia.conf and fill in the four paths + your email below.
 # 3. Done — all gwas2cojo scripts will pick up the settings automatically.
 #
-# gwas2cojo.conf is listed in .gitignore so your local settings are never
+# harmonia.conf is listed in .gitignore so your local settings are never
 # accidentally committed to the public repository.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ PYTHON_SCRIPT="/path/to/harmonia/harmonia.py"
 
 # Directory containing gwaslab reference files
 # (1KG VCFs, FASTA, dbSNP VCFs, recombination maps, …)
-# Use gwas_process.download_refs.py to populate this directory.
+# Use harmonia.download_refs.py to populate this directory.
 REF_DIR="/path/to/references/gwaslab"
 
 # Base output directory — per-study subdirectories and SLURM logs go here

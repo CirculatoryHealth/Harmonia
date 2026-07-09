@@ -11,7 +11,7 @@
 # make_chrpos_hdf5.sh — SLURM wrapper for make_chrpos_hdf5.py
 #
 # Converts a dbSNP VCF into per-chromosome HDF5 files for rsID→CHR:POS lookup.
-# Run once per build. Writes output into REF_DIR (from gwas2cojo.conf).
+# Run once per build. Writes output into REF_DIR (from harmonia.conf).
 #
 # Submit:
 #   sbatch make_chrpos_hdf5.sh [--build hg19|hg38|all] [--vcf PATH] [--email addr]
@@ -50,24 +50,24 @@ if [[ -n "${EMAIL}" && -n "${SLURM_JOB_ID:-}" ]]; then
     scontrol update JobId="${SLURM_JOB_ID}" MailUser="${EMAIL}"
 fi
 
-# ── Load gwas2cojo.conf ───────────────────────────────────────────────────────
+# ── Load harmonia.conf ───────────────────────────────────────────────────────
 # Resolution order:
-#   1. GWAS2COJO_CONF env var (explicit override)
+#   1. HARMONIA_CONF env var (explicit override)
 #   2. SLURM_SUBMIT_DIR — the directory where sbatch was called (SLURM sets this
-#      automatically; gwas2cojo.conf lives alongside harmonia.py there)
+#      automatically; harmonia.conf lives alongside harmonia.py there)
 #   3. BASH_SOURCE fallback — works for direct local invocation but fails when
 #      SLURM copies the script to its spool directory
-if [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
-    CONF="${GWAS2COJO_CONF}"
-elif [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/gwas2cojo.conf" ]]; then
-    CONF="${SLURM_SUBMIT_DIR}/gwas2cojo.conf"
+if [[ -n "${HARMONIA_CONF:-}" && -f "${HARMONIA_CONF}" ]]; then
+    CONF="${HARMONIA_CONF}"
+elif [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/harmonia.conf" ]]; then
+    CONF="${SLURM_SUBMIT_DIR}/harmonia.conf"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    CONF="${SCRIPT_DIR}/../gwas2cojo.conf"
+    CONF="${SCRIPT_DIR}/../harmonia.conf"
 fi
 if [[ ! -f "${CONF}" ]]; then
-    echo "ERROR: gwas2cojo.conf not found (tried: ${CONF})" >&2
-    echo "       Submit from the gwas2cojo directory, or export GWAS2COJO_CONF=/path/to/gwas2cojo.conf" >&2
+    echo "ERROR: harmonia.conf not found (tried: ${CONF})" >&2
+    echo "       Submit from the gwas2cojo directory, or export HARMONIA_CONF=/path/to/harmonia.conf" >&2
     exit 1
 fi
 source "${CONF}"

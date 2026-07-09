@@ -3,10 +3,10 @@
 # resubmit_merge.sh — resubmit a single pipeline stage for studies in a gwas_list file
 #
 # Designed to be called from ANY working directory (not only the gwas2cojo source
-# directory).  The script locates gwas2cojo.conf via three methods (in order):
+# directory).  The script locates harmonia.conf via three methods (in order):
 #   1. --conf <path>  argument
-#   2. GWAS2COJO_CONF environment variable
-#   3. gwas2cojo.conf next to this script's parent directory (auto-detect)
+#   2. HARMONIA_CONF environment variable
+#   3. harmonia.conf next to this script's parent directory (auto-detect)
 #
 # Usage
 # ─────
@@ -14,7 +14,7 @@
 #
 # Options
 # ───────
-#   --conf       PATH   Path to gwas2cojo.conf
+#   --conf       PATH   Path to harmonia.conf
 #   --gwas-list  FILE   Input list (gwas_list.txt format).
 #                       Default: gwas_list_resubmit_merge.txt (next to gwas_list.txt)
 #   --stage      STAGE  Pipeline stage to resubmit (default: merge).
@@ -30,7 +30,7 @@
 #   bash /path/to/resubmit_merge.sh
 #
 #   # Override conf location (when not in the gwas2cojo directory):
-#   bash /path/to/resubmit_merge.sh --conf /hpc/local/gwas2cojo/gwas2cojo.conf
+#   bash /path/to/resubmit_merge.sh --conf /hpc/local/gwas2cojo/harmonia.conf
 #
 #   # Full rerun from preprocess using a different list:
 #   bash /path/to/resubmit_merge.sh \
@@ -74,31 +74,31 @@ done
 # Remaining args are passed verbatim to every sbatch call (e.g. --partition=highmem)
 EXTRA_SBATCH=("$@")
 
-# ── Locate gwas2cojo.conf ──────────────────────────────────────────────────────
+# ── Locate harmonia.conf ──────────────────────────────────────────────────────
 if [[ -n "${CONF_ARG}" ]]; then
     CONF="${CONF_ARG}"
-elif [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
-    CONF="${GWAS2COJO_CONF}"
-elif [[ -f "${ROOTDIR}/gwas2cojo.conf" ]]; then
-    CONF="${ROOTDIR}/gwas2cojo.conf"
+elif [[ -n "${HARMONIA_CONF:-}" && -f "${HARMONIA_CONF}" ]]; then
+    CONF="${HARMONIA_CONF}"
+elif [[ -f "${ROOTDIR}/harmonia.conf" ]]; then
+    CONF="${ROOTDIR}/harmonia.conf"
 else
-    echo "ERROR: gwas2cojo.conf not found." >&2
-    echo "       Use --conf /path/to/gwas2cojo.conf, or export GWAS2COJO_CONF=..." >&2
+    echo "ERROR: harmonia.conf not found." >&2
+    echo "       Use --conf /path/to/harmonia.conf, or export HARMONIA_CONF=..." >&2
     exit 1
 fi
 if [[ ! -f "${CONF}" ]]; then
-    echo "ERROR: gwas2cojo.conf not found at: ${CONF}" >&2
+    echo "ERROR: harmonia.conf not found at: ${CONF}" >&2
     exit 1
 fi
 
-# shellcheck source=../gwas2cojo.conf.example
+# shellcheck source=../harmonia.conf.example
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
-export GWAS2COJO_CONF="${CONF}"   # propagate to SLURM worker
+export HARMONIA_CONF="${CONF}"   # propagate to SLURM worker
 
 # Derive the worker script from PYTHON_SCRIPT (handles installs in any location)
-GWAS2COJO_ROOTDIR="$(dirname "${PYTHON_SCRIPT}")"
-WORKER_SCRIPT="${GWAS2COJO_ROOTDIR}/gwas_process.array_for_submit.sh"
+HARMONIA_ROOTDIR="$(dirname "${PYTHON_SCRIPT}")"
+WORKER_SCRIPT="${HARMONIA_ROOTDIR}/harmonia.array_for_submit.sh"
 
 if [[ ! -f "${WORKER_SCRIPT}" ]]; then
     echo "ERROR: worker script not found: ${WORKER_SCRIPT}" >&2
@@ -111,7 +111,7 @@ if [[ -n "${GWAS_LIST_ARG}" ]]; then
     GWAS_LIST="${GWAS_LIST_ARG}"
 else
     # Default: gwas_list_resubmit_merge.txt next to gwas_list.txt in ROOTDIR
-    GWAS_LIST="${GWAS2COJO_ROOTDIR}/gwas_list_resubmit_merge.txt"
+    GWAS_LIST="${HARMONIA_ROOTDIR}/gwas_list_resubmit_merge.txt"
 fi
 
 if [[ ! -f "${GWAS_LIST}" ]]; then

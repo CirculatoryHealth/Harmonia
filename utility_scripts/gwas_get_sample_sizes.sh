@@ -23,11 +23,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONF="${SCRIPT_DIR}/../gwas2cojo.conf"
+CONF="${SCRIPT_DIR}/../harmonia.conf"
 if [[ ! -f "${CONF}" ]]; then
     echo "ERROR: ${CONF} not found." >&2; exit 1
 fi
-# shellcheck source=../gwas2cojo.conf.example
+# shellcheck source=../harmonia.conf.example
 source "${CONF}"
 
 BASE="${OUT_BASE}"

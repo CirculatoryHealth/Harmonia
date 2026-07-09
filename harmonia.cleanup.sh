@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gwas_process.cleanup.sh — remove intermediate checkpoint files after a
+# harmonia.cleanup.sh — remove intermediate checkpoint files after a
 #                               successful staged pipeline run.
 #
 # What is removed (per study output directory):
@@ -24,50 +24,50 @@
 #   *.qc.tsv.gz               final QC output
 #   *.cojo.gz / *.qc.cojo.gz  final COJO output
 #   *.leads.tsv / *.qc.leads.tsv  lead-variant tables
-#   *.log / *.gwas_process.log logs
+#   *.log / *.harmonia.log logs
 #   PLOTS/                    all plot files
 #
 # Log archiving (default: enabled):
 #   SLURM *.out / *.err files found in LOG_DIR (default: OUT_BASE) that belong to
 #   the study being cleaned are moved into ${OUT_BASE}/<STUDY>/logs/.
 #   The logs/ directory is then compressed to logs.tar.gz and removed.
-#   This keeps the submit directory tidy and preserves logs for gwas_process.check.py.
+#   This keeps the submit directory tidy and preserves logs for harmonia.check.py.
 #   Disable with --no-archive-logs.  Override the source dir with --log-dir PATH.
 #
 # Usage:
-#   bash gwas_process.cleanup.sh --study CAD_Aragam
-#   bash gwas_process.cleanup.sh --all
-#   bash gwas_process.cleanup.sh --all --dry-run
-#   bash gwas_process.cleanup.sh --study CAD_Aragam --keep-normalize-pkl
-#   bash gwas_process.cleanup.sh --study CAD_Aragam --keep-raw-pkl
-#   bash gwas_process.cleanup.sh --study CAD_Aragam --keep-qc-pkl
-#   bash gwas_process.cleanup.sh --config gwas_list.txt
-#   bash gwas_process.cleanup.sh --study CAD_Aragam --no-archive-logs
-#   bash gwas_process.cleanup.sh --all --log-dir /path/to/slurm/logs
+#   bash harmonia.cleanup.sh --study CAD_Aragam
+#   bash harmonia.cleanup.sh --all
+#   bash harmonia.cleanup.sh --all --dry-run
+#   bash harmonia.cleanup.sh --study CAD_Aragam --keep-normalize-pkl
+#   bash harmonia.cleanup.sh --study CAD_Aragam --keep-raw-pkl
+#   bash harmonia.cleanup.sh --study CAD_Aragam --keep-qc-pkl
+#   bash harmonia.cleanup.sh --config gwas_list.txt
+#   bash harmonia.cleanup.sh --study CAD_Aragam --no-archive-logs
+#   bash harmonia.cleanup.sh --all --log-dir /path/to/slurm/logs
 #
-# Override the output base directory (default: OUT_BASE from gwas2cojo.conf):
-#   bash gwas_process.cleanup.sh --config gwas_list_b37.txt --base /path/to/b37
-#   bash gwas_process.cleanup.sh --study PE_EUR_Honigberg2023 --base /path/to/b37
-#   bash gwas_process.cleanup.sh --all --base /path/to/b37
+# Override the output base directory (default: OUT_BASE from harmonia.conf):
+#   bash harmonia.cleanup.sh --config gwas_list_b37.txt --base /path/to/b37
+#   bash harmonia.cleanup.sh --study PE_EUR_Honigberg2023 --base /path/to/b37
+#   bash harmonia.cleanup.sh --all --base /path/to/b37
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Site configuration — loaded from gwas2cojo.conf (next to this script).
-# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
+# Site configuration — loaded from harmonia.conf (next to this script).
+# Copy harmonia.conf.example → harmonia.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+CONF="${SCRIPT_DIR}/harmonia.conf"
 if [[ ! -f "${CONF}" ]]; then
     echo "ERROR: ${CONF} not found." >&2
-    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    echo "       Copy harmonia.conf.example to harmonia.conf and fill in your paths." >&2
     exit 1
 fi
-# shellcheck source=gwas2cojo.conf.example
+# shellcheck source=harmonia.conf.example
 source "${CONF}"
-# OUT_BASE is set from gwas2cojo.conf
+# OUT_BASE is set from harmonia.conf
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Defaults
@@ -245,7 +245,7 @@ cleanup_study() {
             [[ "${DRY_RUN}" -eq 1 ]] && verb="Would archive"
             echo "  [${study_name}] ${verb} ${n_archived} log file(s) → ${logs_dir}/"
             echo "  [${study_name}] Run check.py against archived logs:"
-            echo "    python gwas_process.check.py ${study_name} ${logs_dir}"
+            echo "    python harmonia.check.py ${study_name} ${logs_dir}"
         elif [[ "${DRY_RUN}" -eq 0 ]]; then
             echo "  [${study_name}] No SLURM log files found in ${LOG_DIR} — nothing archived."
         fi

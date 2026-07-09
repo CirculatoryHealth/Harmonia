@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# gwas_process.array_for_submit.sh — SLURM worker script for one GWAS dataset
+# harmonia.array_for_submit.sh — SLURM worker script for one GWAS dataset
 #
 # Do NOT submit this script directly.
-# Use gwas_process.submit.sh, which calls sbatch once per dataset with the
+# Use harmonia.submit.sh, which calls sbatch once per dataset with the
 # correct --mem, --time, --output, and --error set per job.
 #
-# Calls ${PYTHON_SCRIPT} (set in gwas2cojo.conf; point it at harmonia.py).
+# Calls ${PYTHON_SCRIPT} (set in harmonia.conf; point it at harmonia.py).
 #
 # The script expects at least one argument: a semicolon-delimited config line
 # from gwas_list.txt (COL1–COL9 required; COL10–COL11 MEM_LIGHT/TIME_LIGHT are
-# read by gwas_process.submit_staged.sh and ignored here).
+# read by harmonia.submit_staged.sh and ignored here).
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -24,29 +24,29 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Site configuration — loaded from gwas2cojo.conf.
-# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
+# Site configuration — loaded from harmonia.conf.
+# Copy harmonia.conf.example → harmonia.conf and fill in your paths once.
 #
-# When running as a SLURM job the submit script exports GWAS2COJO_CONF with
-# the absolute path to gwas2cojo.conf.  SLURM copies this script to its own
+# When running as a SLURM job the submit script exports HARMONIA_CONF with
+# the absolute path to harmonia.conf.  SLURM copies this script to its own
 # spool directory before execution, so BASH_SOURCE[0] points there rather
 # than to the original script location — making a BASH_SOURCE-relative lookup
-# unreliable.  GWAS2COJO_CONF is therefore the preferred source.
+# unreliable.  HARMONIA_CONF is therefore the preferred source.
 # ─────────────────────────────────────────────────────────────────────────────
-if [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
-    CONF="${GWAS2COJO_CONF}"          # path exported by the submit script
+if [[ -n "${HARMONIA_CONF:-}" && -f "${HARMONIA_CONF}" ]]; then
+    CONF="${HARMONIA_CONF}"          # path exported by the submit script
 else
     # Fallback: look next to this script (works for direct/local invocation)
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+    CONF="${SCRIPT_DIR}/harmonia.conf"
 fi
 if [[ ! -f "${CONF}" ]]; then
-    echo "ERROR: gwas2cojo.conf not found (tried: ${CONF})." >&2
-    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
-    echo "       When submitting via SLURM make sure the submit script exports GWAS2COJO_CONF." >&2
+    echo "ERROR: harmonia.conf not found (tried: ${CONF})." >&2
+    echo "       Copy harmonia.conf.example to harmonia.conf and fill in your paths." >&2
+    echo "       When submitting via SLURM make sure the submit script exports HARMONIA_CONF." >&2
     exit 1
 fi
-# shellcheck source=gwas2cojo.conf.example
+# shellcheck source=harmonia.conf.example
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 
@@ -66,7 +66,7 @@ conda activate "${CONDA_ENV}"
 # Format: INPUT_PATH;GWAS_NAME;POPULATION;BUILD;N;N_CASES;N_CONTROLS;MEM;TIME[;MEM_LIGHT;TIME_LIGHT]
 # COL10–COL11 (MEM_LIGHT/TIME_LIGHT) are consumed by submit_staged.sh; ignored here.
 # ─────────────────────────────────────────────────────────────────────────────
-LINE="${1:?ERROR: no config line provided. Submit via gwas_process.submit.sh or gwas_process.submit_staged.sh}"
+LINE="${1:?ERROR: no config line provided. Submit via harmonia.submit.sh or harmonia.submit_staged.sh}"
 STAGE="${2:-all}"   # pipeline stage; defaults to 'all' (full end-to-end run)
 
 # When running as a SLURM array job, pass the task ID as --chrom so the Python

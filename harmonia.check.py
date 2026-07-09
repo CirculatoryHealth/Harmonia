@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# gwas_process.check.py — Run-status checker for Harmonia pipeline logs
+# harmonia.check.py — Run-status checker for Harmonia pipeline logs
 # ============================================================
 # Parses *.out / *.err files written by the staged gwaslab pipeline and prints
 # a per-stage summary table with key QC metrics, warning counts, and any real
@@ -10,13 +10,13 @@
 # Usage
 # -----
 #   # Check one study in the current directory:
-#   python gwas_process.check.py CAD_Aragam
+#   python harmonia.check.py CAD_Aragam
 #
 #   # Check all studies in a specific log directory:
-#   python gwas_process.check.py --all /path/to/logs
+#   python harmonia.check.py --all /path/to/logs
 #
 #   # Only show studies with errors or missing stages:
-#   python gwas_process.check.py --all --errors-only
+#   python harmonia.check.py --all --errors-only
 #
 # Log file naming convention (set by submit scripts):
 #   {GWAS}_{step}_{stage}_{jobid}.{out|err}            non-array stages
@@ -562,15 +562,15 @@ def check_study(gwas: str, log_dir: str, errors_only: bool = False):
 def main():
     """Main entry point: parse args and check studies."""
     ap = argparse.ArgumentParser(
-        description="Quick run-status checker for gwas_process pipeline log files.",
+        description="Quick run-status checker for harmonia pipeline log files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python gwas_process.check.py CAD_Aragam
-  python gwas_process.check.py CAD_Aragam /path/to/logs
-  python gwas_process.check.py --all
-  python gwas_process.check.py --all /path/to/logs --errors-only
-  python gwas_process.check.py --all | tee gwas_process.check_$(date +%Y%m%d_%H%M%S).log
+  python harmonia.check.py CAD_Aragam
+  python harmonia.check.py CAD_Aragam /path/to/logs
+  python harmonia.check.py --all
+  python harmonia.check.py --all /path/to/logs --errors-only
+  python harmonia.check.py --all | tee harmonia.check_$(date +%Y%m%d_%H%M%S).log
 """,
     )
     ap.add_argument("gwas",    nargs="?",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# gwas_process.submit_staged.sh — submit a chained per-study SLURM pipeline
+# harmonia.submit_staged.sh — submit a chained per-study SLURM pipeline
 #
 # For each active dataset in the config file this script submits SLURM jobs
 # chained with --dependency=afterok so that:
@@ -47,8 +47,8 @@
 # upper bounds; tune down once you have baseline RSS measurements per study.
 #
 # Usage:
-#   bash gwas_process.submit_staged.sh gwas_list.txt
-#   bash gwas_process.submit_staged.sh gwas_list.txt --partition=highmem
+#   bash harmonia.submit_staged.sh gwas_list.txt
+#   bash harmonia.submit_staged.sh gwas_list.txt --partition=highmem
 #
 # Any extra arguments after the config file are forwarded to every sbatch call
 # (e.g. --partition, --account, --reservation).
@@ -58,27 +58,27 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Site configuration — loaded from gwas2cojo.conf (next to this script).
-# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
+# Site configuration — loaded from harmonia.conf (next to this script).
+# Copy harmonia.conf.example → harmonia.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKER_SCRIPT="${SCRIPT_DIR}/gwas_process.array_for_submit.sh"
-CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+WORKER_SCRIPT="${SCRIPT_DIR}/harmonia.array_for_submit.sh"
+CONF="${SCRIPT_DIR}/harmonia.conf"
 if [[ ! -f "${CONF}" ]]; then
     echo "ERROR: ${CONF} not found." >&2
-    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    echo "       Copy harmonia.conf.example to harmonia.conf and fill in your paths." >&2
     exit 1
 fi
-# shellcheck source=gwas2cojo.conf.example
+# shellcheck source=harmonia.conf.example
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 LOG_BASE="${OUT_BASE}"   # submit_staged.sh uses LOG_BASE for SLURM output paths
 # Export the absolute conf path so the SLURM worker (array_for_submit.sh) can
 # find it even after SLURM copies the script to its own spool directory.
-export GWAS2COJO_CONF="${CONF}"
+export HARMONIA_CONF="${CONF}"
 
 # ── Submission log (tee stdout+stderr to a timestamped file) ──────────────────
-SUBMIT_LOG="${LOG_BASE}/gwas_process.submit_staged_$(date +%Y%m%d_%H%M%S).log"
+SUBMIT_LOG="${LOG_BASE}/harmonia.submit_staged_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "${LOG_BASE}"
 exec > >(tee -a "${SUBMIT_LOG}") 2>&1
 echo "Submission log: ${SUBMIT_LOG}"
@@ -91,10 +91,10 @@ WORKER_FLAGS="--liftover --figures --threads 8 --dbsnp --qc --cojo --cojo-pos --
 NODES=1          # nodes per job (all stages are single-node)
 CPUS=8           # CPUs per job — must match --threads N in WORKER_FLAGS above
 MAIL_TYPE="FAIL" # NONE | BEGIN | END | FAIL | ALL
-# EMAIL is loaded from gwas2cojo.conf
+# EMAIL is loaded from harmonia.conf
 
 # ── Fixed (trivial) stage resources — not per-study configurable ──────────────
-# Override via env: TIME_PREPROCESS="08:00:00" bash gwas_process.submit_staged.sh <config>
+# Override via env: TIME_PREPROCESS="08:00:00" bash harmonia.submit_staged.sh <config>
 MEM_PREPROCESS="${MEM_PREPROCESS:-32G}";  TIME_PREPROCESS="${TIME_PREPROCESS:-04:00:00}"  # CSV load + standardise only
 MEM_SPLIT="${MEM_SPLIT:-16G}";            TIME_SPLIT="${TIME_SPLIT:-01:00:00}"             # parquet split only
 
@@ -110,7 +110,7 @@ if [[ "${WORKER_FLAGS}" == *"--dbsnp"* ]]; then USE_DBSNP=1; fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Arguments
 # ─────────────────────────────────────────────────────────────────────────────
-CONFIG="${1:?Usage: bash gwas_process.submit_staged.sh <config.txt> [extra sbatch args]}"
+CONFIG="${1:?Usage: bash harmonia.submit_staged.sh <config.txt> [extra sbatch args]}"
 shift   # remaining args forwarded to every sbatch call
 
 # ── Validate ──────────────────────────────────────────────────────────────────

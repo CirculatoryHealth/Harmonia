@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# gwas_process.array_for_submit_b37.sh — SLURM worker for GRCh37/hg19 output
+# harmonia.array_for_submit_b37.sh — SLURM worker for GRCh37/hg19 output
 #
-# Identical to gwas_process.array_for_submit.sh except:
+# Identical to harmonia.array_for_submit.sh except:
 #   • --liftover is NOT passed (no hg19→hg38 forward liftover)
 #   • --output-build 19 is passed instead (triggers hg38→hg19 reverse liftover
 #     for BUILD=38 inputs; BUILD=19/37 inputs pass through unchanged)
 #
-# Calls ${PYTHON_SCRIPT} (set in gwas2cojo.conf; point it at harmonia.py).
+# Calls ${PYTHON_SCRIPT} (set in harmonia.conf; point it at harmonia.py).
 #
 # Do NOT submit this script directly.
-# Use gwas_process.submit_staged_b37.sh.
+# Use harmonia.submit_staged_b37.sh.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -26,18 +26,18 @@ set -euo pipefail
 # ─────────────────────────────────────────────────────────────────────────────
 # Site configuration
 # ─────────────────────────────────────────────────────────────────────────────
-if [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
-    CONF="${GWAS2COJO_CONF}"
+if [[ -n "${HARMONIA_CONF:-}" && -f "${HARMONIA_CONF}" ]]; then
+    CONF="${HARMONIA_CONF}"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+    CONF="${SCRIPT_DIR}/harmonia.conf"
 fi
 if [[ ! -f "${CONF}" ]]; then
-    echo "ERROR: gwas2cojo.conf not found (tried: ${CONF})." >&2
-    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    echo "ERROR: harmonia.conf not found (tried: ${CONF})." >&2
+    echo "       Copy harmonia.conf.example to harmonia.conf and fill in your paths." >&2
     exit 1
 fi
-# shellcheck source=gwas2cojo.conf.example
+# shellcheck source=harmonia.conf.example
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 
@@ -50,7 +50,7 @@ conda activate "${CONDA_ENV}"
 # ─────────────────────────────────────────────────────────────────────────────
 # Parse the semicolon-delimited config line passed as $1
 # ─────────────────────────────────────────────────────────────────────────────
-LINE="${1:?ERROR: no config line provided. Submit via gwas_process.submit_staged_b37.sh}"
+LINE="${1:?ERROR: no config line provided. Submit via harmonia.submit_staged_b37.sh}"
 STAGE="${2:-all}"
 
 CHROM_ARG=()

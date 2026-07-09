@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-gwas_process.download_refs.py — Download Harmonia/GWASLab reference files.
+harmonia.download_refs.py — Download Harmonia/GWASLab reference files.
 
 Usage
 -----
-    python gwas_process.download_refs.py [--ref-dir DIR] [--build all|hg19|hg38]
+    python harmonia.download_refs.py [--ref-dir DIR] [--build all|hg19|hg38]
                                     [--ancestry EUR|AFR|EAS|AMR|SAS|PAN|all]
                                     [--no-x]
 
-The reference directory defaults to REF_DIR from gwas2cojo.conf (looked up
+The reference directory defaults to REF_DIR from harmonia.conf (looked up
 next to this script).  Pass --ref-dir to override.
 
 --build controls which genome build(s) to download VCFs and build-specific
@@ -146,11 +146,11 @@ _BUILD_FILES = {
 # ── Read configuration ───────────────────────────────────────────────────────────
 def _read_conf_ref_dir() -> str:
     """
-    Read REF_DIR from gwas2cojo.conf located next to this script.
+    Read REF_DIR from harmonia.conf located next to this script.
     Returns the fallback placeholder string if the conf is absent or
     REF_DIR is not set.
     """
-    conf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gwas2cojo.conf")
+    conf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "harmonia.conf")
     if not os.path.isfile(conf_path):
         return _FALLBACK_REF_DIR
     with open(conf_path) as fh:
@@ -197,31 +197,31 @@ def main() -> None:
     # ── Argument parsing ───────────────────────────────────────────────────────────
     parser = argparse.ArgumentParser(
         description=(
-            f"gwas_process.download_refs  v{VERSION}  ({VERSION_DATE})\n"
+            f"harmonia.download_refs  v{VERSION}  ({VERSION_DATE})\n"
             "Download gwaslab reference files for the gwas2cojo pipeline.\n"
-            "Target directory is read from gwas2cojo.conf (REF_DIR) by default."
+            "Target directory is read from harmonia.conf (REF_DIR) by default."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
             "  # EUR VCFs for both builds (default)\n"
-            "  python gwas_process.download_refs.py\n\n"
+            "  python harmonia.download_refs.py\n\n"
             "  # EUR VCFs, hg38 only\n"
-            "  python gwas_process.download_refs.py --build hg38\n\n"
+            "  python harmonia.download_refs.py --build hg38\n\n"
             "  # AFR VCFs for both builds\n"
-            "  python gwas_process.download_refs.py --ancestry AFR\n\n"
+            "  python harmonia.download_refs.py --ancestry AFR\n\n"
             "  # All ancestries, hg19 only\n"
-            "  python gwas_process.download_refs.py --build hg19 --ancestry all\n\n"
+            "  python harmonia.download_refs.py --build hg19 --ancestry all\n\n"
             "  # Everything, custom directory\n"
-            "  python gwas_process.download_refs.py --build all --ancestry all \\\n"
+            "  python harmonia.download_refs.py --build all --ancestry all \\\n"
             "      --ref-dir /path/to/references/gwaslab/\n\n"
             "  # Autosomes only, skip chrX VCFs and chrX rsID tables\n"
-            "  python gwas_process.download_refs.py --no-x\n"
+            "  python harmonia.download_refs.py --no-x\n"
         ),
     )
     parser.add_argument(
         "--ref-dir", default=DEFAULT_REF_DIR,
-        help=f"Reference directory (default: read from gwas2cojo.conf, "
+        help=f"Reference directory (default: read from harmonia.conf, "
              f"currently: {DEFAULT_REF_DIR}).",
     )
     parser.add_argument(
@@ -261,11 +261,11 @@ def main() -> None:
 
     # Print configuration
     if args.ref_dir == _FALLBACK_REF_DIR:
-        print("WARNING: gwas2cojo.conf not found or REF_DIR not set.")
+        print("WARNING: harmonia.conf not found or REF_DIR not set.")
         print(f"         Using fallback: {_FALLBACK_REF_DIR}")
-        print("         Copy gwas2cojo.conf.example → gwas2cojo.conf and set REF_DIR.")
+        print("         Copy harmonia.conf.example → harmonia.conf and set REF_DIR.")
     else:
-        print(f"Reference directory : {args.ref_dir}  (from gwas2cojo.conf)")
+        print(f"Reference directory : {args.ref_dir}  (from harmonia.conf)")
     print(f"Build(s)            : {', '.join(builds)}")
     print(f"Ancestry/population : {', '.join(ancestries)}")
     print(f"Include chrX        : {'yes' if args.include_x else 'no (--no-x)'}")

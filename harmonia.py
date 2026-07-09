@@ -1571,7 +1571,7 @@ def run_infer_ancestry(gwas_obj, population: str, build: str,
     If EAF is all-NaN (e.g. the study had no EAF column and --fill-eaf was not
     used), the step is skipped gracefully.
 
-    ref_dir: path to the gwaslab reference directory (REF_DIR from gwas2cojo.conf).
+    ref_dir: path to the gwaslab reference directory (REF_DIR from harmonia.conf).
              When provided, gl.set_default_directory() is called so gwaslab can
              resolve the HapMap3 EAF file by its key name even if the file was not
              downloaded through gwaslab's own download helper.
@@ -3096,7 +3096,7 @@ def main() -> None:
     ensure_dir(plots_loc)
 
     # ── Logging ────────────────────────────────────────────────────────────────
-    log_path = os.path.join(output_loc, f"{args.gwas}.gwas_process.log")
+    log_path = os.path.join(output_loc, f"{args.gwas}.harmonia.log")
     setup_logging(log_path)
 
     logging.info("=" * 60)

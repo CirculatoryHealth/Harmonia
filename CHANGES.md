@@ -10,33 +10,44 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - `gwas_process.py` → `harmonia.py` (`git mv`; tracked by git history)
 - `VERSION_NAME` updated to `"harmonia"` — `VERSION` bumped to `1.5.0`; `VERSION_DATE` to `2026-07-10`
 
-**Supporting file updates:**
-- `gwas2cojo.conf.example`: `PYTHON_SCRIPT` example path updated to `harmonia.py`; `CONDA_ENV` default changed to `harmonia`; `OUT_BASE` example updated to `.../harmonia`
-- `environment.yml`: conda environment `name:` changed from `gwas2cojo` to `harmonia`
-- `gwas_process.check.py`: header comment and `VERSION_NAME` updated to `harmonia_check`
-- `gwas_process.download_refs.py`: header comment and `VERSION_NAME` updated to `harmonia.download_refs`
-- `gwas_process.array_for_submit.sh` / `gwas_process.array_for_submit_b37.sh`: header comments note `PYTHON_SCRIPT` should point to `harmonia.py`
-- `README.md`: title, conda env name, script invocation examples, and all prose references updated throughout
+**All script and config files renamed (git mv) and content updated:**
+
+| Old name | New name |
+|---|---|
+| `gwas_process.py` | `harmonia.py` |
+| `gwas_process.submit.sh` | `harmonia.submit.sh` |
+| `gwas_process.submit_staged.sh` | `harmonia.submit_staged.sh` |
+| `gwas_process.submit_staged_b37.sh` | `harmonia.submit_staged_b37.sh` |
+| `gwas_process.array_for_submit.sh` | `harmonia.array_for_submit.sh` |
+| `gwas_process.array_for_submit_b37.sh` | `harmonia.array_for_submit_b37.sh` |
+| `gwas_process.cleanup.sh` | `harmonia.cleanup.sh` |
+| `gwas_process.check.py` | `harmonia.check.py` |
+| `gwas_process.download_refs.py` | `harmonia.download_refs.py` |
+| `gwas2cojo.conf.example` | `harmonia.conf.example` |
+
+**Content changes throughout:**
+- All internal `gwas_process.*` / `gwas2cojo.conf` / `GWAS2COJO_CONF` references updated to `harmonia.*` / `harmonia.conf` / `HARMONIA_CONF` in every script, Python file, utility script, and `README.md`
+- `environment.yml`: conda env `name:` → `harmonia`; `.gitignore`: `gwas2cojo.conf` → `harmonia.conf`
+- `harmonia.py`: output log file name `<GWAS>.gwas_process.log` → `<GWAS>.harmonia.log`
+- `harmonia.check.py` / `harmonia.download_refs.py`: `VERSION_NAME` updated
 
 **What does NOT change:**
-- `gwas2cojo.py` — the original lightweight COJO-aligner script; kept as-is (it is a distinct tool with its own version history)
-- `gwas2cojo.conf` — the site configuration file name is unchanged for backward compatibility; update `PYTHON_SCRIPT` and `CONDA_ENV` inside it to point to `harmonia.py` and the `harmonia` conda env
-- `GWAS2COJO_CONF` environment variable — unchanged; still exported by the submit scripts and read by the worker scripts
-- All HPC shell script file names (`gwas_process.*.sh`) — unchanged; they invoke `${PYTHON_SCRIPT}` from the conf, so no code changes are needed
+- `gwas2cojo.py` and `gwas2cojo-verify.py` — the original lightweight COJO-aligner scripts; kept as-is (distinct tools with own version history)
+- **Action required for existing installations:** rename your local `gwas2cojo.conf` to `harmonia.conf` and update `PYTHON_SCRIPT` inside it to point to `harmonia.py`
 
-- **Files**: `gwas_process.py` → `harmonia.py`, `gwas2cojo.conf.example`, `environment.yml`, `gwas_process.check.py`, `gwas_process.download_refs.py`, `gwas_process.array_for_submit.sh`, `gwas_process.array_for_submit_b37.sh`, `README.md`, `CHANGES.md`.
+- **Files**: all files in the table above plus `environment.yml`, `.gitignore`, `README.md`, `utility_scripts/resubmit_merge.sh`, `utility_scripts/make_chrpos_hdf5.sh`, `utility_scripts/make_chrpos_hdf5.py`, `utility_scripts/gwas_get_sample_sizes.sh`, `CHANGES.md`.
 
-## 2026-07-06 🔧 gwas_process.cleanup.sh — add --base flag to override OUT_BASE from conf
+## 2026-07-06 🔧 harmonia.cleanup.sh — add --base flag to override OUT_BASE from conf
 - Added `--base <DIR>` argument that overrides the `OUT_BASE` path set by `gwas2cojo.conf`. Useful when studies are stored in a subdirectory (e.g. `b37/`) that differs from the default output base. The flag is parsed after the conf is sourced, so it takes precedence over the conf value without requiring a separate config file.
-- **Files**: `gwas_process.cleanup.sh`.
+- **Files**: `harmonia.cleanup.sh`.
 
 ## 2026-07-02 🔧 gwas_process.py — early INFO pre-filter at preprocess stage (v1.4.52)
 - Added an INFO pre-filter at the preprocess stage (after column standardisation, before per-chromosome splitting). When an `INFO` column is present and has at least one finite value, variants with `INFO < --info-min` are removed immediately. NaN INFO values (genotyped variants without imputation quality scores) are kept at this step. The `--info-min` threshold (default 0.4) was already applied at the QC stage; the new pre-filter fires unconditionally at preprocess time so low-quality imputed variants are dropped before the expensive SLURM array stages, reducing I/O and compute. Updated `--info-min` help text to document both application points.
 - **Files**: `gwas_process.py` (v1.4.51 → v1.4.52).
 
-## 2026-07-02 🔧 gwas_process.cleanup.sh — compress logs/ → logs.tar.gz after archiving
+## 2026-07-02 🔧 harmonia.cleanup.sh — compress logs/ → logs.tar.gz after archiving
 - After moving SLURM `*.out`/`*.err` files into `<study_dir>/logs/`, the cleanup script now compresses the directory to `logs.tar.gz` and removes the original `logs/` folder. The compression step runs unconditionally on any existing `logs/` directory (including pre-existing ones from a previous partial run), so it also fires when `--no-archive-logs` is passed. `--dry-run` reports the would-be compression without creating the archive.
-- **Files**: `gwas_process.cleanup.sh`.
+- **Files**: `harmonia.cleanup.sh`.
 
 ## 2026-07-02 🐛 gwas_process.py — OR+P SE strategy 4 (v1.4.51)
 - **SE derivation strategy 4 — OR + P only** (`correct_columns()`): added a fourth SE-derivation path for files that contain `odds_ratio` and `p_value` but no `beta`, no `standard_error` (or all-NaN), and no CI columns. `correct_columns()` runs before `check_or_vs_beta()` (line 3251 vs 3253), so at the time SE derivation executes OR has not yet been converted to BETA — strategy 3 (BETA+P) cannot fire. Fix: when strategies 1–3 all fail but `or_col_raw` and `p_col` are both present, derive `beta = ln(OR)` then `SE = |beta| / |Z|` where `Z = Φ⁻¹(P/2)`. If an all-NaN SE column is present it is dropped first. Applies to `Migraine_PAN_Choquet2021` (OR + P; standard_error=NA; no CI).
@@ -107,10 +118,10 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 
 ## 2026-07-01 🆕 B37 output pipeline — gwas_process.py v1.4.47, new worker/submit/list files
 - **New flag `--output-build {19,38}`** in `gwas_process.py`: controls the target coordinate build for all pipeline output. When set to `19` and input data is in GRCh38, performs a reverse liftover (hg38→hg19) using `hg38ToHg19.over.chain.gz` from `--ref`. Runs after the existing forward liftover block so it works whether or not `--liftover` is also passed. `build_num` (used for file stems, VCF/FASTA selection, and checkpoints) is pre-adjusted in `main()` so all stages use the correct build from the start.
-- **`gwas_process.array_for_submit_b37.sh`** (new): SLURM worker script for hg19 output. Removes `--liftover` (no forward hg19→hg38 step) and adds `--output-build 19`. Output directory is `${OUT_BASE}/b37/${GWAS_NAME}`.
-- **`gwas_process.submit_staged_b37.sh`** (new): staged SLURM submit script that chains all 8 stages using the b37 worker. Submission log and all stage outputs land under `${OUT_BASE}/b37/`. Job names are prefixed `b37_` to distinguish them from the hg38 pipeline.
+- **`harmonia.array_for_submit_b37.sh`** (new): SLURM worker script for hg19 output. Removes `--liftover` (no forward hg19→hg38 step) and adds `--output-build 19`. Output directory is `${OUT_BASE}/b37/${GWAS_NAME}`.
+- **`harmonia.submit_staged_b37.sh`** (new): staged SLURM submit script that chains all 8 stages using the b37 worker. Submission log and all stage outputs land under `${OUT_BASE}/b37/`. Job names are prefixed `b37_` to distinguish them from the hg38 pipeline.
 - **`gwas_list_b37.txt`** (new): 13 completed studies (7 BUILD=38, 6 BUILD=19) active; 7 in-progress studies (PD, PrCa×2, OSA×2, CAD-MVP×2) commented out pending completion of current runs or HDF5 setup.
-- **Files**: `gwas_process.py` (v1.4.46 → v1.4.47), `gwas_process.array_for_submit_b37.sh` (new), `gwas_process.submit_staged_b37.sh` (new), `gwas_list_b37.txt` (new).
+- **Files**: `gwas_process.py` (v1.4.46 → v1.4.47), `harmonia.array_for_submit_b37.sh` (new), `harmonia.submit_staged_b37.sh` (new), `gwas_list_b37.txt` (new).
 
 ## 2026-07-01 🔧 gwas_list.txt — OSA and PrCa input paths updated to preprocessed files
 - **Root cause**: `OSA_EUR_Verma2024`, `OSA_PAN_Verma2024`, `PrCa_EUR_Wang2023`, and `PrCa_PAN_Wang2023` completed the pipeline but with near-zero variant output (915, 1,254, 3,590, and 4,183 variants respectively from inputs of 20–40M). For OSA: `standard_error` is `#NA` for all variants in the source file; without SE, all variants fail QC. For PrCa: indels dominate the file, producing ~6% checkref match rate and near-total variant loss. Pre-processing scripts (`fix_osa_verma.sh`, `fix_prca_wang.sh` in `utility_scripts/`) extract only the necessary columns; for OSA, `ci_upper`/`ci_lower` are passed through so `gwas_process.py`'s existing CI→SE path in `correct_columns()` derives SE automatically.
@@ -120,7 +131,7 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 
 ## 2026-07-01 🐛 gwas_list.txt — PD_EUR_Nalls2019 build corrected hg38 → hg19/GRCh37
 - **Root cause**: `PD_EUR_Nalls2019` was listed as `BUILD=38` with the comment "hg38; excludes 23andMe". The file's GWAS-significant hits on chr4 cluster at 90.6–90.8 Mb, matching the SNCA locus in GRCh37 (~90,645,250) rather than GRCh38 (~89,724,099). The incorrect build caused a ~50% checkref match rate (expected >90%) because coordinates were compared against the GRCh38 reference FASTA.
-- **Fix**: corrected `BUILD` field from `38` → `37` and updated the inline comment to "hg19/GRCh37; excludes 23andMe". The `--liftover` flag is already part of `WORKER_FLAGS` in `gwas_process.submit_staged.sh` and applies globally — no per-study EXTRA_FLAGS entry is needed.
+- **Fix**: corrected `BUILD` field from `38` → `37` and updated the inline comment to "hg19/GRCh37; excludes 23andMe". The `--liftover` flag is already part of `WORKER_FLAGS` in `harmonia.submit_staged.sh` and applies globally — no per-study EXTRA_FLAGS entry is needed.
 - **Action required**: delete prior `PD_EUR_Nalls2019` output and rerun from `--stage preprocess`. The pipeline will now liftover hg19→hg38 before checkref, restoring >90% match rate.
 - **Files**: `gwas_list.txt`.
 
@@ -227,11 +238,11 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - Submit with: `sbatch utility_scripts/download_dbsnp_vcfs.sh`
 - Files: `utility_scripts/download_dbsnp_vcfs.sh` (new)
 
-## 2026-06-11 🔧 gwas_process.submit_staged.sh — TIME_PREPROCESS/MEM_PREPROCESS now overridable via env var
+## 2026-06-11 🔧 harmonia.submit_staged.sh — TIME_PREPROCESS/MEM_PREPROCESS now overridable via env var
 - `MEM_PREPROCESS` and `TIME_PREPROCESS` are now set via `${VAR:-default}` so they can be overridden from the environment without editing the script
-- Example: `TIME_PREPROCESS="08:00:00" bash gwas_process.submit_staged.sh gwas_list_resubmit_preprocess_timeout.txt`
+- Example: `TIME_PREPROCESS="08:00:00" bash harmonia.submit_staged.sh gwas_list_resubmit_preprocess_timeout.txt`
 - Needed for large files (AAA_Roychowdhury2023_PAN, IA_Bakker2020_PAN, MDD_PAN_PGC2025) that exceed the default 4-hour preprocess time limit
-- Files: `gwas_process.submit_staged.sh`
+- Files: `harmonia.submit_staged.sh`
 
 ## 2026-06-11 🐛 gwas_process.py — dbsnp_vcf_path: self-healing fallback for broken b157 dbSNP index (v1.4.33)
 - **Root cause**: `dbsnp_vcf_path()` returned `GCF_000001405.40.gz` (dbSNP b157 hg38) for the rsID-assignment step (`process-assign-rsid`). Investigation revealed two compounding problems with that file on the HPC: (1) the download was truncated — only a fraction of chromosome 1 was downloaded (1.8 GB of an expected ~10–15 GB), confirmed by `tabix -l` returning only `NC_000001.11`; (2) the `.tbi` index was sourced from the b156 archive (a bug in gwaslab's `reference.json`), so the block offsets do not match the b157 VCF. Every bcftools query via `_extract_lookup_table_from_vcf_bcf()` returned 0 rows. Consequence: `sweep_mode=True` in `harmonize()` assigned **zero rsIDs** to all studies that lacked pre-existing rsIDs in their SNPID column, capping LDSC variant counts at ~84k (only variants with rsIDs already present in the source file).
@@ -315,7 +326,7 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 ## 2026-04-04 🐛 check.py — array stage chromosome count uses split ground truth (v1.2.7)
 - **Fix**: array stages (`checkref`, `inferstrand`, `assignrsid`, `checkaf`) now use the chromosome count reported by the split stage (`n_split_chr`) as the expected total (`eff_total`) rather than counting SLURM log files. SLURM always arrays over all 26 tasks regardless of how many chromosomes are in the data; tasks for absent chromosomes exit 0 without a "done" marker, previously causing false `⚠ 23/26` warnings for datasets with only autosomes + chrX.
 - **Behaviour**: if split reports N chromosomes and all N array tasks complete, status shows `✓ done` with metric `N chromosomes complete`. A warning is only raised when `n_done < n_split_chr` (genuine missing or failed tasks).
-- **Files**: `gwas_process.check.py` (v1.2.6 → v1.2.7).
+- **Files**: `harmonia.check.py` (v1.2.6 → v1.2.7).
 
 ## 2026-04-03 ✨ gwas_process.py — --add-chrpos flag + make_chrpos_hdf5.py utility (v1.4.24)
 - **New** (`gwas_process.py`): `--add-chrpos` flag assigns CHR and POS from rsID at the preprocess stage for datasets that contain only rsIDs (e.g. MVP CAD files). Must be added per-study via `EXTRA_FLAGS` (COL12) in `gwas_list.txt`; not set globally.
@@ -327,20 +338,20 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 ## 2026-04-03 ⚡ gwas_process.py — vectorise EAF fill + check.py EAF reporting (v1.4.23 / check v1.2.6)
 - **Fix** (`gwas_process.py`): `check_and_fill_eaf()` rewritten to fetch per chromosome via tabix rather than issuing one tabix query per variant. For a 3.5 M-variant file across 22 chromosomes this reduces I/O from ~3.5 M individual tabix calls to ~22, cutting runtime from hours to seconds and eliminating preprocess TIMELIMIT kills.
 - **How**: for each chromosome, one tabix range-fetch covers all positions in that contig; results are loaded into a `(pos, ref, alt) → AF` dict; per-variant AF is resolved by dict lookup (O(1)) with automatic allele-flip when effect/other alleles are swapped.
-- **New** (`gwas_process.check.py`): `_metrics_preprocess()` now parses EAF fill log lines from the preprocess `.out` file and surfaces them in the check summary row:
+- **New** (`harmonia.check.py`): `_metrics_preprocess()` now parses EAF fill log lines from the preprocess `.out` file and surfaces them in the check summary row:
   - `EAF: complete` — EAF column present and fully populated
   - `EAF: not filled` — `--fill-eaf` not set or suppressed
   - `EAF filled N from ref (M still missing)` — partial or full fill from reference VCF
-- **Files**: `gwas_process.py` (v1.4.22 → v1.4.23), `gwas_process.check.py` (v1.2.5 → v1.2.6).
+- **Files**: `gwas_process.py` (v1.4.22 → v1.4.23), `harmonia.check.py` (v1.2.5 → v1.2.6).
 
 ## 2026-03-27 🔁 rename: gwaslab.process.* → gwas_process.*
 - **Rename**: all pipeline scripts renamed from `gwaslab.process.<name>` to `gwas_process.<name>` for consistency and brevity:
   - `gwas_process.py` → `gwas_process.py`
-  - `gwas_process.check.py` → `gwas_process.check.py`
-  - `gwas_process.cleanup.sh` → `gwas_process.cleanup.sh`
-  - `gwas_process.submit.sh` → `gwas_process.submit.sh`
-  - `gwas_process.submit_staged.sh` → `gwas_process.submit_staged.sh`
-  - `gwas_process.array_for_submit.sh` → `gwas_process.array_for_submit.sh`
+  - `harmonia.check.py` → `harmonia.check.py`
+  - `harmonia.cleanup.sh` → `harmonia.cleanup.sh`
+  - `harmonia.submit.sh` → `harmonia.submit.sh`
+  - `harmonia.submit_staged.sh` → `harmonia.submit_staged.sh`
+  - `harmonia.array_for_submit.sh` → `harmonia.array_for_submit.sh`
 - **Updated**: all internal cross-references, `VERSION_NAME`, `prog=`, log file suffix (`.gwaslab_process.log` → `.gwas_process.log`), and submit-log filename prefix updated accordingly.
 - **Files**: all six scripts above + `CHANGES.md`.
 
@@ -348,7 +359,7 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - **Fix**: `_parse_ancestry_check()` now correctly handles `Match: unknown  ⚠ SKIPPED` log lines (emitted when EAF is absent/all-NaN and `infer_ancestry` is skipped). Previously the `UNKNOWN` match value fell through to `status: "unknown"`, showing `ancestry: unknown (status unknown)`. Now mapped to `status: "skipped"` and displayed as `ancestry: not inferred — EAF unavailable (provided=POP)`.
 - **New**: `_metrics_outputs(text)` extracts COJO and LDSC output variant counts from the merge stage log (`[SAVE] COJO → ...` and `[SAVE] LDSC → ...` patterns).
 - **New**: A `└ outputs` sub-row is printed directly after the merge row when either COJO or LDSC (or both) outputs were written, showing variant counts (e.g. `COJO 6,912,451  |  LDSC 1,103,847`). COJO count removed from the merge row itself.
-- **Files**: `gwas_process.check.py` (v1.2.3 → v1.2.4).
+- **Files**: `harmonia.check.py` (v1.2.3 → v1.2.4).
 
 ## 2026-03-25 ✨ LDSC-ready output via --ldsc flag (v1.4.21)
 - **New**: `write_ldsc()` function produces an LDSC-ready munged summary statistics file from the QC-filtered data. Applies the standard LDSC pre-filtering pipeline on an isolated deep copy (original QC object unchanged):
@@ -361,15 +372,15 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - **New**: `--ldsc` argparse flag (analogous to `--cojo`); enabled by default in both submission scripts.
 - **Output**: `{stem}.qc.ldsc.tsv.gz` alongside the existing `.qc.tsv.gz` and `.cojo.gz`.
 - **Robustness**: each filter step wrapped in try/except — a missing reference file or failed step skips that step and logs a warning without aborting the pipeline.
-- **Files**: `gwas_process.py` (v1.4.20 → v1.4.21), `gwas_process.array_for_submit.sh`, `gwas_process.submit_staged.sh`.
+- **Files**: `gwas_process.py` (v1.4.20 → v1.4.21), `harmonia.array_for_submit.sh`, `harmonia.submit_staged.sh`.
 
 ## 2026-03-25 ✨ ancestry inference check at QC stage (v1.4.20 / check v1.2.3)
 - **New** (`gwas_process.py`): `run_infer_ancestry()` calls `gwas_obj.infer_ancestry()` on the QC-filtered data, comparing the declared `--population` against the Fst-inferred super-population from the HapMap3 pan-ancestry EAF reference (`1kg_hm3_hg19/hg38_eaf`). Run at the end of the QC block in both the `merge` stage and the `--stage all` path.
 - **New** (`gwas_process.py`): `--no-infer-ancestry` flag skips the ancestry check (enabled by default). Logged under Toggles as `infer_ancestry=True/False`.
 - **Logging**: emits a canonical `[ANCESTRY CHECK] Provided: X | Inferred: Y | Match: True/FALSE` line (WARNING level on mismatch) parseable by the check script.
 - **Output**: result saved to `{stem}.ancestry_check.json` in the output directory for archival.
-- **New** (`gwas_process.check.py` v1.2.3): `_parse_ancestry_check()` parses the `[ANCESTRY CHECK]` log line from the merge or qc stage output. Result displayed in the study header line. Mismatches shown as `⚠ MISMATCH` in the header and `⚠ ANCESTRY MISMATCH — re-check population label` in the overall summary. `--errors-only` also surfaces ancestry mismatches.
-- **Files**: `gwas_process.py` (v1.4.19 → v1.4.20), `gwas_process.check.py` (v1.2.2 → v1.2.3).
+- **New** (`harmonia.check.py` v1.2.3): `_parse_ancestry_check()` parses the `[ANCESTRY CHECK]` log line from the merge or qc stage output. Result displayed in the study header line. Mismatches shown as `⚠ MISMATCH` in the header and `⚠ ANCESTRY MISMATCH — re-check population label` in the overall summary. `--errors-only` also surfaces ancestry mismatches.
+- **Files**: `gwas_process.py` (v1.4.19 → v1.4.20), `harmonia.check.py` (v1.2.2 → v1.2.3).
 
 ## 2026-03-25 ✨ gwaslab.process.py — comprehensive STATUS filter + --filter-palindromic (v1.4.19)
 - **New**: `_apply_status_filter()` helper replaces the previous single digit_7 check with a comprehensive STATUS-based filter covering all problematic flag classes:
@@ -404,7 +415,7 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 ## 2026-03-24 🐛 cleanup.sh — fix --config rejecting process substitution
 - **Bug**: `[[ ! -f "${CONFIG_FILE}" ]]` uses `-f` which only matches regular files; process substitution (`<(...)`) passes a named pipe (`/dev/fd/N`) which fails the test, producing `ERROR: config file not found: /dev/fd/63`.
 - **Fix**: changed to `[[ ! -e "${CONFIG_FILE}" ]]` (`-e` matches any file type including pipes), so `--config <(grep ...)` now works as expected.
-- **File**: `gwas_process.cleanup.sh`
+- **File**: `harmonia.cleanup.sh`
 
 ## 2026-03-23 🐛 gwaslab.process.py — alias table corrections and gwas_list.txt fixes (v1.4.16)
 - **Fix**: added `"freq_a"` to EAF aliases in `SUMSTATS_ALIASES` — covers TAG consortium files (`tag.*.tbl.withN.txt.gz`) which use `FRQ_A` for effect-allele frequency. Previously EAF was always NaN for these studies and had to be filled from the reference VCF.
@@ -456,35 +467,35 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — normalize "after dedup" count not shown for default mode (v1.2.2)
 - **Bug**: the normalize metric showed `liftover → 38` only (no variant count) for studies run with the default `mode="md"`. Root cause: `gwas_process.py` v1.4.9 changed the log message from `"After duplicate removal"` to `"After multi-allelic and duplicate variant removal"`, but the regex in `_metrics_normalize` still matched only the old wording. Studies run with `--keep-multiallelic` (`mode="d"`) still wrote the old message, so they showed the count while default-mode studies did not.
-- 🐛**Fixed** `gwas_process.check.py` — `_metrics_normalize()` regex broadened to `After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:` to match both message variants.
-- **Files**: `gwas_process.check.py` (v1.2.1 → v1.2.2).
+- 🐛**Fixed** `harmonia.check.py` — `_metrics_normalize()` regex broadened to `After (?:multi-allelic and )?duplicate(?:\s+variant)? removal:` to match both message variants.
+- **Files**: `harmonia.check.py` (v1.2.1 → v1.2.2).
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — "after dedup" variant count missing thousands separator (v1.2.1)
 - **Bug**: the normalize metric displayed the post-dedup variant count without comma separators (e.g. `20073068 after dedup`) because `_first()` returns the raw matched string and the log line itself omits commas.
-- 🐛**Fixed** `gwas_process.check.py` — `_metrics_normalize()` now converts the matched string to `int` and reformats it with `{:,}` before appending to the metric string, yielding `20,073,068 after dedup`.
-- **Files**: `gwas_process.check.py` (v1.2.0 → v1.2.1).
+- 🐛**Fixed** `harmonia.check.py` — `_metrics_normalize()` now converts the matched string to `int` and reformats it with `{:,}` before appending to the metric string, yielding `20,073,068 after dedup`.
+- **Files**: `harmonia.check.py` (v1.2.0 → v1.2.1).
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — false ⚠ 22/26 chr when submit script arrays over 26 but split only produced 22 (v1.2.0)
 - **Bug**: array stages (checkref, inferstrand, assignrsid, checkaf) reported `⚠ 22/26 chr` and set `any_error = True` for autosome-only datasets. The submit script always arrays over all 26 chromosomes; for non-autosomal chromosomes the job finds no input data and finishes without writing a `[SAVE]` marker, so `_is_done()` returned `False` for those 4 jobs. The code then saw `n_done=22, n_total=26` and flagged a warning even though every autosomal chromosome completed successfully.
-- 🐛**Fixed** `gwas_process.check.py`:
+- 🐛**Fixed** `harmonia.check.py`:
   - After processing the `split` stage, the chromosome count is now stored in `n_split_chr`.
   - A new `split_autosome_only` flag is set when `n_split_chr == 22`; it is OR-ed with the existing `n_non_auto == 0` check into a combined `autosome_only` flag.
   - Array stages now track `n_auto_done` (autosomal chromosomes that completed) separately from `n_done` (all chromosomes). When `autosome_only`, the effective counts `eff_done / eff_total` are `n_auto_done / 22`, so non-autosomal "not done" files are ignored.
   - `checkref` aggregation is restricted to autosomal chromosome texts when `split_autosome_only` and non-autosomal log files exist, preventing empty files from skewing match-rate stats.
-- **Files**: `gwas_process.check.py` (v1.1.0 → v1.2.0).
+- **Files**: `harmonia.check.py` (v1.1.0 → v1.2.0).
 
 ## 2026-03-19 ✨ gwaslab.process.check.py — wider metric column, full "unmatched" display, and autosome-only detection (v1.1.0)
 - **Fix**: metric column widened from 46 to 58 characters (table width 100 → 112) so the full `unmatched N,NNN,NNN` value is no longer truncated to `unmat…` in the checkref row.
 - **Feature**: array stages (checkref, inferstrand, assignrsid, checkaf) now distinguish between truly incomplete runs and datasets that contain only the 22 autosomes. When all 22 autosomal chromosomes completed and no non-autosomal files exist, the status is `✓ done` instead of the misleading `⚠ 22/26 chr`, and `any_error` is no longer set — making real failures much easier to spot.
 - **Feature**: inferstrand / assignrsid / checkaf metric in autosome-only mode shows `22 autosomes complete` instead of `22/22 complete`.
 - **Feature**: split metric now appends `, no non-autosomal` when exactly 22 chromosomes are present.
-- **Files**: `gwas_process.check.py` (v1.0.0 → v1.1.0).
+- **Files**: `harmonia.check.py` (v1.0.0 → v1.1.0).
 
 ## 2026-03-19 ✨ Per-study extra flags via COL12 in gwas_list.txt
 - **Feature**: `gwas_list.txt` now supports an optional 12th semicolon-delimited field (`EXTRA_FLAGS`) for per-study flags passed verbatim to `gwas_process.py`. Use `.` as a no-op placeholder. Multiple flags are space-separated within the field.
 - **Example**: append `;--keep-multiallelic` to a study line to retain multi-allelic variants for that study only, while all other studies use the default `mode="md"` removal.
 - **Example**: `;--keep-multiallelic --no-figures` to combine multiple flags.
-- **Files**: `gwas_process.array_for_submit.sh` (reads COL12, appends to CMD array); `gwas_process.submit_staged.sh` (parses COL12 and documents it; the field passes through to the worker via `LINE`).
+- **Files**: `harmonia.array_for_submit.sh` (reads COL12, appends to CMD array); `harmonia.submit_staged.sh` (parses COL12 and documents it; the field passes through to the worker via `LINE`).
 - **Logging**: the worker script echoes `Extra flags : <value>` in the job header for traceability.
 
 ## 2026-03-19 ✨ Extended column alias coverage for three new GWAS header formats (gwaslab.process.py v1.4.10)
@@ -509,17 +520,17 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 
 ## 2026-03-19 🐛 gwaslab.process.cleanup.sh — per-chromosome intermediate parquets not removed (cleanup.sh)
 - **Bug**: per-chromosome intermediate parquets (`*.chr*.normalize.parquet`, `*.chr*.checkref.parquet`, `*.chr*.inferstrand.parquet`, `*.chr*.assignrsid.parquet`, `*.chr*.checkaf.parquet`) were not included in the cleanup patterns. These files are the stage-to-stage handoffs written by `save_chrom_parquet()` for each of the 26 chromosome array tasks, and collectively represent the largest share of intermediate disk usage (e.g. 26 × 5 stages × ~28 MB = ~3.6 GB per study for a large GWAS).
-- 🐛**Fixed** `gwas_process.cleanup.sh` — added all five `*.chr*.{stage}.parquet` glob patterns to the `patterns` array in `cleanup_study()`. Updated the header comment to document them.
+- 🐛**Fixed** `harmonia.cleanup.sh` — added all five `*.chr*.{stage}.parquet` glob patterns to the `patterns` array in `cleanup_study()`. Updated the header comment to document them.
 
 ## 2026-03-19 ✨ gwaslab.process.cleanup.sh — archive SLURM log files into study/logs/ (cleanup.sh)
-- **Feature**: after removing intermediate checkpoints, the cleanup script now moves all SLURM `*.out` / `*.err` files belonging to the study from `LOG_DIR` (default: `OUT_BASE`) into `${OUT_BASE}/<STUDY>/logs/`. This keeps the submit directory tidy and preserves logs in a study-specific location for future use with `gwas_process.check.py`.
+- **Feature**: after removing intermediate checkpoints, the cleanup script now moves all SLURM `*.out` / `*.err` files belonging to the study from `LOG_DIR` (default: `OUT_BASE`) into `${OUT_BASE}/<STUDY>/logs/`. This keeps the submit directory tidy and preserves logs in a study-specific location for future use with `harmonia.check.py`.
 - New flags: `--no-archive-logs` (skip archiving), `--log-dir PATH` (override source directory when SLURM logs land elsewhere).
-- After archiving, the script prints the exact `gwas_process.check.py` command to inspect the archived logs.
+- After archiving, the script prints the exact `harmonia.check.py` command to inspect the archived logs.
 - Log archiving is enabled by default; `--dry-run` mode previews what would be moved without touching files.
 
 ## 2026-03-19 🐛 gwaslab.process.cleanup.sh — wrong output directory path and fragile glob (cleanup.sh)
-- **Bug**: `gwas_process.cleanup.sh` was silently doing nothing in all three modes (`--study`, `--all`, `--config`). Root cause: all three study-directory paths were constructed as `${OUT_BASE}/${STUDY_NAME}/GWASCatalog`, but `/GWASCatalog` is only appended by `gwas_process.py` when `--output` is *not* passed on the command line. The pipeline always passes `--output "${OUT_BASE}/${GWAS_NAME}"` explicitly (via `array_for_submit.sh`), so `output_loc = args.output` — no `/GWASCatalog` suffix. Every directory existence check therefore failed and cleanup was skipped without any error.
-- 🐛**Fixed** `gwas_process.cleanup.sh`:
+- **Bug**: `harmonia.cleanup.sh` was silently doing nothing in all three modes (`--study`, `--all`, `--config`). Root cause: all three study-directory paths were constructed as `${OUT_BASE}/${STUDY_NAME}/GWASCatalog`, but `/GWASCatalog` is only appended by `gwas_process.py` when `--output` is *not* passed on the command line. The pipeline always passes `--output "${OUT_BASE}/${GWAS_NAME}"` explicitly (via `array_for_submit.sh`), so `output_loc = args.output` — no `/GWASCatalog` suffix. Every directory existence check therefore failed and cleanup was skipped without any error.
+- 🐛**Fixed** `harmonia.cleanup.sh`:
   - `--study` mode: `${OUT_BASE}/${STUDY_NAME}/GWASCatalog` → `${OUT_BASE}/${STUDY_NAME}`
   - `--all` mode: glob `"${OUT_BASE}"/*/GWASCatalog` → `"${OUT_BASE}"/*/`; `basename "$(dirname ...)"` → `basename "${study_dir}"`
   - `--config` mode: `${OUT_BASE}/${GWAS_NAME}/GWASCatalog` → `${OUT_BASE}/${GWAS_NAME}`
@@ -527,14 +538,14 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 
 ## 2026-03-19 🐛 gwaslab.process.check.py — AttributeError on optional regex group (check.py v1.0.1)
 - **Bug**: `AttributeError: 'NoneType' object has no attribute 'strip'` in `_first()` when called with a regex containing an optional capturing group (`(...)?`). The outer `re.search()` matched (so `m` was not `None`), but `m.group(1)` was `None` because the optional group did not participate in the match. The `m.group(group).strip() if m else default` guard only checked for a missing match, not for a `None` group value.
-- 🐛**Fixed** `gwas_process.check.py` — `_first()` now checks `val = m.group(group)` separately and returns `default` if `val is None`. The broken `\[SAVE\] QC Parquet` regex with an optional group was also removed (it was dead code — the result was never used; `qc_n` via the `After QC` pattern was the operative extraction). Bumped to v1.0.1.
+- 🐛**Fixed** `harmonia.check.py` — `_first()` now checks `val = m.group(group)` separately and returns `default` if `val is None`. The broken `\[SAVE\] QC Parquet` regex with an optional group was also removed (it was dead code — the result was never used; `qc_n` via the `After QC` pattern was the operative extraction). Bumped to v1.0.1.
 
 ## 2026-03-18 🧰 Added gwaslab.process.check.py — pipeline run-status checker (check.py v1.0.0 / gwaslab.process.py v1.4.8)
-- **New tool** `gwas_process.check.py` (v1.0.0): standalone Python script that parses `*.out` / `*.err` log files produced by the staged gwaslab pipeline and prints a per-stage summary table with key QC metrics, warning/error counts, and overall pass/fail status.
+- **New tool** `harmonia.check.py` (v1.0.0): standalone Python script that parses `*.out` / `*.err` log files produced by the staged gwaslab pipeline and prints a per-stage summary table with key QC metrics, warning/error counts, and overall pass/fail status.
 - Supports checking a single study (`python gwaslab.process.check.py GWAS_ID [log_dir]`), all studies in a directory (`--all`), or only studies with problems (`--errors-only`).
 - Parses: variant counts from preprocess/normalize, liftover status, chr-split count, checkref match rate + flipped/unmatched variant totals aggregated across chromosomes, and merge combined/QC-pass/COJO variant counts.
 - Distinguishes real errors (Traceback, `*Error:`, `Illegal instruction`, `[ERROR]`) from known-benign upstream warnings (gwaslab FutureWarning/UserWarning/SettingWithCopyWarning, matplotlib, htslib `[W::]`).
-- 📝**Updated**: `README.md` — added `gwas_process.check.py` to the HPC files table and added a dedicated `🩺 Check run status` section with usage examples and sample output.
+- 📝**Updated**: `README.md` — added `harmonia.check.py` to the HPC files table and added a dedicated `🩺 Check run status` section with usage examples and sample output.
 - 🛠️**Updated**: Bumped `gwas_process.py` to v1.4.8 (`2026-03-18`) to mark this as a versioned release.
 
 ## 2026-03-18 🔇 Suppress FutureWarning in run_merge pd.concat (v1.4.7)
@@ -577,14 +588,14 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 ## 2026-03-18 🐛 gwas2cojo.conf not found when running as SLURM job
 - 🛠️**Updated**: Bumped version to `1.4.4` (`2026-03-18`).
 - **Bug**: After the `gwas2cojo.conf` introduction, SLURM jobs immediately failed with `ERROR: /var/spool/slurmd/job<ID>/gwas2cojo.conf not found`. SLURM copies the worker script (`array_for_submit.sh`) to its own temporary spool directory before executing it on the compute node, so `BASH_SOURCE[0]` inside the job resolves to the spool path rather than the original script location. The conf-file lookup `"${SCRIPT_DIR}/gwas2cojo.conf"` therefore searched in `/var/spool/slurmd/job<ID>/` where no conf file exists.
-- 🐛**Fixed** `gwas_process.array_for_submit.sh` — the conf-loading stanza now checks the environment variable `GWAS2COJO_CONF` first (exported by the submit scripts, which run on the login node and always have the correct absolute path). The `BASH_SOURCE`-relative lookup is retained as a fallback for direct local invocation only. An improved error message names all three possible causes when the conf is still not found.
-- 🛠️**Updated** `gwas_process.submit_staged.sh`, `gwas_process.submit.sh` — both scripts now `export GWAS2COJO_CONF="${CONF}"` immediately after sourcing the conf. SLURM propagates all exported environment variables to job environments by default (`--export=ALL`), so the absolute path is reliably available inside every job regardless of which spool directory SLURM uses.
+- 🐛**Fixed** `harmonia.array_for_submit.sh` — the conf-loading stanza now checks the environment variable `GWAS2COJO_CONF` first (exported by the submit scripts, which run on the login node and always have the correct absolute path). The `BASH_SOURCE`-relative lookup is retained as a fallback for direct local invocation only. An improved error message names all three possible causes when the conf is still not found.
+- 🛠️**Updated** `harmonia.submit_staged.sh`, `harmonia.submit.sh` — both scripts now `export GWAS2COJO_CONF="${CONF}"` immediately after sourcing the conf. SLURM propagates all exported environment variables to job environments by default (`--export=ALL`), so the absolute path is reliably available inside every job regardless of which spool directory SLURM uses.
 
 ## 2026-03-18 🔒 Removed hardcoded site-specific paths; added gwas2cojo.conf
 - 🛠️**Updated**: Bumped version to `1.4.3` (`2026-03-18`).
 - 🔒**Removed** all hardcoded HPC-specific paths and institutional email addresses (`@umcutrecht.nl`) from every tracked file in the repository so the codebase is clean for public use.
 - 🆕**Added** `gwas2cojo.conf.example` — a single site-configuration template containing five variables (`PYTHON_SCRIPT`, `REF_DIR`, `OUT_BASE`, `CONDA_ENV`, `EMAIL`). Users copy it to `gwas2cojo.conf` (gitignored) and fill in their local values once.
-- 🛠️**Updated** `gwas_process.array_for_submit.sh`, `gwas_process.submit.sh`, `gwas_process.submit_staged.sh`, `gwas_process.cleanup.sh` — replaced per-script `USER CONFIGURATION` blocks with a uniform conf-loading stanza (`source "${SCRIPT_DIR}/gwas2cojo.conf"`). All four scripts now emit a clear error with instructions if `gwas2cojo.conf` is missing.
+- 🛠️**Updated** `harmonia.array_for_submit.sh`, `harmonia.submit.sh`, `harmonia.submit_staged.sh`, `harmonia.cleanup.sh` — replaced per-script `USER CONFIGURATION` blocks with a uniform conf-loading stanza (`source "${SCRIPT_DIR}/gwas2cojo.conf"`). All four scripts now emit a clear error with instructions if `gwas2cojo.conf` is missing.
 - 🛠️**Updated** `.gitignore` — added `gwas2cojo.conf` and `gwas_list.txt` so local site settings and study lists are never accidentally committed.
 - 🛠️**Updated** `gwaslab.download_refs.py` — replaced hardcoded `DEFAULT_REF_DIR` path and docstring with placeholder values.
 - 🆕**Added** `gwas_list.example.txt` — a minimal three-study example config (`CAD_Aragam`, `CHARGE_CAC_EA`, `AF`) with placeholder `/path/to/gwas_datasets/` prefixes, HEADER comments, and resource annotations. Serves as the committed template; users copy to `gwas_list.txt` (gitignored) and update paths.
@@ -597,13 +608,13 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - 🐛**Fixed** `gwas_process.py` — `load_chrom_parquet()` now converts all `pd.CategoricalDtype` columns to plain `object` dtype immediately after reading the parquet (`df.select_dtypes(include="category")`), before the DataFrame is passed to `make_sumstats_from_chrom_df()`. This only affects EA/NEA/SNPID-style string columns; numeric columns (STATUS `Int64`, CHR, POS, BETA, SE, P, N, etc.) are not Categorical and are completely unaffected. gwaslab operates identically on `object` dtype allele strings for all harmonise/check operations; Categorical is purely a memory optimisation that is not required for correctness.
 - **Bug 2**: The `merge` stage failed for CHARGE_CAC_EA_AA with `ZeroDivisionError: division by zero` inside gwaslab's `plot_daf()` (`num / len(sumstats)` where `len(sumstats) == 0`). The study had too few variants with a valid DAF value after processing (EAF largely absent or all-NaN), leaving an empty subset after DAF filtering inside gwaslab's plot routine.
 - 🐛**Fixed** `gwas_process.py` — wrapped `gwas_obj.plot_daf()` in both `plot_full_dataset()` and `plot_qc_dataset()` with `try/except ZeroDivisionError`. When triggered, a `logging.warning` is emitted and the DAF plot is skipped; the rest of the merge stage (Manhattan, QQ, QC, leads, COJO) continues normally.
-- 🛠️**Updated** `gwas_process.submit.sh` — added `NODES`, `CPUS`, `EMAIL`, and `MAIL_TYPE` variables and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to the `sbatch` call. Previously these were absent, relying on the now-removed `#SBATCH` directives in `array_for_submit.sh`.
-- 🛠️**Updated** `gwas_process.array_for_submit.sh` — removed `#SBATCH --mail-type=END,FAIL` and `#SBATCH --mail-user` directives from the worker script header. SLURM merges `#SBATCH` directives from the script with command-line flags rather than letting the command line override them, so the hardcoded `END` in the script was causing end-of-job emails despite both submit scripts setting `--mail-type=FAIL`. Mail settings are now solely controlled by the calling submit script. Updated the comment to correctly name both `submit.sh` and `submit_staged.sh` as the controlling scripts.
+- 🛠️**Updated** `harmonia.submit.sh` — added `NODES`, `CPUS`, `EMAIL`, and `MAIL_TYPE` variables and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to the `sbatch` call. Previously these were absent, relying on the now-removed `#SBATCH` directives in `array_for_submit.sh`.
+- 🛠️**Updated** `harmonia.array_for_submit.sh` — removed `#SBATCH --mail-type=END,FAIL` and `#SBATCH --mail-user` directives from the worker script header. SLURM merges `#SBATCH` directives from the script with command-line flags rather than letting the command line override them, so the hardcoded `END` in the script was causing end-of-job emails despite both submit scripts setting `--mail-type=FAIL`. Mail settings are now solely controlled by the calling submit script. Updated the comment to correctly name both `submit.sh` and `submit_staged.sh` as the controlling scripts.
 
 ## 2026-03-18 🐛 Missing --nodes, --cpus-per-task, and --mail-* in gwaslab.process.submit_staged.sh
 - 🛠️**Updated**: Bumped version to `1.4.1` (`2026-03-18`).
-- **Bug**: The v1.4.0 per-chromosome refactor of `gwas_process.submit_staged.sh` dropped three SLURM job settings that were present in the earlier script: `--nodes`, `--cpus-per-task`, and `--mail-type`/`--mail-user`. As a result all submitted jobs would inherit SLURM defaults (typically 1 CPU, which starves the multi-threaded Python worker that requests `--threads 8` via `WORKER_FLAGS`), and no failure-notification emails would be sent.
-- 🐛**Fixed** `gwas_process.submit_staged.sh` — added four variables to the USER CONFIGURATION block (`NODES=1`, `CPUS=8`, `EMAIL`, `MAIL_TYPE="FAIL"`) and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to all eight `sbatch` calls (preprocess, normalize, split, check-ref, infer-strand, assign-rsid, check-af, merge). `CPUS` is intentionally kept in sync with the `--threads N` value in `WORKER_FLAGS`.
+- **Bug**: The v1.4.0 per-chromosome refactor of `harmonia.submit_staged.sh` dropped three SLURM job settings that were present in the earlier script: `--nodes`, `--cpus-per-task`, and `--mail-type`/`--mail-user`. As a result all submitted jobs would inherit SLURM defaults (typically 1 CPU, which starves the multi-threaded Python worker that requests `--threads 8` via `WORKER_FLAGS`), and no failure-notification emails would be sent.
+- 🐛**Fixed** `harmonia.submit_staged.sh` — added four variables to the USER CONFIGURATION block (`NODES=1`, `CPUS=8`, `EMAIL`, `MAIL_TYPE="FAIL"`) and passed `--nodes`, `--cpus-per-task`, `--mail-type`, `--mail-user` to all eight `sbatch` calls (preprocess, normalize, split, check-ref, infer-strand, assign-rsid, check-af, merge). `CPUS` is intentionally kept in sync with the `--threads N` value in `WORKER_FLAGS`.
 
 ## 2026-03-18 🐛 Wrong build passed to reference-checking stages after liftover
 - **Bug**: In all staged pipeline paths (`process-check-ref`, `process-infer-strand`, `process-assign-rsid`, `process-check-af`, `qc`, and the new `merge`), `normalise_build(REFERENCE)` was used instead of `build_num` when selecting the reference FASTA, dbSNP VCF, and Sumstats build, and when setting the chromosome map for Manhattan/QQ plots. `REFERENCE` is set from `args.build` (the original input build, e.g. `"19"`) and is never updated between staged invocations. `build_num` is correctly set to `"38"` at startup for any hg19/hg18+liftover study.
@@ -626,8 +637,8 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - 🆕**Added** `merge` stage to `gwas_process.py` — concatenates all `{stem}.chr{N}.checkaf.parquet` shards into a single genome-wide DataFrame, recreates a gwaslab `Sumstats` object (with STATUS restored), then runs QC filtering, plots (Manhattan, QQ, DAF), lead-variant extraction, and COJO output. Replaces the separate `qc` + `cojo` stages in the per-chromosome pipeline path.
 - 🆕**Added** `--chrom N` argument (int 1–26) to `gwas_process.py`. When set, `process-check-ref`, `process-infer-strand`, `process-assign-rsid`, and `process-check-af` each operate on a single chromosome shard (`{stem}.chr{N}.{prev}.parquet` → `{stem}.chr{N}.{next}.parquet`). If the shard does not exist the stage exits gracefully with exit code 0, satisfying SLURM `afterok` dependencies for the next array stage.
 - 🆕**Added** helper functions: `load_chrom_parquet()`, `save_chrom_parquet()`, `make_sumstats_from_chrom_df()`, `split_by_chrom()`, `load_chrsplit_manifest()`, `run_merge()`.
-- 🛠️**Updated** `gwas_process.submit_staged.sh` — the four heavy process stages are now submitted as SLURM array jobs (`--array=1-26`); a `process-split` job is inserted between `process-normalize` and the array stages; a `merge` job replaces the `qc` + `cojo` tail. Fixed resources: `process-split` 16 G / 30 min. `afterok` on an array job ID waits for all 26 tasks; absent-chromosome tasks (exit 0) satisfy the dependency automatically. Job count per study: ~107 (vs. 8 before), well within the site limit of 120,000. Updated monitor/cancel hints.
-- 🛠️**Updated** `gwas_process.array_for_submit.sh` — appends `--chrom ${SLURM_ARRAY_TASK_ID}` to the Python command when running as an array task; logs the chromosome in the job header.
+- 🛠️**Updated** `harmonia.submit_staged.sh` — the four heavy process stages are now submitted as SLURM array jobs (`--array=1-26`); a `process-split` job is inserted between `process-normalize` and the array stages; a `merge` job replaces the `qc` + `cojo` tail. Fixed resources: `process-split` 16 G / 30 min. `afterok` on an array job ID waits for all 26 tasks; absent-chromosome tasks (exit 0) satisfy the dependency automatically. Job count per study: ~107 (vs. 8 before), well within the site limit of 120,000. Updated monitor/cancel hints.
+- 🛠️**Updated** `harmonia.array_for_submit.sh` — appends `--chrom ${SLURM_ARRAY_TASK_ID}` to the Python command when running as an array task; logs the chromosome in the job header.
 
 ## 2026-03-16 🆕 Reference file download utility
 - 🆕**Added**: `gwaslab.download_refs.py` — utility script and complete inventory of all gwaslab reference files, using gwaslab's built-in `gl.download_ref()` function. Active entries (AFR, EAS, AMR, SAS for both hg19 and hg38) are downloaded; all other files already present at the reference directory are listed as comments and can be uncommented to (re-)download. Covered categories: 1KG population VCFs (all six populations, hg19 + hg38), HapMap3 EAF tables, 1KG SNPID→rsID conversion tables, dbSNP v151/v157 VCFs (very large, NCBI FTP), UCSC reference FASTA, recombination maps, and Ensembl/RefSeq GTF files. The `.tbi` index is fetched automatically alongside each VCF. Target directory defaults to `/path/to/references/gwaslab/`; override with `--ref-dir`. Prints a summary via `gl.check_downloaded_ref()` on completion.
@@ -639,7 +650,7 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 
 ## 2026-03-16 🛠️ Two-tier resource model for gwaslab.process.submit_staged.sh
 - 🛠️**Updated**: `gwas_list.txt` — added two new columns: `MEM_LIGHT` (COL10) and `TIME_LIGHT` (COL11) for the moderate pipeline stages (`process-normalize`, `process-check-ref`, `qc`). The existing `MEM` (COL8) and `TIME` (COL9) columns are unchanged and continue to control the heavy VCF-sweep stages (`process-infer-strand`, `process-assign-rsid`, `process-check-af`). Note added to header: `MEM_LIGHT` should be set higher for studies with many columns or complex allele structure (e.g. the AF multi-ancestry meta-analysis required 128G at `process-check-ref` despite having fewer variants than EUR studies that passed at 64G).
-- 🛠️**Updated**: `gwas_process.submit_staged.sh` — replaced per-stage fixed defaults with two script-level fallback defaults (`MEM_LIGHT_DEFAULT=64G`, `MEM_HEAVY_DEFAULT=128G`). Per-study `MEM_LIGHT`/`TIME_LIGHT` are read from COL10/COL11 and applied to all light-tier stages (`process-normalize`, `process-check-ref`, `qc`); if absent the fallbacks are used. Report table now shows both tiers alongside the job chain.
+- 🛠️**Updated**: `harmonia.submit_staged.sh` — replaced per-stage fixed defaults with two script-level fallback defaults (`MEM_LIGHT_DEFAULT=64G`, `MEM_HEAVY_DEFAULT=128G`). Per-study `MEM_LIGHT`/`TIME_LIGHT` are read from COL10/COL11 and applied to all light-tier stages (`process-normalize`, `process-check-ref`, `qc`); if absent the fallbacks are used. Report table now shows both tiers alongside the job chain.
 - 🛠️**Updated**: Active entries in `gwas_list.txt` — `MEM_LIGHT`/`TIME_LIGHT` assigned per study: `32G/12h` for standard EUR studies; `64G/24h` for PAN and large EUR studies; `128G/24h` for AF (known to require higher memory at `process-check-ref`).
 
 ## 2026-03-16 🆕 Fine-grained process sub-stages, staged submit, and cleanup (v1.3.0)
@@ -657,8 +668,8 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - 🛠️**Updated**: `main()` — added guard that exits with an error if `--stage process-assign-rsid` is used without `--dbsnp`.
 - 🛠️**Updated**: `main()` — `_pickle_required_stages` guard extended to cover all process sub-stages that require a prior-stage checkpoint.
 - 🛠️**Updated**: Header comment in `main()` documents the full checkpoint chain: `preprocess → normalize → checkref → inferstrand → assignrsid → checkaf → qc → cojo`.
-- 🆕**Added**: `gwas_process.submit_staged.sh` — new script that submits one SLURM job per stage per study with `--dependency=afterok` chaining. If a stage fails, SLURM cancels all downstream stages for that study automatically; other studies are unaffected. `MEM` and `TIME` from `gwas_list.txt` are applied to the two heaviest stages (`process-infer-strand` and `process-assign-rsid`); all other stages use fixed resource defaults defined at the top of the script. `process-assign-rsid` is omitted when `--dbsnp` is absent from `WORKER_FLAGS`.
-- 🆕**Added**: `gwas_process.cleanup.sh` — removes all intermediate checkpoint files after a successful run. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `.log`, `PLOTS/`) are never touched. Supports `--study NAME`, `--all`, or `--config gwas_list.txt` scope; `--dry-run` prints what would be deleted without removing; `--keep-raw-pkl` preserves the final raw pickle; `--remove-qc-pkl` also removes the QC pickle (kept by default).
+- 🆕**Added**: `harmonia.submit_staged.sh` — new script that submits one SLURM job per stage per study with `--dependency=afterok` chaining. If a stage fails, SLURM cancels all downstream stages for that study automatically; other studies are unaffected. `MEM` and `TIME` from `gwas_list.txt` are applied to the two heaviest stages (`process-infer-strand` and `process-assign-rsid`); all other stages use fixed resource defaults defined at the top of the script. `process-assign-rsid` is omitted when `--dbsnp` is absent from `WORKER_FLAGS`.
+- 🆕**Added**: `harmonia.cleanup.sh` — removes all intermediate checkpoint files after a successful run. Final outputs (`.parquet`, `.tsv.gz`, `.qc.*`, `.cojo.gz`, `.leads.tsv`, `.log`, `PLOTS/`) are never touched. Supports `--study NAME`, `--all`, or `--config gwas_list.txt` scope; `--dry-run` prints what would be deleted without removing; `--keep-raw-pkl` preserves the final raw pickle; `--remove-qc-pkl` also removes the QC pickle (kept by default).
 
 ## 2026-03-16 🆕 Pipeline staging in gwaslab.process.py (v1.2.0)
 - 🛠️**Updated**: Bumped version to `1.2.0` (`2026-03-16`).
@@ -683,21 +694,21 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 ## 2026-03-15 🛠️ Overhaul of SLURM submission and GWAS list
 - 🛠️**Updated**: The `gwas_list.txt` file to use semicolons (`;`) as the field delimiter instead of tabs, avoiding parsing issues when paths or values contain whitespace.
 - 🆕**Added**: Two new columns to `gwas_list.txt`: `MEM` (COL8, SLURM memory per job, e.g. `64G` or `128G`) and `TIME` (COL9, SLURM time limit per job, e.g. `48:00:00`), allowing resource requirements to be set individually per dataset.
-- 🛠️**Updated**: `gwas_process.submit.sh` to submit one independent SLURM job per dataset instead of a single array job. Memory (`--mem`) and time (`--time`) are now read from the config file and passed to each `sbatch` call individually, so datasets with different resource needs no longer share a single limit. Each job receives its own `--job-name`, `--output`, and `--error` derived from the dataset name.
-- 🛠️**Updated**: `gwas_process.array_for_submit.sh` to act as a single-dataset worker script. Removed array job logic (`SLURM_ARRAY_TASK_ID`), removed fixed `--mem`, `--time`, `--output`, and `--error` SBATCH directives (these are now set dynamically by `gwas_process.submit.sh`). The script now accepts a semicolon-delimited config line as its first argument and parses it directly.
+- 🛠️**Updated**: `harmonia.submit.sh` to submit one independent SLURM job per dataset instead of a single array job. Memory (`--mem`) and time (`--time`) are now read from the config file and passed to each `sbatch` call individually, so datasets with different resource needs no longer share a single limit. Each job receives its own `--job-name`, `--output`, and `--error` derived from the dataset name.
+- 🛠️**Updated**: `harmonia.array_for_submit.sh` to act as a single-dataset worker script. Removed array job logic (`SLURM_ARRAY_TASK_ID`), removed fixed `--mem`, `--time`, `--output`, and `--error` SBATCH directives (these are now set dynamically by `harmonia.submit.sh`). The script now accepts a semicolon-delimited config line as its first argument and parses it directly.
 
 ## 2025-03-12 🛠️ Updates to GWAS list
 - 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
     - AFGen Roselli 2018 dataset for allele frequencies (AF) with b38 positions.
     - GLGC Graham 2021 datasets for HDL, LDL, TC, TG, and non-HDL traits in European populations.
-- 🧰**Fixed**: Issue with time of the SLURM job in `gwas_process.array_for_submit.sh` to allow for longer processing times, especially for larger GWAS datasets. Updated the time limit from 1 hour to 4 hours to accommodate the increased computational demands of processing multiple large GWAS datasets.
+- 🧰**Fixed**: Issue with time of the SLURM job in `harmonia.array_for_submit.sh` to allow for longer processing times, especially for larger GWAS datasets. Updated the time limit from 1 hour to 4 hours to accommodate the increased computational demands of processing multiple large GWAS datasets.
 
 ## 2025-03-12 🛠️ Updates to GWAS list
 - 🆕**Added**: New GWAS datasets to the `gwas_list.txt` file, including:
     - ISGC GigaStroke datasets for ALLSTROKE, IS, CES, LAS, and SVD subtypes.
     - CHARGE cIMT (Franceschini 2018) and CHARGE Plaque (Franceschini 2018) datasets.
 - 🛠️**Updated**: The `gwas_list.txt` file to ensure consistency in formatting and correct file paths.
-- 🛠️**Updated**: Changed the SLURM parameters for `gwas_process.array_for_submit.sh`. 
+- 🛠️**Updated**: Changed the SLURM parameters for `harmonia.array_for_submit.sh`. 
 
 ## 2025-03-12 🆕 New functions
 - 🆕**Added**: A notebook to test drive some functions and option using `gwaslab`. 
@@ -723,6 +734,6 @@ The project is now named **Harmonia**, after the Greek goddess of harmony and co
 - 🛠️**Updated**: The `README.md` file to reflect the new functionality and provide instructions for using the new script and notebook.
 - 🛠️**Updated**: The `gwas_process.py` file to include the new script for processing GWAS summary statistics and to ensure that the `stem` variable is defined in all relevant branches of the code.
 - 🆕**Added**: Scripts for submitting GWAS processing jobs:
-    - `gwas_process.submit.sh`: A shell script to submit a GWAS processing job to a cluster using `sbatch`.
-    - `gwas_process.array_for_submit.sh`: A shell script to submit an array of GWAS processing jobs for multiple datasets or parameters. This is controlled by the `gwas_process.submit.sh` script, which can be configured to run multiple instances of the processing script with different arguments.
-    - `gwas_list.txt`: A text file containing a list of GWAS datasets to be processed. This file is used by the `gwas_process.array_for_submit.sh` script to determine which datasets to process in the array job. Each line in the file should specify a GWAS dataset, and the processing script will read this file to know which datasets to run on.
+    - `harmonia.submit.sh`: A shell script to submit a GWAS processing job to a cluster using `sbatch`.
+    - `harmonia.array_for_submit.sh`: A shell script to submit an array of GWAS processing jobs for multiple datasets or parameters. This is controlled by the `harmonia.submit.sh` script, which can be configured to run multiple instances of the processing script with different arguments.
+    - `gwas_list.txt`: A text file containing a list of GWAS datasets to be processed. This file is used by the `harmonia.array_for_submit.sh` script to determine which datasets to process in the array job. Each line in the file should specify a GWAS dataset, and the processing script will read this file to know which datasets to run on.

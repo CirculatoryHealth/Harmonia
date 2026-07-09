@@ -14,7 +14,7 @@ Usage
                                [--threads N] [--complevel 0-9] [--overwrite]
                                [--vcf /path/to/dbsnp.vcf.gz]
 
-    # Use REF_DIR from gwas2cojo.conf (default):
+    # Use REF_DIR from harmonia.conf (default):
     python make_chrpos_hdf5.py --build hg19
 
     # Override reference directory:
@@ -31,7 +31,7 @@ Requirements
 ------------
     - gwaslab >= 3.4.42 (process_vcf_to_hfd5 available)
     - bcftools in PATH (used internally by gwaslab)
-    - dbSNP VCF already downloaded (run gwas_process.download_refs.py first)
+    - dbSNP VCF already downloaded (run harmonia.download_refs.py first)
 
 Output
 ------
@@ -52,12 +52,12 @@ import os
 import re
 import sys
 
-# ── Read REF_DIR from gwas2cojo.conf ─────────────────────────────────────────
+# ── Read REF_DIR from harmonia.conf ─────────────────────────────────────────
 _FALLBACK_REF_DIR = "/path/to/references/gwaslab/"
 
 def _read_conf_ref_dir() -> str:
     conf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             "..", "gwas2cojo.conf")
+                             "..", "harmonia.conf")
     conf_path = os.path.normpath(conf_path)
     if not os.path.isfile(conf_path):
         return _FALLBACK_REF_DIR
@@ -93,7 +93,7 @@ _REFSEQ_HG38 = {
 }
 
 # ── dbSNP VCF gwaslab keys per build ─────────────────────────────────────────
-# gwas_process.download_refs.py downloads these; we prefer v157 (newer), fall
+# harmonia.download_refs.py downloads these; we prefer v157 (newer), fall
 # back to v151 if v157 is not present.
 _DBSNP_KEYS = {
     "hg19": ["dbsnp_v157_hg19", "dbsnp_v151_hg19"],

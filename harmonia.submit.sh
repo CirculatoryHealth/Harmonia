@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# gwas_process.submit.sh — submit one independent SLURM job per GWAS dataset.
+# harmonia.submit.sh — submit one independent SLURM job per GWAS dataset.
 #
 # Memory and time limits are read from the config file (COL8 and COL9), so each
 # dataset gets exactly the resources it needs.  Jobs are never killed because a
 # sibling in an array timed out.
 #
 # Usage:
-#   bash gwas_process.submit.sh gwas_list.txt
-#   bash gwas_process.submit.sh gwas_list.txt --partition=highmem
+#   bash harmonia.submit.sh gwas_list.txt
+#   bash harmonia.submit.sh gwas_list.txt --partition=highmem
 #
 # Any extra arguments are forwarded to every sbatch call (e.g. --partition,
 # --account).  Per-job --mem, --time, --job-name, --output and --error are
@@ -19,25 +19,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKER_SCRIPT="${SCRIPT_DIR}/gwas_process.array_for_submit.sh"
+WORKER_SCRIPT="${SCRIPT_DIR}/harmonia.array_for_submit.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Site configuration — loaded from gwas2cojo.conf (next to this script).
-# Copy gwas2cojo.conf.example → gwas2cojo.conf and fill in your paths once.
+# Site configuration — loaded from harmonia.conf (next to this script).
+# Copy harmonia.conf.example → harmonia.conf and fill in your paths once.
 # ─────────────────────────────────────────────────────────────────────────────
-CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+CONF="${SCRIPT_DIR}/harmonia.conf"
 if [[ ! -f "${CONF}" ]]; then
     echo "ERROR: ${CONF} not found." >&2
-    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    echo "       Copy harmonia.conf.example to harmonia.conf and fill in your paths." >&2
     exit 1
 fi
-# shellcheck source=gwas2cojo.conf.example
+# shellcheck source=harmonia.conf.example
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 LOG_BASE="${OUT_BASE}"   # submit.sh uses LOG_BASE for SLURM output paths
 # Export the absolute conf path so the SLURM worker (array_for_submit.sh) can
 # find it even after SLURM copies the script to its own spool directory.
-export GWAS2COJO_CONF="${CONF}"
+export HARMONIA_CONF="${CONF}"
 
 # ── SLURM job settings ────────────────────────────────────────────────────────
 NODES=1
@@ -45,7 +45,7 @@ CPUS=8
 MAIL_TYPE="FAIL"   # NONE | BEGIN | END | FAIL | ALL
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
-CONFIG="${1:?Usage: bash gwas_process.submit.sh <config.txt> [extra sbatch args]}"
+CONFIG="${1:?Usage: bash harmonia.submit.sh <config.txt> [extra sbatch args]}"
 shift   # remaining args forwarded to every sbatch call
 
 # ── Validate ──────────────────────────────────────────────────────────────────

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# gwas_process.submit_staged_b37.sh — submit a chained per-study SLURM pipeline
+# harmonia.submit_staged_b37.sh — submit a chained per-study SLURM pipeline
 #                                     with GRCh37/hg19 output
 #
-# Identical to gwas_process.submit_staged.sh except:
-#   • WORKER_SCRIPT → gwas_process.array_for_submit_b37.sh
+# Identical to harmonia.submit_staged.sh except:
+#   • WORKER_SCRIPT → harmonia.array_for_submit_b37.sh
 #   • Output lands in ${OUT_BASE}/b37/${GWAS_NAME}
 #   • --output-build 19 is passed globally (via the worker) instead of --liftover:
 #       BUILD=38 inputs → reverse-lifted to GRCh37/hg19
@@ -20,8 +20,8 @@
 #   → merge
 #
 # Usage:
-#   bash gwas_process.submit_staged_b37.sh gwas_list_b37.txt
-#   bash gwas_process.submit_staged_b37.sh gwas_list_b37.txt --partition=highmem
+#   bash harmonia.submit_staged_b37.sh gwas_list_b37.txt
+#   bash harmonia.submit_staged_b37.sh gwas_list_b37.txt --partition=highmem
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -31,21 +31,21 @@ set -euo pipefail
 # Site configuration
 # ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKER_SCRIPT="${SCRIPT_DIR}/gwas_process.array_for_submit_b37.sh"
-CONF="${SCRIPT_DIR}/gwas2cojo.conf"
+WORKER_SCRIPT="${SCRIPT_DIR}/harmonia.array_for_submit_b37.sh"
+CONF="${SCRIPT_DIR}/harmonia.conf"
 if [[ ! -f "${CONF}" ]]; then
     echo "ERROR: ${CONF} not found." >&2
-    echo "       Copy gwas2cojo.conf.example to gwas2cojo.conf and fill in your paths." >&2
+    echo "       Copy harmonia.conf.example to harmonia.conf and fill in your paths." >&2
     exit 1
 fi
-# shellcheck source=gwas2cojo.conf.example
+# shellcheck source=harmonia.conf.example
 source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 LOG_BASE="${OUT_BASE}/b37"
-export GWAS2COJO_CONF="${CONF}"
+export HARMONIA_CONF="${CONF}"
 
 # ── Submission log ─────────────────────────────────────────────────────────────
-SUBMIT_LOG="${LOG_BASE}/gwas_process.submit_staged_b37_$(date +%Y%m%d_%H%M%S).log"
+SUBMIT_LOG="${LOG_BASE}/harmonia.submit_staged_b37_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "${LOG_BASE}"
 exec > >(tee -a "${SUBMIT_LOG}") 2>&1
 echo "Submission log: ${SUBMIT_LOG}"
@@ -74,7 +74,7 @@ if [[ "${WORKER_FLAGS}" == *"--dbsnp"* ]]; then USE_DBSNP=1; fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Arguments
 # ─────────────────────────────────────────────────────────────────────────────
-CONFIG="${1:?Usage: bash gwas_process.submit_staged_b37.sh <config.txt> [extra sbatch args]}"
+CONFIG="${1:?Usage: bash harmonia.submit_staged_b37.sh <config.txt> [extra sbatch args]}"
 shift
 
 if [[ ! -f "${CONFIG}" ]]; then
