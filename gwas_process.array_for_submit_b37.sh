@@ -7,6 +7,8 @@
 #   • --output-build 19 is passed instead (triggers hg38→hg19 reverse liftover
 #     for BUILD=38 inputs; BUILD=19/37 inputs pass through unchanged)
 #
+# Calls ${PYTHON_SCRIPT} (set in gwas2cojo.conf; point it at harmonia.py).
+#
 # Do NOT submit this script directly.
 # Use gwas_process.submit_staged_b37.sh.
 #

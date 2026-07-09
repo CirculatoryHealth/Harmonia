@@ -1,14 +1,14 @@
-[gwas2cojo](https://github.com/CirculatoryHealth/gwas2cojo)<img align="right" height="200" src=logo/fulllogo_transparent.png>
+[Harmonia](https://github.com/CirculatoryHealth/gwas2cojo)<img align="right" height="200" src=logo/fulllogo_transparent.png>
 ============
 [![Languages](https://skillicons.dev/icons?i=bash,py)](https://skillicons.dev) 
 
 
 # 📑 Introduction
-This suite of scripts offers two standalone pipelines to process genome-wide association study (GWAS) summary statistics datasets relative to a reference and parse them into a standardised format for downstream analyses. 
+**Harmonia** is a suite of scripts for harmonising genome-wide association study (GWAS) summary statistics to standardised formats for downstream analyses. Named after the Greek goddess of concord and harmony, the tool aligns multi-source GWAS datasets to a common reference, standardises alleles and variant notation, and outputs analysis-ready files for COJO, LDSC, Parquet, and more.
 
 * The first script, `gwas2cojo.py`, is a public python script that aligns a public GWAS dataset to a genetic reference, to enable large scale cross dataset comparisons with public available GWAS datasets. This relies on the 1000G phase 3 reference dataset for Europeans, but can be used with any reference dataset with the appropriate columns. It generates a [COJO]-compatible file that can be used for many post-GWAS analyses, including SMR. It is the recommended tool for legacy datasets using b37 and hundreds of thousands of variants (< ±7 million).
 
-* The second script, `gwas_process.py`, is a more recent and comprehensive pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It relies on the human reference, dbSNP, and 1000G phase 3 data. It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
+* The second script, `harmonia.py`, is a more recent and comprehensive pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library. It relies on the human reference, dbSNP, and 1000G phase 3 data. It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants.
 
 ## ⚙️ Requirements
 
@@ -25,7 +25,7 @@ We recommend using `mamba` (a faster drop-in replacement for `conda`).
 
 ```bash
 mamba env create -f environment.yml
-mamba activate gwas2cojo
+mamba activate harmonia
 ```
 
 This installs Python 3.12, `bcftools` (bioconda), and all pip dependencies in one step.
@@ -35,8 +35,8 @@ This installs Python 3.12, `bcftools` (bioconda), and all pip dependencies in on
 If you prefer to build the environment by hand:
 
 ```bash
-mamba create --name gwas2cojo python=3.12
-mamba activate gwas2cojo
+mamba create --name harmonia python=3.12
+mamba activate harmonia
 pip install \
     "numpy>=1.21.2,<2" pyliftover tqdm "adjusttext==0.8" \
     "matplotlib>=3.8,<3.9" "pandas>=1.3,!=1.5" "pysam==0.22.1" \
@@ -80,10 +80,10 @@ Confirm that `gwas2cojo.py` runs:
 python gwas2cojo.py --help
 ```
 
-Confirm that `gwas_process.py` runs:
+Confirm that `harmonia.py` runs:
 
 ```bash
-python gwas_process.py --help
+python harmonia.py --help
 ```
 
 For a minimal parsing test without running the full pipeline:
@@ -108,9 +108,9 @@ pip install "numpy>=1.21.2,<2" gwaslab "polars>=1.27.0" ...
 If `utility_scripts/make_chrpos_hdf5.sh` reports `Missing optional dependency 'pytables'` for every chromosome, the package is not installed in the active environment:
 
 ```bash
-mamba install -n gwas2cojo -c conda-forge pytables
+mamba install -n harmonia -c conda-forge pytables
 # or
-conda install -n gwas2cojo -c conda-forge pytables
+conda install -n harmonia -c conda-forge pytables
 ```
 
 Then resubmit without `--overwrite` (no HDF5 files were actually written):
@@ -123,7 +123,7 @@ sbatch utility_scripts/make_chrpos_hdf5.sh --build all
 
 ```bash
 conda env create -f environment.yml
-conda activate gwas2cojo
+conda activate harmonia
 ```
 
 ---
@@ -258,9 +258,9 @@ You will need a reference to map the data to. You can create your own, or use th
 
 ---
 
-# 🔬 gwas_process.py — GWASLab Processing Pipeline
+# 🔬 harmonia.py — GWASLab Processing Pipeline
 
-`gwas_process.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library (v1.4.47). It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants. GRCh37/hg19 output is also supported via `--output-build 19` (hg38 inputs are reverse-lifted using `hg38ToHg19.over.chain.gz`).
+`harmonia.py` is a standalone pipeline built on the [GWASLab](https://github.com/Cloufield/gwaslab) library (v1.4.47). It takes raw GWAS summary statistics and runs them through a fully automated processing chain: standardisation, strand inference, build liftover, dbSNP annotation, allele-frequency validation, QC filtering, and output generation in multiple formats (`pickle`, `parquet`, `tsv.gz`, `cojo.gz`). It is the recommended successor to `gwas2cojo.py` for new datasets using b38 and tens of million variants. GRCh37/hg19 output is also supported via `--output-build 19` (hg38 inputs are reverse-lifted using `hg38ToHg19.over.chain.gz`).
 
 
 ## 🗺️ Pipeline overview
@@ -298,7 +298,7 @@ Steps run in order; individual steps can be toggled with the flags described bel
 ### Minimal — full default pipeline (hg19 input)
 
 ```bash
-python3 gwas_process.py \
+python3 harmonia.py \
     --gwas    MyStudy \
     --input   MyStudy.parsed.txt.gz \
     --directory /data/gwas/MyStudy \
@@ -313,7 +313,7 @@ python3 gwas_process.py \
 ### hg18 input with all options
 
 ```bash
-python3 gwas_process.py \
+python3 harmonia.py \
     --gwas    CAD_SCHUNKERT \
     --input   cardiogram_gwas_results_edited.txt.gz \
     --directory /data/gwas/CARDIoGRAM \
@@ -332,32 +332,32 @@ Use `--stage` to run only one part of the pipeline. Pass the same `--gwas`, `--b
 
 ```bash
 # Stage 1 — light: load + standardise (saves .preprocess.parquet)
-python3 gwas_process.py --gwas CAD_SCHUNKERT --input cardiogram_gwas_results_edited.txt.gz \
+python3 harmonia.py --gwas CAD_SCHUNKERT --input cardiogram_gwas_results_edited.txt.gz \
     --directory /data/gwas/CARDIoGRAM --ref /data/references/gwaslab \
     --output /data/results/CAD_SCHUNKERT --population EUR --build 18 \
     --liftover --dbsnp --qc --figures --leads --cojo --cojo-pos --cojo-id rsid \
     --stage preprocess
 
 # Stage 2 — light: basic checks + liftover (saves .normalize.pkl)
-python3 gwas_process.py ... --stage process-normalize
+python3 harmonia.py ... --stage process-normalize
 
 # Stage 3 — medium: reference check + flip (saves .checkref.pkl)
-python3 gwas_process.py ... --stage process-check-ref
+python3 harmonia.py ... --stage process-check-ref
 
 # Stage 4 — heavy: 1KG strand inference (saves .inferstrand.pkl)
-python3 gwas_process.py ... --stage process-infer-strand
+python3 harmonia.py ... --stage process-infer-strand
 
 # Stage 5 — heaviest: dbSNP rsID sweep (saves .assignrsid.pkl)
-python3 gwas_process.py ... --stage process-assign-rsid
+python3 harmonia.py ... --stage process-assign-rsid
 
 # Stage 6 — heavy: AF check + save final raw outputs (.pkl / .parquet / .tsv.gz)
-python3 gwas_process.py ... --stage process-check-af
+python3 harmonia.py ... --stage process-check-af
 
 # Stage 7 — medium: QC filter + plots + leads
-python3 gwas_process.py ... --stage qc
+python3 harmonia.py ... --stage qc
 
 # Stage 8 — light: write COJO file
-python3 gwas_process.py ... --stage cojo
+python3 harmonia.py ... --stage cojo
 ```
 
 > **Important:** pass the same `--gwas`, `--population`, `--build`, `--liftover`, and `--output` flags to every stage so file stems match.
@@ -367,7 +367,7 @@ python3 gwas_process.py ... --stage cojo
 If the pipeline completed the processing stages but failed later (e.g. during plotting), resume from the pickle without repeating the expensive VCF sweeps:
 
 ```bash
-python3 gwas_process.py \
+python3 harmonia.py \
     --gwas    CAD_SCHUNKERT \
     --input   cardiogram_gwas_results_edited.txt.gz \
     --directory /data/gwas/CARDIoGRAM \
@@ -508,7 +508,7 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 | `<stem>.qc.cojo.gz` | COJO file (QC-filtered) |
 | `<stem>.leads.tsv` | Lead SNPs (QC-filtered, p < 5×10⁻⁸) |
 | `PLOTS/<stem>.*.png` | Diagnostic plots (Manhattan, QQ, DAF, histograms) |
-| `<GWAS>.gwas_process.log` | Pipeline run log |
+| `<GWAS>.harmonia.log` | Pipeline run log |
 
 ---
 
@@ -519,7 +519,7 @@ For example, `CAD_SCHUNKERT.EUR.input_b18.output_hg38.gwaslab`.
 ## Usage
 
 ```bash
-conda activate gwas2cojo
+conda activate harmonia
 
 # EUR VCFs for both builds — most common case (default)
 python gwas_process.download_refs.py
@@ -588,10 +588,10 @@ All HPC scripts read their paths and settings from a single file — **`gwas2coj
 cp gwas2cojo.conf.example gwas2cojo.conf
 
 # 2. Open gwas2cojo.conf and fill in the five values:
-#    PYTHON_SCRIPT  — absolute path to gwas_process.py
+#    PYTHON_SCRIPT  — absolute path to harmonia.py
 #    REF_DIR        — directory containing gwaslab reference files
 #    OUT_BASE       — base output directory (per-study subdirs + SLURM logs go here)
-#    CONDA_ENV      — conda environment name (default: gwas2cojo)
+#    CONDA_ENV      — conda environment name (default: harmonia)
 #    EMAIL          — your email address for SLURM failure notifications
 nano gwas2cojo.conf
 ```
@@ -604,7 +604,7 @@ nano gwas2cojo.conf
 |------|-------------|
 | `gwas2cojo.conf.example` | Site configuration template — copy to `gwas2cojo.conf` and fill in your paths |
 | `gwas_list.example.txt` | Study list template (3 example studies) — copy to `gwas_list.txt` and update paths |
-| `gwas_process.array_for_submit.sh` | SLURM worker — runs one `gwas_process.py` call for one study and one stage; outputs hg38 |
+| `gwas_process.array_for_submit.sh` | SLURM worker — runs one `harmonia.py` call for one study and one stage; outputs hg38 |
 | `gwas_process.array_for_submit_b37.sh` | SLURM worker variant for GRCh37/hg19 output (`--output-build 19`; no forward liftover) |
 | `gwas_process.submit.sh` | Submit one full-pipeline job per study (`--stage all`) |
 | `gwas_process.submit_staged.sh` | Submit a chained per-stage job per study with `--dependency=afterok`; hg38 output |
@@ -737,7 +737,7 @@ After a successful run, intermediate files can be safely removed. Final outputs 
 | `*.pkl` (raw, non-QC, non-normalize) | check-af → merge handoff |
 | `*.qc.pkl` | QC-filtered pickle (data identical to `.qc.parquet`) |
 
-**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `gwas_process.check.py`.
+**Log archiving (default: on):** SLURM `*.out`/`*.err` files belonging to the study are moved from `OUT_BASE` into `<study_dir>/logs/` so the submit directory stays tidy and logs are preserved for `gwas_process.check.py` (the Harmonia log checker).
 
 ```bash
 # Always dry-run first to see what will be removed / archived

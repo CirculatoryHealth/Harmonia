@@ -3,10 +3,10 @@
 make_chrpos_hdf5.py — One-time conversion of dbSNP VCF to HDF5 for rsID→CHR:POS lookup.
 
 Wraps gwaslab's gl.process_vcf_to_hfd5() to generate per-chromosome HDF5 files
-(one per chromosome, 10 modulo groups each) used by gwas_process.py --add-chrpos.
+(one per chromosome, 10 modulo groups each) used by harmonia.py --add-chrpos.
 
 This step needs to be run once per build. The HDF5 files are written into the
-same REF_DIR as the VCF and are automatically discovered by gwas_process.py.
+same REF_DIR as the VCF and are automatically discovered by harmonia.py.
 
 Usage
 -----
@@ -218,7 +218,7 @@ def main() -> None:
         description=(
             f"make_chrpos_hdf5.py  v{VERSION}  ({VERSION_DATE})\n"
             "One-time conversion of dbSNP VCF → per-chromosome HDF5 files\n"
-            "for fast rsID→CHR:POS lookup in gwas_process.py --add-chrpos."
+            "for fast rsID→CHR:POS lookup in harmonia.py --add-chrpos."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -262,7 +262,7 @@ def main() -> None:
             vcf_override = args.vcf,
         )
 
-    print("\nDone. HDF5 files are ready for use with gwas_process.py --add-chrpos.")
+    print("\nDone. HDF5 files are ready for use with harmonia.py --add-chrpos.")
 
 
 if __name__ == "__main__":

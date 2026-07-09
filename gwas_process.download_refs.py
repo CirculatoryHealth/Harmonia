@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-gwas_process.download_refs.py — Download gwaslab reference files.
+gwas_process.download_refs.py — Download Harmonia/GWASLab reference files.
 
 Usage
 -----
@@ -34,7 +34,7 @@ https://cloufield.github.io/gwaslab/Download/
 """
 
 # ============================================================
-VERSION_NAME = "gwas_process.download_refs"
+VERSION_NAME = "harmonia.download_refs"
 VERSION      = "1.2.1"
 VERSION_DATE = "2026-03-27"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'

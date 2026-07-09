@@ -12,12 +12,12 @@
 # This script regenerates a clean parsed file from the authoritative .h.tsv.gz source.
 #
 # standard_error is NA throughout and no CI columns exist.  SE derivation strategies
-# 1 and 2 in gwas_process.py both fail.  Strategy 4 (gwas_process.py v1.4.51) handles
+# 1 and 2 in harmonia.py both fail.  Strategy 4 (harmonia.py v1.4.51) handles
 # this case: when only OR + P are present it derives beta = ln(OR) internally, then
 # back-calculates SE = |beta|/|Z|.  odds_ratio is therefore passed through as-is.
 # effect_allele_frequency is NA throughout; --fill-eaf covers it downstream.
 # rsid is the last column in the source and is affected by CRLF line endings;
-# it is dropped here (gwas_process.py re-assigns rsIDs via --dbsnp).
+# it is dropped here (harmonia.py re-assigns rsIDs via --dbsnp).
 # gsub(/\r/, ...) strips CRLF so the last real column parses correctly.
 #
 # Source columns used (9 output columns):

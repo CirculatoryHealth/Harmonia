@@ -8,15 +8,15 @@
 
 # Kessler2022 CHIP — extract relevant columns from the harmonised GWAS Catalog file.
 # standard_error is NA throughout (Firth regression via REGENIE); it is intentionally
-# omitted from output — gwas_process.py derives SE from ci_upper/ci_lower instead.
-# rsid is also omitted; gwas_process.py re-assigns rsIDs via --dbsnp.
+# omitted from output — harmonia.py derives SE from ci_upper/ci_lower instead.
+# rsid is also omitted; harmonia.py re-assigns rsIDs via --dbsnp.
 # gsub(/\r/, "") strips CRLF from the source file (rsid is the last column and would
 # otherwise be stored as "rsid\r" in the awk hash, causing $h["rsid"]→$0 to dump
 # the entire record into the output).
 #
 # Source columns used (12 output columns):
 #   name                    → SNPID  (chr:pos:EA:NEA format, always populated; renamed so
-#                                      gwas_process.py recognises it via the "snpid" alias)
+#                                      harmonia.py recognises it via the "snpid" alias)
 #   chromosome              → chromosome
 #   base_pair_location      → base_pair_location  (GRCh38/hg38 — harmonised)
 #   effect_allele           → effect_allele

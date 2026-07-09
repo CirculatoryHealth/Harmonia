@@ -9,10 +9,10 @@
 # Nievergelt2024 PTSD — convert PGC VCF format to a standard TSV.
 # The source files are VCF-format with ## metadata headers and #CHROM header line.
 # Columns: #CHROM ID POS A1 A2 FREQ NEFF Z P DIRE
-# Z-score only (no BETA/SE); gwas_process.py derives BETA/SE at merge stage via
+# Z-score only (no BETA/SE); harmonia.py derives BETA/SE at merge stage via
 # the Z + EAF + N formula (run_merge): SE = 1/sqrt(2*EAF*(1-EAF)*N), BETA = Z*SE.
 #
-# Column aliases already covered in gwas_process.py (no changes needed):
+# Column aliases already covered in harmonia.py (no changes needed):
 #   CHROM → CHR    ID → SNPID    POS    A1 → EA    A2 → NEA
 #   FREQ → EAF    NEFF → N    Z    P
 # DIRE is dropped (per-cohort direction string, not needed downstream).

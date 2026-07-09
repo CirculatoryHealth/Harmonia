@@ -2,6 +2,30 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-10 🎉 Rename: gwas2cojo → **Harmonia** (v1.5.0)
+
+The project is now named **Harmonia**, after the Greek goddess of harmony and concord. The rename reflects the tool's expanded scope: it does far more than produce COJO-format files — it is a full GWAS summary-statistics harmonisation suite, standardising alleles and variant notation, applying multi-tier QC, and writing outputs in COJO, LDSC, Parquet, TSV.GZ, and Pickle formats.
+
+**Core rename:**
+- `gwas_process.py` → `harmonia.py` (`git mv`; tracked by git history)
+- `VERSION_NAME` updated to `"harmonia"` — `VERSION` bumped to `1.5.0`; `VERSION_DATE` to `2026-07-10`
+
+**Supporting file updates:**
+- `gwas2cojo.conf.example`: `PYTHON_SCRIPT` example path updated to `harmonia.py`; `CONDA_ENV` default changed to `harmonia`; `OUT_BASE` example updated to `.../harmonia`
+- `environment.yml`: conda environment `name:` changed from `gwas2cojo` to `harmonia`
+- `gwas_process.check.py`: header comment and `VERSION_NAME` updated to `harmonia_check`
+- `gwas_process.download_refs.py`: header comment and `VERSION_NAME` updated to `harmonia.download_refs`
+- `gwas_process.array_for_submit.sh` / `gwas_process.array_for_submit_b37.sh`: header comments note `PYTHON_SCRIPT` should point to `harmonia.py`
+- `README.md`: title, conda env name, script invocation examples, and all prose references updated throughout
+
+**What does NOT change:**
+- `gwas2cojo.py` — the original lightweight COJO-aligner script; kept as-is (it is a distinct tool with its own version history)
+- `gwas2cojo.conf` — the site configuration file name is unchanged for backward compatibility; update `PYTHON_SCRIPT` and `CONDA_ENV` inside it to point to `harmonia.py` and the `harmonia` conda env
+- `GWAS2COJO_CONF` environment variable — unchanged; still exported by the submit scripts and read by the worker scripts
+- All HPC shell script file names (`gwas_process.*.sh`) — unchanged; they invoke `${PYTHON_SCRIPT}` from the conf, so no code changes are needed
+
+- **Files**: `gwas_process.py` → `harmonia.py`, `gwas2cojo.conf.example`, `environment.yml`, `gwas_process.check.py`, `gwas_process.download_refs.py`, `gwas_process.array_for_submit.sh`, `gwas_process.array_for_submit_b37.sh`, `README.md`, `CHANGES.md`.
+
 ## 2026-07-06 🔧 gwas_process.cleanup.sh — add --base flag to override OUT_BASE from conf
 - Added `--base <DIR>` argument that overrides the `OUT_BASE` path set by `gwas2cojo.conf`. Useful when studies are stored in a subdirectory (e.g. `b37/`) that differs from the default output base. The flag is parsed after the conf is sourced, so it takes precedence over the conf value without requiring a separate config file.
 - **Files**: `gwas_process.cleanup.sh`.

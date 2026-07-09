@@ -54,7 +54,7 @@ fi
 # Resolution order:
 #   1. GWAS2COJO_CONF env var (explicit override)
 #   2. SLURM_SUBMIT_DIR — the directory where sbatch was called (SLURM sets this
-#      automatically; gwas2cojo.conf lives alongside gwas_process.py there)
+#      automatically; gwas2cojo.conf lives alongside harmonia.py there)
 #   3. BASH_SOURCE fallback — works for direct local invocation but fails when
 #      SLURM copies the script to its spool directory
 if [[ -n "${GWAS2COJO_CONF:-}" && -f "${GWAS2COJO_CONF}" ]]; then
@@ -74,7 +74,7 @@ source "${CONF}"
 # Sets: PYTHON_SCRIPT  REF_DIR  OUT_BASE  CONDA_ENV  EMAIL
 
 # Derive the installation root from PYTHON_SCRIPT so the Python helper script
-# is always found next to gwas_process.py, regardless of where sbatch was called.
+# is always found next to harmonia.py, regardless of where sbatch was called.
 ROOTDIR="$(dirname "${PYTHON_SCRIPT}")"
 
 # ── Activate conda ────────────────────────────────────────────────────────────

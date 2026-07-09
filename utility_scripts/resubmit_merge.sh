@@ -18,7 +18,7 @@
 #   --gwas-list  FILE   Input list (gwas_list.txt format).
 #                       Default: gwas_list_resubmit_merge.txt (next to gwas_list.txt)
 #   --stage      STAGE  Pipeline stage to resubmit (default: merge).
-#                       Any valid --stage value for gwas_process.py:
+#                       Any valid --stage value for harmonia.py:
 #                         merge | qc | cojo | preprocess | process-normalize | ...
 #   --mem        MEM    SLURM memory override (default: from gwas_list COL10 → 64G)
 #   --time       TIME   SLURM time override   (default: from gwas_list COL11 → 06:00:00)

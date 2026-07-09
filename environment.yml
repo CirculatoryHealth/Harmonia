@@ -1,4 +1,4 @@
-name: gwas2cojo
+name: harmonia
 channels:
   - conda-forge
   - bioconda

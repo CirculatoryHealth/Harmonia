@@ -47,7 +47,7 @@ fi
 echo "Input : ${INPUT}"
 echo "──────────────────────────────────────────────────────────────"
 
-# Output headers: var_name is renamed to SNPID (gwas_process.py recognises "snpid" alias).
+# Output headers: var_name is renamed to SNPID (harmonia.py recognises "snpid" alias).
 # chr/position_b37/a0/a1 are kept verbatim (chr→CHR, position_b37→POS, a0→NEA, a1→EA).
 # Stat columns are renamed to standard aliases (effect_allele_frequency→EAF, beta→BETA,
 # standard_error→SE, p_value→P) regardless of which BC sub-analysis they come from.

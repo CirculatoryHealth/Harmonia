@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# GWASLab Cohort Processing Pipeline
+# Harmonia — GWAS Summary-Statistics Harmonisation Pipeline
 # ============================================================
 # Standalone GWASLab processing pipeline for GWAS summary statistics.
 #
@@ -40,7 +40,7 @@
 # Usage examples:
 #
 #   # Minimal — run full default pipeline
-#   python3 gwas_process.py \
+#   python3 harmonia.py \
 #       --gwas    MyStudy \
 #       --input   MyStudy.parsed.txt.gz \
 #       --dir     /data/results/MyStudy \
@@ -49,7 +49,7 @@
 #       --build   19
 #
 #   # Disable liftover and QC; produce COJO with rsID SNP column + CHR/BP cols
-#   python3 gwas_process.py \
+#   python3 harmonia.py \
 #       --gwas    MyStudy \
 #       --input   MyStudy.parsed.txt.gz \
 #       --dir     /data/results/MyStudy \
@@ -61,9 +61,9 @@
 
 
 # ============================================================
-VERSION_NAME = "gwas_process"
-VERSION      = "1.4.51"
-VERSION_DATE = "2026-07-02"
+VERSION_NAME = "harmonia"
+VERSION      = "1.5.0"
+VERSION_DATE = "2026-07-10"
 COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -138,7 +138,7 @@ def setup_logging(log_path: str) -> logging.Logger:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        prog="gwas_process.py",
+        prog="harmonia.py",
         description=(
             f"GWASLab Cohort Processing Pipeline  v{VERSION}  ({VERSION_DATE})\n"
             "Standardise, harmonise, and QC GWAS summary statistics."
@@ -146,7 +146,7 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Example:\n"
-            "  python3 gwas_process.py \\\n"
+            "  python3 harmonia.py \\\n"
             "      --gwas MyStudy \\\n"
             "      --input MyStudy.parsed.txt.gz \\\n"
             "      --directory /data/results/MyStudy \\\n"

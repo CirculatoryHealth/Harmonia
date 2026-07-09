@@ -11,20 +11,20 @@
 # accidentally committed to the public repository.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Absolute path to gwaslab.process.py
-# (the directory where you cloned / installed gwas2cojo)
-PYTHON_SCRIPT="/path/to/gwas2cojo/gwaslab.process.py"
+# Absolute path to harmonia.py
+# (the directory where you cloned / installed Harmonia)
+PYTHON_SCRIPT="/path/to/harmonia/harmonia.py"
 
 # Directory containing gwaslab reference files
 # (1KG VCFs, FASTA, dbSNP VCFs, recombination maps, …)
-# Use gwaslab.download_refs.py to populate this directory.
+# Use gwas_process.download_refs.py to populate this directory.
 REF_DIR="/path/to/references/gwaslab"
 
 # Base output directory — per-study subdirectories and SLURM logs go here
-OUT_BASE="/path/to/output/gwas2cojo"
+OUT_BASE="/path/to/output/harmonia"
 
 # Conda environment name (created from environment.yml)
-CONDA_ENV="gwas2cojo"
+CONDA_ENV="harmonia"
 
 # Email address for SLURM job failure notifications
 EMAIL="your@email.com"

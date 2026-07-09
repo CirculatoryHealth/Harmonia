@@ -13,7 +13,7 @@
 # PAN columns: CHROM ID POS A1 A2 FCAS FCON IMPINFO BETA SE PVAL NGT DIRE NCAS NCON NEFFDIV2
 #
 # FCAS = A1 freq in cases; FCON = A1 freq in controls → use FCON as EAF proxy
-# (renamed to EAF in output since "fcon" is not in gwas_process.py EAF aliases).
+# (renamed to EAF in output since "fcon" is not in harmonia.py EAF aliases).
 # PVAL → PVAL (alias "pval" → P ✓); IMPINFO → IMPINFO (alias → INFO ✓)
 # NCAS → NCAS (alias "ncas" → N_cases ✓); NCON → NCON (alias "ncon" → N_controls ✓)
 # PAN: NEFFDIV2 → NEFF in output (multiply by 2 for effective N)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# gwas_process.check.py — Run-status checker for gwas2cojo pipeline logs
+# gwas_process.check.py — Run-status checker for Harmonia pipeline logs
 # ============================================================
 # Parses *.out / *.err files written by the staged gwaslab pipeline and prints
 # a per-stage summary table with key QC metrics, warning counts, and any real
@@ -23,7 +23,7 @@
 #   {GWAS}_{step}_{stage}_{jobid}_{chrom}.{out|err}    per-chr array stages
 #
 # ============================================================
-VERSION_NAME = "gwas_process_check"
+VERSION_NAME = "harmonia_check"
 VERSION      = "1.2.7"
 VERSION_DATE = "2026-04-04"
 COPYRIGHT = 'Copyright 1979-2026. Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'

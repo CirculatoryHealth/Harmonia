@@ -6,6 +6,8 @@
 # Use gwas_process.submit.sh, which calls sbatch once per dataset with the
 # correct --mem, --time, --output, and --error set per job.
 #
+# Calls ${PYTHON_SCRIPT} (set in gwas2cojo.conf; point it at harmonia.py).
+#
 # The script expects at least one argument: a semicolon-delimited config line
 # from gwas_list.txt (COL1–COL9 required; COL10–COL11 MEM_LIGHT/TIME_LIGHT are
 # read by gwas_process.submit_staged.sh and ignored here).

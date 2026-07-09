@@ -6,7 +6,7 @@
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=1
 
-# Verma2024 OSA — extract relevant columns; gwas_process.py derives SE from ci_upper/ci_lower
+# Verma2024 OSA — extract relevant columns; harmonia.py derives SE from ci_upper/ci_lower
 INDIR="/hpc/dhl_ec/data/_gwas_datasets/_OSA/Verma2024"
 
 for f in GCST90475825.tsv.gz GCST90479998.tsv.gz; do
