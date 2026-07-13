@@ -2,6 +2,14 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-13 🐛 harmonia.py — fix wrong CHR:POS assignment in HDF5 rsID lookup (`--add-chrpos`)
+
+- **Root cause**: `assign_chrpos_from_hdf5()` inner `_lookup()` function used `ref.index` (a plain `RangeIndex(0, N)`) instead of the `rsn` column values to check membership and retrieve positions. `gl.process_vcf_to_hfd5()` stores `rsn` as a regular DataFrame column, not as the index, so `grp_data["rsn"].isin(ref.index)` was testing whether the integer rsID number fell within `[0, N-1]` (the row count). For any rsID whose numeric value was smaller than the number of rows in a chromosome's shard group, the check returned a false positive; `.loc[rsn_value, "POS"]` then used that integer as a positional row label, returning the POS of a completely unrelated variant.
+- **Symptom**: rsID-only input files processed with `--add-chrpos` had variants assigned to wrong chromosomes. Confirmed examples from `CAD_EUR_MVP_withmultiallelic` and `CAD_PAN_MVP`: `rs9549621` → chr12:23614837 (correct: chr13:113633579) and `rs1317507` → chr3:2809124 (correct: chr13:113631780). The HDF5 reference data itself was correct; only the lookup logic was broken.
+- **Fix**: replaced `ref.index` membership test and positional `.loc` with `ref.set_index("rsn")["POS"]` so that rsn values are matched against actual rsn column entries.
+- **Impact**: only studies with `--add-chrpos` in EXTRA_FLAGS are affected. In this repo that is `CAD_EUR_MVP`, `CAD_EUR_MVP_withmultiallelic`, `CAD_PAN_MVP`, and `CAD_PAN_MVP_withmultiallelic`. All four must be fully rerun (preprocess parquets carry the wrong coordinates and cannot be patched). Rerun configs: `gwas_list_cadmvp_rerun.txt` (hg38) and `gwas_list_cadmvp_rerun_b37.txt` (hg19).
+- **Files**: `harmonia.py`.
+
 ## 2026-07-10 🎉 Rename: gwas2cojo → **Harmonia** (v1.5.0)
 
 The project is now named **Harmonia**, after the Greek goddess of harmony and concord. The rename reflects the tool's expanded scope: it does far more than produce COJO-format files — it is a full GWAS summary-statistics harmonisation suite, standardising alleles and variant notation, applying multi-tier QC, and writing outputs in COJO, LDSC, Parquet, TSV.GZ, and Pickle formats.

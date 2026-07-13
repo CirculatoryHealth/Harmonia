@@ -2046,10 +2046,13 @@ def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
                 ref = store[f"group_{group_id}"]
         except Exception:
             return []
-        common_rsn = grp_data["rsn"][grp_data["rsn"].isin(ref.index)]
+        # rsn is stored as a regular column (not the DataFrame index) by
+        # gl.process_vcf_to_hfd5(); set_index here so .loc uses rsn values.
+        ref_indexed = ref.set_index("rsn")["POS"]
+        common_rsn = grp_data[grp_data["rsn"].isin(ref_indexed.index)]
         if common_rsn.empty:
             return []
-        pos_vals = ref.loc[common_rsn.values, "POS"]
+        pos_vals = ref_indexed.loc[common_rsn["rsn"].values]
         return list(zip(common_rsn.index, [chr_num] * len(common_rsn),
                         pos_vals.values))
 
