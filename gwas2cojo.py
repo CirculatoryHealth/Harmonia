@@ -222,7 +222,7 @@ def inv(dna):
     try:
         if len(dna) == 1:
             return INV[dna]
-        return ''.join(INV[bp] for bp in dna)
+        return ''.join(INV[bp] for bp in dna[::-1])
     except KeyError:
         return 'non-invertible' # <CN2> / N
 
