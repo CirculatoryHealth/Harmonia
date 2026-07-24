@@ -62,9 +62,9 @@
 
 # ============================================================
 VERSION_NAME = "harmonia"
-VERSION      = "1.5.0"
-VERSION_DATE = "2026-07-10"
-COPYRIGHT = 'Copyright 1979-2026. Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
+VERSION      = "1.5.1"
+VERSION_DATE = "2026-07-23"
+COPYRIGHT = 'Copyright 1979-2026. Lennart P.L. Landsmeer; Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
 
@@ -639,13 +639,14 @@ SUMSTATS_ALIASES = {
                          "effectallele", "ea", "a1", "allele1",
                          "tested_allele", "testedallele",      # PGC-ALZ Wightman2021 (camelCase)
                          "reference_allele",
-                         "riskallele", "codedallele",
+                         "riskallele", "codedallele", "coded_allele",
                          "alt",                                # VCF alt — fallback only; conflicts with effect_allele in GWAS-Catalog harmonised files
                          "meta_effect_allele"]),               # AoM/Kentistou2024
     "nea":   ("NEA",   ["hm_other_allele", "otherallele", "noneffectallele", "nea",
                          "a0", "allele0", "allele_0",          # BC Michailidou2017 / BOLT-LMM
                          "a2", "allele2", "ref",
                          "non_effect_allele", "other_allele", "noneffect_allele", "nonriskallele",
+                         "noncoded_allele", "noncodedallele",
                          "meta_other_allele"]),                 # AoM/Kentistou2024
     "eaf":   ("EAF",   ["hm_effect_allele_frequency", "eaf", "effect_allele_frequency",
                          "freq_tested_allele_in_hrs", "raf", "af", "allele_frequency",
@@ -653,7 +654,8 @@ SUMSTATS_ALIASES = {
                          "freq1", "freq(a1)", "freq.a1.1000g.eur", "a1_freq_1000g_eur",
                          "freq_a", "eaf_avg",
                          "a1freq", "a1_freq", "freq_a1",       # BOLT-LMM (LOY_EUR_Thompson2019)
-                         "frq_u", "frq_a"]),  # PGC daner format (frq_u=controls, frq_a=cases)
+                         "frq_u", "frq_a",    # PGC daner format (frq_u=controls, frq_a=cases)
+                         "coded_allele_freq", "coded_allele_frequency"]),
     "beta":  ("BETA",  ["hm_beta", "beta", "effect_size", "effectsize", "effect",
                          "fixed-effects_beta", "log_odds", "logor", "beta_fixed", "b",
                          "stdbeta", "std_beta"]),

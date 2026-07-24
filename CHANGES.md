@@ -2,6 +2,14 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-13 🔧 harmonia.py (v1.5.1) — add column aliases for MetaGWAS/METAL fixed-effects output format
+
+- Added `coded_allele` to EA aliases (existing `codedallele` lacked the underscore variant).
+- Added `noncoded_allele` and `noncodedallele` to NEA aliases (previously unrecognised).
+- Added `coded_allele_freq` and `coded_allele_frequency` to EAF aliases.
+- Covers MetaGWAS/METAL output files with columns `CODED_ALLELE`, `NONCODED_ALLELE`, `CODED_ALLELE_FREQ`; the remaining fixed-effects columns (`BETA_FIXED`, `SE_FIXED`, `P_FIXED`, `N_EFF`) were already recognised.
+- **Files**: `harmonia.py`.
+
 ## 2026-07-13 🐛 harmonia.py — fix wrong CHR:POS assignment in HDF5 rsID lookup (`--add-chrpos`)
 
 - **Root cause**: `assign_chrpos_from_hdf5()` inner `_lookup()` function used `ref.index` (a plain `RangeIndex(0, N)`) instead of the `rsn` column values to check membership and retrieve positions. `gl.process_vcf_to_hfd5()` stores `rsn` as a regular DataFrame column, not as the index, so `grp_data["rsn"].isin(ref.index)` was testing whether the integer rsID number fell within `[0, N-1]` (the row count). For any rsID whose numeric value was smaller than the number of rows in a chromosome's shard group, the check returned a false positive; `.loc[rsn_value, "POS"]` then used that integer as a positional row label, returning the POS of a completely unrelated variant.
