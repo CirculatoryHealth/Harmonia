@@ -2,6 +2,24 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-27 🐛 harmonia.py (v1.5.2) — fix two bugs in `assign_chrpos_from_hdf5` (`--add-chrpos`)
+
+Two bugs in the HDF5 rsID→CHR:POS lookup that can cause some variants to receive wrong positions or remain unmapped after `--add-chrpos`.
+
+**Bug 1 — zip misalignment when HDF5 contains duplicate rsn entries**
+
+- **Root cause**: Inside `_lookup()`, `ref.set_index("rsn")["POS"]` can produce a Series with a duplicated index when the dbSNP VCF stores the same rsID as multiple bi-allelic records (one per allele). Calling `ref_indexed.loc[rsn_array]` on such a Series expands each duplicated entry, returning more values than `rsn_array` has elements. The subsequent `zip(common_rsn.index, ..., pos_vals.values)` stops at the shorter length, silently pairing every variant that follows the duplicate in the batch with the wrong position.
+- **Example**: if rsn A has two HDF5 rows (same POS, two alleles), and rsn B follows A in the batch, rsn B gets rsn A's second position instead of its own; rsn B's real position is dropped entirely.
+- **Fix**: `ref.drop_duplicates(subset="rsn").set_index("rsn")["POS"]` — deduplicate on rsID before building the index, guaranteeing `.loc` returns exactly one value per requested rsn. Safe because duplicate rsn rows always share the same POS (same variant, different allele); no positional information is lost.
+- **Files**: `harmonia.py` (`_lookup` inner function of `assign_chrpos_from_hdf5`).
+
+**Bug 2 — CHR restriction excludes chromosomes when input has mixed CHR/POS completeness**
+
+- **Root cause**: `needs_fill` captures two populations — Group A (CHR known, POS missing) and Group B (both CHR and POS missing). The chromosome search list was derived from Group A's CHR values alone. When Group A and Group B coexist, `chrs_to_search` is restricted to Group A's chromosomes; Group B variants on any other chromosome are never looked up and remain unmapped.
+- **Example**: if chr3 variants have CHR=3 but POS=NA (Group A) and chr13/chr15 variants have both missing (Group B), only the chr3 HDF5 is opened — chr13/chr15 variants are silently skipped.
+- **Fix**: check whether ALL variants needing fill already have CHR (`has_chr.all()`). If yes, restrict to those chromosomes (the original optimisation, still valid for pure Group A input). If any CHR is missing, search all chromosome files. For pure rsID-only input (no CHR column at all, the MVP case), `has_chr` is all-False and behaviour is unchanged.
+- **Files**: `harmonia.py` (`assign_chrpos_from_hdf5`).
+
 ## 2026-07-13 🔧 harmonia.py (v1.5.1) — add column aliases for MetaGWAS/METAL fixed-effects output format
 
 - Added `coded_allele` to EA aliases (existing `codedallele` lacked the underscore variant).

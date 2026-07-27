@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "harmonia"
-VERSION      = "1.5.1"
-VERSION_DATE = "2026-07-23"
+VERSION      = "1.5.2"
+VERSION_DATE = "2026-07-27"
 COPYRIGHT = 'Copyright 1979-2026. Lennart P.L. Landsmeer; Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -2014,20 +2014,29 @@ def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
 
     logging.info("Valid rsIDs to look up: %s", f"{len(valid_idx):,}")
 
-    # Determine chromosomes to search
-    chr_present = gwas_data.loc[valid_idx, chrom_col].dropna()
-    if chr_present.empty:
-        chrs_to_search = sorted(chr_to_h5.keys())
-        logging.info("CHR column absent — searching all %d chromosome files.", len(chrs_to_search))
-    else:
+    # Determine chromosomes to search.
+    # needs_fill covers two populations:
+    #   Group A — CHR known, POS missing  → can safely restrict to that chromosome
+    #   Group B — both CHR and POS missing → must search all chromosomes
+    # Restricting based on Group A's chromosomes when Group B variants are also
+    # present would leave Group B variants on other chromosomes permanently unmapped.
+    has_chr = gwas_data.loc[valid_idx, chrom_col].notna()
+    if has_chr.all():
         try:
             chrs_to_search = sorted(
-                int(c) for c in chr_present.unique() if str(c).isdigit()
+                int(c) for c in gwas_data.loc[valid_idx, chrom_col].unique()
+                if str(c).isdigit()
             )
+            logging.info("CHR present for all needing fill — restricting to %d chromosome(s): %s",
+                         len(chrs_to_search), chrs_to_search)
         except Exception:
             chrs_to_search = sorted(chr_to_h5.keys())
-        logging.info("CHR column present — restricting search to %d chromosome(s): %s",
-                     len(chrs_to_search), chrs_to_search)
+            logging.info("CHR restriction failed — searching all %d chromosome files.",
+                         len(chrs_to_search))
+    else:
+        chrs_to_search = sorted(chr_to_h5.keys())
+        logging.info("CHR absent for some variants — searching all %d chromosome files.",
+                     len(chrs_to_search))
 
     # Build per-group rsn → index mapping
     rsn_df = pd.concat([rsn, rsn_groups], axis=1)
@@ -2050,7 +2059,12 @@ def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
             return []
         # rsn is stored as a regular column (not the DataFrame index) by
         # gl.process_vcf_to_hfd5(); set_index here so .loc uses rsn values.
-        ref_indexed = ref.set_index("rsn")["POS"]
+        # drop_duplicates first: multi-allelic VCF records can share the same
+        # rsID, producing duplicate rsn rows in the HDF5.  Without dedup,
+        # ref_indexed.loc[rsn_array] expands duplicates and returns more values
+        # than rsn_array has elements, breaking the zip alignment and assigning
+        # the wrong POS to every variant that follows the duplicate in the batch.
+        ref_indexed = ref.drop_duplicates(subset="rsn").set_index("rsn")["POS"]
         common_rsn = grp_data[grp_data["rsn"].isin(ref_indexed.index)]
         if common_rsn.empty:
             return []
