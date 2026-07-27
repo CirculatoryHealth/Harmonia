@@ -83,6 +83,12 @@ if [[ -n "$LIST_FILE" ]]; then
         line="${line%%#*}"                    # strip inline comments
         line="${line#"${line%%[! ]*}"}"       # strip leading spaces
         line="${line%"${line##*[! ]}"}"       # strip trailing spaces
+        [[ -z "$line" ]] && continue
+        # If the line is semicolon-delimited (gwas_list.txt format), extract field 2 (GWAS_NAME)
+        if [[ "$line" == *";"* ]]; then
+            IFS=';' read -r _ name _ <<< "$line"
+            line="$name"
+        fi
         [[ -n "$line" ]] && STUDIES+=("$line")
     done < "$LIST_FILE"
 fi
