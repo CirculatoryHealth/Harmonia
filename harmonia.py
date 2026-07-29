@@ -62,8 +62,8 @@
 
 # ============================================================
 VERSION_NAME = "harmonia"
-VERSION      = "1.5.2"
-VERSION_DATE = "2026-07-27"
+VERSION      = "1.5.3"
+VERSION_DATE = "2026-07-29"
 COPYRIGHT = 'Copyright 1979-2026. Lennart P.L. Landsmeer; Emma J.A. Smulders; Sander W. van der Laan | s.w.vanderlaan [at] gmail [dot] com | https://vanderlaanand.science.'
 COPYRIGHT_TEXT = '''
 The MIT License (MIT).
@@ -1947,7 +1947,8 @@ def check_and_fill_eaf(gwas_data: pd.DataFrame, ref_path: str) -> pd.DataFrame:
 
 
 def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
-                             threads: int = 4) -> pd.DataFrame:
+                             threads: int = 4,
+                             build: str = "19") -> pd.DataFrame:
     """
     Assign CHR and POS from rsID using pre-built per-chromosome HDF5 files.
 
@@ -1958,6 +1959,12 @@ def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
 
     When CHR is absent, all chromosome files are searched (slower but necessary).
     When CHR is present, only the matching chromosome file is loaded (faster).
+
+    build : "19" (GRCh37) or "38" (GRCh38).  Used to select the correct
+            per-build HDF5 files when both hg19 and hg38 files coexist in the
+            same reference directory (GCF_000001405.25 vs GCF_000001405.40).
+            Mixing builds silently assigns positions from the wrong assembly,
+            which — after liftover — produces doubly-shifted coordinates.
     """
     import glob
     import re as _re
@@ -1974,6 +1981,11 @@ def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
         logging.warning("--add-chrpos: no rsID column found — skipping CHR/POS assignment.")
         return gwas_data
 
+    # Map build → GCF assembly accession prefix so we pick the right HDF5 files
+    # when both hg19 (GCF_000001405.25) and hg38 (GCF_000001405.40) files exist.
+    _BUILD_GCF = {"19": "GCF_000001405.25", "38": "GCF_000001405.40"}
+    preferred_gcf = _BUILD_GCF.get(str(build), "")
+
     # Discover HDF5 files
     h5_files = glob.glob(os.path.join(hdf5_dir, "*.chr*.rsID_CHR_POS_mod10.h5"))
     if not h5_files:
@@ -1981,11 +1993,37 @@ def assign_chrpos_from_hdf5(gwas_data: pd.DataFrame, hdf5_dir: str,
                         "Run utility_scripts/make_chrpos_hdf5.py first.", hdf5_dir)
         return gwas_data
 
+    # Build chr → file mapping.  When multiple files match a chromosome (e.g.
+    # both hg19 and hg38 are present), the build-matched file always wins;
+    # a non-matching file is only accepted as a fallback when no matching file
+    # exists for that chromosome.
     chr_to_h5: dict = {}
-    for f in h5_files:
+    chr_to_h5_fallback: dict = {}
+    for f in sorted(h5_files):  # sorted for determinism
         m = _re.search(r"\.chr(\d+)\.", f)
-        if m:
-            chr_to_h5[int(m.group(1))] = f
+        if not m:
+            continue
+        c = int(m.group(1))
+        if preferred_gcf and preferred_gcf in f:
+            chr_to_h5[c] = f            # build-matched — always prefer
+        else:
+            chr_to_h5_fallback[c] = f   # wrong build or unknown — use only if no match
+
+    # Fill in fallback entries for chromosomes where no build-matched file exists
+    for c, f in chr_to_h5_fallback.items():
+        if c not in chr_to_h5:
+            chr_to_h5[c] = f
+
+    if preferred_gcf:
+        n_matched  = sum(1 for f in chr_to_h5.values() if preferred_gcf in f)
+        n_fallback = len(chr_to_h5) - n_matched
+        logging.info("HDF5 build filter: preferred '%s' — %d matched, %d fallback.",
+                     preferred_gcf, n_matched, n_fallback)
+        if n_fallback:
+            logging.warning("--add-chrpos: %d chromosome(s) have no build-%s HDF5 file; "
+                            "a file from a different build will be used for those. "
+                            "Run make_chrpos_hdf5.py --build %s to generate the missing files.",
+                            n_fallback, build, "hg19" if build == "19" else "hg38")
     logging.info("Found HDF5 files for %d chromosome(s).", len(chr_to_h5))
 
     # Initialise output columns if absent
@@ -3272,7 +3310,8 @@ def main() -> None:
 
         if args.add_chrpos:
             gwas_data = assign_chrpos_from_hdf5(gwas_data, args.ref,
-                                                threads=args.threads)
+                                                threads=args.threads,
+                                                build=input_build)
 
         do_fill_eaf = args.fill_eaf and not args.no_fill_eaf
         if args.no_fill_eaf and args.fill_eaf:

@@ -2,6 +2,27 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-07-29 🐛 harmonia.py (v1.5.3) — fix HDF5 build-mixing bug in `assign_chrpos_from_hdf5` (`--add-chrpos`)
+
+**Root cause**: `assign_chrpos_from_hdf5` used a glob pattern (`*.chr*.rsID_CHR_POS_mod10.h5`) that matched **both** hg19 (`GCF_000001405.25`) and hg38 (`GCF_000001405.40`) HDF5 files. When both builds are present in the reference directory (the normal production setup), `chr_to_h5` was populated by last-wins over an unsorted filesystem glob — so each chromosome could end up pointing to either the hg19 or hg38 file, non-deterministically. For hg19 input (MVP studies), chromosomes that accidentally used the hg38 HDF5 received hg38 positions. Liftover then treated those hg38 positions as hg19 and re-shifted them, producing doubly-offset coordinates.
+
+**Example** (CAD_EUR_MVP_withmultiallelic, input hg19 → liftover to hg38):
+
+| variant | hg38 HDF5 position | liftover re-applies hg19→hg38 offset | harmonia output | dbSNP hg38 |
+|---|---|---|---|---|
+| rs17293632 (chr15) | 67,150,258 | −292,338 | 66,857,920 ✗ | 67,150,258 |
+| rs10510432 (chr3)  | 14,823,860 | −41,507  | 14,782,353 ✗ | 14,823,860 |
+| rs60388387 (chr3)  | 14,824,824 | −41,507  | 14,783,317 ✗ | 14,824,824 |
+| rs2925345 (chr15)  | 41,019,601 | −292,198 | 40,727,403 ✗ | 41,019,601 |
+
+chr13 variants (rs9549621, rs1317507) were correct only because chr13 happened to get the hg19 file on that filesystem.
+
+**Fix**: `assign_chrpos_from_hdf5` gains a `build` parameter ("19" or "38"). When scanning HDF5 files, build-matched files (GCF_000001405.25 for hg19, GCF_000001405.40 for hg38) are always preferred over non-matching files. Files are iterated in sorted order (deterministic). A warning is emitted if any chromosome falls back to a non-matching build file. The call site passes `input_build` (the fixed input build, never overwritten by liftover) so the correct files are always selected.
+
+**Impact**: all studies with `--add-chrpos` and a reference directory containing both builds (`CAD_EUR_MVP`, `CAD_EUR_MVP_withmultiallelic`, `CAD_PAN_MVP`, `CAD_PAN_MVP_withmultiallelic`). All must be fully rerun.
+
+**Files**: `harmonia.py`.
+
 ## 2026-07-27 🐛 harmonia.py (v1.5.2) — fix two bugs in `assign_chrpos_from_hdf5` (`--add-chrpos`)
 
 Two bugs in the HDF5 rsID→CHR:POS lookup that can cause some variants to receive wrong positions or remain unmapped after `--add-chrpos`.

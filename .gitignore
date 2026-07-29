@@ -15,6 +15,7 @@ data/*
 harmonia.conf
 gwas_list.txt
 gwas_list_*.txt
+finished_studies.txt
 
 # Zenodo packaging script (local use only, not part of the distributed tool)
 utility_scripts/zenodo_pack.py
