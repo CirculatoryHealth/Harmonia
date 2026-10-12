@@ -2,6 +2,18 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-10-12 ✨ Zenodo upload utilities + environment updates
+
+Added two utility scripts for packaging and uploading Harmonia outputs to Zenodo, and updated the conda environment with the required dependencies.
+
+**`utility_scripts/zenodo_pack.py`** — packs per-study Harmonia output files into `{ABBREVIATION}.tar.gz` archives ready for Zenodo deposit. Reads redistributable studies from SupTab1 in `Tables.xlsx`, finds each study's output directory under `OUT_BASE`, and includes final outputs only (`.cojo.gz`, `.ldsc.tsv.gz`, `.tsv.gz`, `.json`) — intermediate checkpoints (`.pkl`, `.parquet`) and QC plots are excluded. Supports `--dry-run` and `--abbr` to target specific studies.
+
+**`utility_scripts/zenodo_upload.py`** — uploads packed archives to Zenodo via the Files API. Reads deposit DOIs from SupTab1 column U, groups files by upload record, streams each `.tar.gz` and the per-upload manifest TSV to the deposit bucket via `PUT`. Idempotent: checks existing bucket contents and skips already-uploaded files. Supports `--dry-run`, `--upload` (filter by folder prefix), and `--publish` to publish each record on completion. Requires `ZENODO_TOKEN` environment variable (personal access token with `deposit:write` scope).
+
+**`environment.yml`** — added `openpyxl` and `requests` to pip dependencies.
+
+**Files**: `utility_scripts/zenodo_pack.py`, `utility_scripts/zenodo_upload.py`, `environment.yml`, `.gitignore`.
+
 ## 2026-07-29 🐛 harmonia.py (v1.5.3) — fix HDF5 build-mixing bug in `assign_chrpos_from_hdf5` (`--add-chrpos`)
 
 **Root cause**: `assign_chrpos_from_hdf5` used a glob pattern (`*.chr*.rsID_CHR_POS_mod10.h5`) that matched **both** hg19 (`GCF_000001405.25`) and hg38 (`GCF_000001405.40`) HDF5 files. When both builds are present in the reference directory (the normal production setup), `chr_to_h5` was populated by last-wins over an unsorted filesystem glob — so each chromosome could end up pointing to either the hg19 or hg38 file, non-deterministically. For hg19 input (MVP studies), chromosomes that accidentally used the hg38 HDF5 received hg38 positions. Liftover then treated those hg38 positions as hg19 and re-shifted them, producing doubly-offset coordinates.

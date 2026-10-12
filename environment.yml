@@ -24,3 +24,5 @@ dependencies:
       - "sumstats-liftover==1.1.0"
       - "jupyter==1.0.0"
       - gwaslab
+      - openpyxl
+      - requests
