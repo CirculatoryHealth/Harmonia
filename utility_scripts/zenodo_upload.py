@@ -99,26 +99,42 @@ def upload_file(bucket_url: str, local_path: Path, token: str, dry_run: bool) ->
 
     max_attempts = 4
     for attempt in range(1, max_attempts + 1):
-        with tqdm(total=size, unit='B', unit_scale=True, unit_divisor=1024,
-                  desc=f'      {fname}', leave=False) as pbar:
-            with open(local_path, 'rb') as fh:
-                wrapped = CallbackIOWrapper(pbar.update, fh, 'read')
-                resp = requests.put(
-                    f'{bucket_url}/{fname}',
-                    data=wrapped,
-                    headers={
-                        'Authorization':  f'Bearer {token}',
-                        'Content-Type':   'application/octet-stream',
-                        'Content-Length': str(size),
-                    },
-                )
-        if resp.ok:
+        err = None
+        resp = None
+        try:
+            with tqdm(total=size, unit='B', unit_scale=True, unit_divisor=1024,
+                      desc=f'      {fname}', leave=False) as pbar:
+                with open(local_path, 'rb') as fh:
+                    wrapped = CallbackIOWrapper(pbar.update, fh, 'read')
+                    resp = requests.put(
+                        f'{bucket_url}/{fname}',
+                        data=wrapped,
+                        headers={
+                            'Authorization':  f'Bearer {token}',
+                            'Content-Type':   'application/octet-stream',
+                            'Content-Length': str(size),
+                        },
+                        timeout=(30, 300),  # 30s connect, 300s between bytes
+                    )
+        except (requests.ConnectionError, requests.Timeout) as e:
+            err = e
+
+        if err is None and resp.ok:
             break
-        if resp.status_code < 500 or attempt == max_attempts:
+        if attempt == max_attempts:
+            if err:
+                raise err
+            raise requests.HTTPError(
+                f'{resp.status_code} {resp.reason} — {resp.text}', response=resp)
+        if err:
+            reason = f'connection error ({err})'
+        elif resp.status_code >= 500:
+            reason = f'{resp.status_code} server error'
+        else:
             raise requests.HTTPError(
                 f'{resp.status_code} {resp.reason} — {resp.text}', response=resp)
         wait = 30 * attempt
-        print(f'    ⚠ {resp.status_code} server error (attempt {attempt}/{max_attempts}), '
+        print(f'    ⚠ {reason} (attempt {attempt}/{max_attempts}), '
               f'retrying in {wait}s …', flush=True)
         time.sleep(wait)
 
