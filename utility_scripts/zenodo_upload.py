@@ -48,6 +48,8 @@ from pathlib import Path
 
 import openpyxl
 import requests
+from tqdm import tqdm
+from tqdm.utils import CallbackIOWrapper
 
 # ── constants ────────────────────────────────────────────────────────────────
 ZENODO_API   = 'https://zenodo.org/api'
@@ -79,31 +81,37 @@ def get_bucket_url(dep_id: str, token: str) -> str:
     return resp.json()['links']['bucket']
 
 
-def list_bucket_files(bucket_url: str, token: str) -> set[str]:
-    """Return set of filenames already present in the deposit bucket."""
+def list_bucket_files(bucket_url: str, token: str) -> dict[str, int]:
+    """Return {filename: size_in_bytes} for files already present in the deposit bucket."""
     resp = requests.get(bucket_url, headers={'Authorization': f'Bearer {token}'})
     resp.raise_for_status()
-    return {f['key'] for f in resp.json().get('contents', [])}
+    return {f['key']: f['size'] for f in resp.json().get('contents', [])}
 
 
 def upload_file(bucket_url: str, local_path: Path, token: str, dry_run: bool) -> None:
-    """Stream a local file to the Zenodo bucket via PUT."""
+    """Stream a local file to the Zenodo bucket via PUT with a progress bar."""
     fname = local_path.name
     size  = local_path.stat().st_size
     print(f'    ↑ {fname}  ({size / 1e9:.2f} GB)', flush=True)
     if dry_run:
         return
-    with open(local_path, 'rb') as fh:
-        resp = requests.put(
-            f'{bucket_url}/{fname}',
-            data=fh,
-            headers={
-                'Authorization': f'Bearer {token}',
-                'Content-Type':  'application/octet-stream',
-            },
-            stream=True,
-        )
-    resp.raise_for_status()
+
+    with tqdm(total=size, unit='B', unit_scale=True, unit_divisor=1024,
+              desc=f'      {fname}', leave=False) as pbar:
+        with open(local_path, 'rb') as fh:
+            wrapped = CallbackIOWrapper(pbar.update, fh, 'read')
+            resp = requests.put(
+                f'{bucket_url}/{fname}',
+                data=wrapped,
+                headers={
+                    'Authorization':  f'Bearer {token}',
+                    'Content-Type':   'application/octet-stream',
+                    'Content-Length': str(size),
+                },
+            )
+    if not resp.ok:
+        raise requests.HTTPError(
+            f'{resp.status_code} {resp.reason} — {resp.text}', response=resp)
     print(f'    ✓ {fname}', flush=True)
 
 
@@ -149,13 +157,15 @@ def load_upload_map(excel_path: str) -> dict[str, dict]:
         if not doi or not folder or 'Free' not in pub:
             continue
 
+        uploaded = bool(row[COL_UPLOADED])
+
         if folder not in uploads:
             uploads[folder] = {
                 'doi':    doi,
                 'dep_id': deposit_id_from_doi(doi),
                 'files':  [],
             }
-        uploads[folder]['files'].append(abbr)
+        uploads[folder]['files'].append({'abbr': abbr, 'uploaded': uploaded})
 
     return uploads
 
@@ -209,21 +219,34 @@ def main() -> None:
             print(f'[{folder}] WARNING: directory not found, skipping')
             continue
 
-        print(f'[{folder}]  deposit={dep_id}  ({len(abbrs)} studies)')
+        n_studies  = len(abbrs)
+        n_uploaded = sum(1 for f in abbrs if f['uploaded'])
 
-        if args.dry_run:
-            existing = set()
-        else:
-            try:
-                bucket_url = get_bucket_url(dep_id, token)
-                existing   = list_bucket_files(bucket_url, token)
-            except requests.HTTPError as e:
-                print(f'  ERROR fetching deposit: {e}')
-                continue
+        if n_uploaded == n_studies:
+            print(f'[{folder}]  deposit={dep_id} — all {n_studies} studies already uploaded '
+                  f'(column W), skipping')
+            print()
+            continue
+
+        print(f'[{folder}]  deposit={dep_id}  '
+              f'({n_studies} studies, {n_uploaded} already uploaded)')
+
+        # Always fetch bucket state (read-only); only skip the PUT in dry-run.
+        try:
+            bucket_url = get_bucket_url(dep_id, token)
+            existing   = list_bucket_files(bucket_url, token)
+        except requests.HTTPError as e:
+            print(f'  ERROR fetching deposit: {e}')
+            continue
 
         # Collect files to upload: archives + manifest
         targets: list[Path] = []
-        for abbr in abbrs:
+        for file_info in abbrs:
+            abbr = file_info['abbr']
+            if file_info['uploaded']:
+                print(f'  – {abbr}.tar.gz already uploaded (column W), skipping')
+                total_skipped += 1
+                continue
             p = folder_dir / f'{abbr}.tar.gz'
             if p.exists():
                 targets.append(p)
@@ -237,14 +260,16 @@ def main() -> None:
             print(f'  WARNING: no manifest TSV found in {folder}')
 
         for fpath in targets:
-            if fpath.name in existing:
-                print(f'    – {fpath.name} already in bucket, skipping')
-                total_skipped += 1
-                continue
-            if not args.dry_run:
-                upload_file(bucket_url, fpath, token, dry_run=False)
-            else:
-                upload_file(bucket_url, fpath, token, dry_run=True)
+            bucket_size = existing.get(fpath.name)
+            if bucket_size is not None:
+                local_size = fpath.stat().st_size
+                if bucket_size == local_size:
+                    print(f'    – {fpath.name} already in bucket, skipping')
+                    total_skipped += 1
+                    continue
+                print(f'    ⚠ {fpath.name} partial in bucket '
+                      f'({bucket_size / 1e9:.2f} / {local_size / 1e9:.2f} GB), re-uploading')
+            upload_file(bucket_url, fpath, token, dry_run=args.dry_run)
             total_uploads += 1
 
         if args.publish and not args.dry_run:
