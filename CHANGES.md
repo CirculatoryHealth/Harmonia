@@ -2,6 +2,14 @@
 
 This document tracks changes to the codebase. Each entry should include a brief description of the change, the files affected, and any relevant context or reasoning behind the change. This helps maintain a clear history of modifications and facilitates collaboration among developers.
 
+## 2026-10-18 🐛 zenodo_upload.py — fix large-file upload failures (curl backend)
+
+**Problem**: single-file `PUT` requests for archives ≥ ~1 GB consistently returned `502 Bad Gateway` from Zenodo's reverse proxy mid-transfer. The proxy times out the upstream connection before a 20-minute transfer completes, even though data was actively flowing at ~15 MB/s. An attempt to use InvenioRDM's S3-style multipart upload (`POST ?uploads`) also failed: Zenodo's production instance registers the object endpoint with GET/PUT/DELETE only, returning `405 Method Not Allowed`.
+
+**Fix**: files ≥ 1 GB are now uploaded via `curl` (invoked as a subprocess) instead of Python `requests`. `curl` uses kernel-level TCP keep-alive and native HTTP/1.1 connection management, which keeps the connection healthy over long transfers without Python-level timeouts. A 4-hour hard cap (`--max-time 14400`) and the existing 4-attempt retry loop are preserved. Files < 1 GB continue to use the Python `requests` single-PUT path.
+
+**Files**: `utility_scripts/zenodo_upload.py`.
+
 ## 2026-10-12 ✨ Zenodo upload utilities + environment updates
 
 Added two utility scripts for packaging and uploading Harmonia outputs to Zenodo, and updated the conda environment with the required dependencies.
