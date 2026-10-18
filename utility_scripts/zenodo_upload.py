@@ -53,8 +53,9 @@ from tqdm import tqdm
 from tqdm.utils import CallbackIOWrapper
 
 # ── constants ────────────────────────────────────────────────────────────────
-ZENODO_API   = 'https://zenodo.org/api'
-CHUNK_SIZE   = 8 * 1024 * 1024   # 8 MB streaming chunks
+ZENODO_API          = 'https://zenodo.org/api'
+CHUNK_SIZE          = 8 * 1024 * 1024    # 8 MB streaming chunks (single-PUT path)
+MULTIPART_THRESHOLD = 1_073_741_824      # files ≥ 1 GB use curl (avoids proxy timeouts)
 
 HEADER_ROW   = 17   # 1-indexed row that contains column names
 COL_ABBR     = 2
@@ -89,12 +90,79 @@ def list_bucket_files(bucket_url: str, token: str) -> dict[str, int]:
     return {f['key']: f['size'] for f in resp.json().get('contents', [])}
 
 
+def _upload_curl(bucket_url: str, local_path: Path, token: str) -> None:
+    """Upload a large file via curl, which handles long-running transfers reliably.
+
+    Python's requests library triggers 502s on Zenodo for multi-GB files because
+    the connection can time out at Zenodo's reverse proxy mid-upload.  curl manages
+    the TCP connection natively and avoids that issue.
+
+    Progress is shown via curl's built-in progress bar (to stderr).
+    HTTP status code is captured via --write-out so we can retry on failure.
+    """
+    import shutil
+    import subprocess
+
+    if not shutil.which('curl'):
+        raise RuntimeError('curl not found in PATH — required for large-file uploads')
+
+    fname = local_path.name
+    url   = f'{bucket_url}/{fname}'
+
+    max_attempts = 4
+    for attempt in range(1, max_attempts + 1):
+        # curl writes its progress bar to stderr (visible in terminal).
+        # --write-out appends the HTTP status code to stdout so we can check it.
+        # --output /dev/null discards the response body.
+        proc = subprocess.run(
+            [
+                'curl', '--progress-bar',
+                '-X', 'PUT',
+                '-H', f'Authorization: Bearer {token}',
+                '-H', 'Content-Type: application/octet-stream',
+                '--upload-file', str(local_path),
+                '--output', '/dev/null',
+                '--write-out', '%{http_code}',
+                '--connect-timeout', '30',
+                '--max-time', '14400',   # 4-hour hard cap
+                url,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=None,    # let curl's progress bar print to the terminal
+            text=True,
+        )
+        http_code = proc.stdout.strip()
+        success   = proc.returncode == 0 and http_code.startswith('2')
+
+        if success:
+            break
+        if attempt == max_attempts:
+            raise RuntimeError(
+                f'curl failed after {max_attempts} attempts '
+                f'(exit={proc.returncode}, HTTP={http_code})')
+        reason = f'HTTP {http_code}' if http_code else f'curl exit {proc.returncode}'
+        wait = 30 * attempt
+        print(f'    ⚠ {reason} (attempt {attempt}/{max_attempts}), '
+              f'retrying in {wait}s …', flush=True)
+        time.sleep(wait)
+
+
 def upload_file(bucket_url: str, local_path: Path, token: str, dry_run: bool) -> None:
-    """Stream a local file to the Zenodo bucket via PUT with a progress bar."""
+    """Stream a local file to the Zenodo bucket via PUT with a progress bar.
+
+    Files ≥ 1 GB are uploaded via curl (avoids proxy timeouts on long PUTs).
+    Files < 1 GB use a single streaming PUT.
+    """
     fname = local_path.name
     size  = local_path.stat().st_size
-    print(f'    ↑ {fname}  ({size / 1e9:.2f} GB)', flush=True)
+    mode  = 'curl' if size >= MULTIPART_THRESHOLD else 'single PUT'
+    print(f'    ↑ {fname}  ({size / 1e9:.2f} GB) [{mode}]', flush=True)
     if dry_run:
+        return
+
+    if size >= MULTIPART_THRESHOLD:
+        _upload_curl(bucket_url, local_path, token)
+        print(f'    ✓ {fname}', flush=True)
         return
 
     max_attempts = 4
