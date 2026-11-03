@@ -813,6 +813,12 @@ Warnings from gwaslab/matplotlib/htslib internals (`FutureWarning`, `UserWarning
 
 ---
 
+## 🤖 Generative AI
+
+Claude (Sonnet 4.6) was used to polish and check the language for spelling, grammar and overall syntax of the manuscript, as well as checking and cleaning codes and code-annotations for inconsistencies, mistakes, and clarity.
+
+---
+
 ## 📖 License
 
 ```
